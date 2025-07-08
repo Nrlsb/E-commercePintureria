@@ -5,7 +5,7 @@ import { Routes, Route, useNavigate } from 'react-router-dom';
 // Importación de Componentes
 import Header from './components/Header.jsx';
 import Navbar from './components/Navbar.jsx';
-import Footer from './components/Footer.jsx';
+import Footer from './components/Footer.jsx'; // <-- La importación que faltaba
 import Notification from './components/Notification.jsx';
 
 // Importación de Páginas
@@ -16,19 +16,22 @@ import CheckoutPage from './pages/CheckoutPage.jsx';
 import OrderSuccessPage from './pages/OrderSuccessPage.jsx';
 import SearchResultsPage from './pages/SearchResultsPage.jsx';
 import CategoryPage from './pages/CategoryPage.jsx';
+import LoginPage from './pages/LoginPage.jsx';
+import RegisterPage from './pages/RegisterPage.jsx';
 
 export default function App() {
   const [cart, setCart] = useState([]);
   const navigate = useNavigate();
   const [notification, setNotification] = useState({ message: '', show: false });
   const [searchQuery, setSearchQuery] = useState('');
-  
-  // 1. Nuevos estados para manejar los productos de la API
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  
+  // Estado para la autenticación
+  const [user, setUser] = useState(null);
+  const [token, setToken] = useState(localStorage.getItem('token'));
 
-  // 2. useEffect para cargar los productos desde el backend al iniciar la app
   useEffect(() => {
     const fetchProducts = async () => {
       try {
@@ -37,18 +40,31 @@ export default function App() {
           throw new Error('No se pudo conectar con el servidor');
         }
         const data = await response.json();
-        setProducts(data); // Guardamos los productos en el estado
+        setProducts(data);
       } catch (err) {
-        setError(err.message); // Guardamos el error si algo falla
+        setError(err.message);
       } finally {
-        setLoading(false); // Dejamos de cargar, ya sea con éxito o error
+        setLoading(false);
       }
     };
 
     fetchProducts();
-  }, []); // El array vacío asegura que se ejecute solo una vez
+    // Aquí también podrías añadir lógica para verificar el token y cargar los datos del usuario
+  }, []);
 
-  // --- Lógica del Carrito (sin cambios) ---
+  const handleLoginSuccess = (newToken, userData) => {
+    localStorage.setItem('token', newToken);
+    setToken(newToken);
+    setUser(userData);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    setToken(null);
+    setUser(null);
+    navigate('/');
+  };
+
   const handleAddToCart = (product, quantity = 1) => {
     setCart(prevCart => {
         const existingProduct = prevCart.find(item => item.id === product.id);
@@ -62,31 +78,35 @@ export default function App() {
     });
     setNotification({ message: `¡Añadido al carrito!`, show: true });
   };
-  // ... (resto de funciones del carrito y navegación sin cambios) ...
+
   const handleUpdateQuantity = (productId, newQuantity) => {
     if (newQuantity <= 0) { handleRemoveItem(productId); return; }
     setCart(prevCart => prevCart.map(item => item.id === productId ? { ...item, quantity: newQuantity } : item));
   };
+
   const handleRemoveItem = (productId) => {
     setCart(prevCart => prevCart.filter(item => item.id !== productId));
   };
+
   const handlePlaceOrder = () => {
     setCart([]);
     navigate('/success');
   }
+
   const handleSearch = (query) => {
     setSearchQuery(query);
     navigate('/search');
   };
+
   useEffect(() => {
     if (notification.show) {
       const timer = setTimeout(() => { setNotification({ ...notification, show: false }); }, 3000);
       return () => clearTimeout(timer);
     }
   }, [notification]);
+
   const cartItemCount = cart.reduce((total, item) => total + item.quantity, 0);
 
-  // 3. Renderizado condicional mientras se cargan los datos
   if (loading) {
     return <div className="flex justify-center items-center h-screen text-2xl">Cargando productos...</div>;
   }
@@ -96,12 +116,11 @@ export default function App() {
 
   return (
     <div className="bg-gray-50 min-h-screen font-sans flex flex-col relative">
-      <Header cartItemCount={cartItemCount} onSearch={handleSearch} />
+      <Header cartItemCount={cartItemCount} onSearch={handleSearch} user={user} onLogout={handleLogout} />
       <Navbar />
       
       <main className="flex-grow container mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Routes>
-          {/* 4. Pasamos la lista de productos a las páginas que la necesitan */}
           <Route path="/" element={<HomePage products={products} onAddToCart={handleAddToCart} />} />
           <Route path="/product/:productId" element={<ProductDetailPage onAddToCart={handleAddToCart} />} />
           <Route path="/cart" element={<CartPage cart={cart} onUpdateQuantity={handleUpdateQuantity} onRemoveItem={handleRemoveItem} />} />
@@ -109,6 +128,8 @@ export default function App() {
           <Route path="/success" element={<OrderSuccessPage />} />
           <Route path="/search" element={<SearchResultsPage products={products} query={searchQuery} onAddToCart={handleAddToCart} />} />
           <Route path="/category/:categoryName" element={<CategoryPage products={products} onAddToCart={handleAddToCart} />} />
+          <Route path="/login" element={<LoginPage onLoginSuccess={handleLoginSuccess} />} />
+          <Route path="/register" element={<RegisterPage />} />
         </Routes>
       </main>
 

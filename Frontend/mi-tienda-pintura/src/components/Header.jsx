@@ -1,19 +1,17 @@
 // src/components/Header.jsx
-import React, { useState } from 'react'; // 1. Importar useState
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import Icon from './Icon.jsx';
 import { ICONS } from '../data/icons.js';
 
-// 2. Añadir la prop 'onSearch'
-const Header = ({ cartItemCount, onSearch }) => {
-  // 3. Crear estado para el campo de búsqueda
+const Header = ({ cartItemCount, onSearch, user, onLogout }) => {
   const [query, setQuery] = useState('');
 
   const handleSubmit = (e) => {
-    e.preventDefault(); // Evita que la página se recargue
+    e.preventDefault();
     if (query.trim()) {
-      onSearch(query.trim()); // Llama a la función de búsqueda de App.jsx
-      setQuery(''); // Limpia el campo después de buscar
+      onSearch(query.trim());
+      setQuery('');
     }
   };
 
@@ -21,11 +19,12 @@ const Header = ({ cartItemCount, onSearch }) => {
     <header className="bg-white shadow-md sticky top-0 z-40">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-20">
+          {/* Logo (Restaurado) */}
           <Link to="/" className="text-2xl font-bold text-blue-600">
             Pinturerías Mercurio
           </Link>
 
-          {/* 4. Convertir la barra de búsqueda en un formulario */}
+          {/* Barra de Búsqueda (Restaurada) */}
           <form onSubmit={handleSubmit} className="hidden md:flex flex-1 justify-center px-8">
             <div className="relative w-full max-w-lg">
               <input 
@@ -41,7 +40,22 @@ const Header = ({ cartItemCount, onSearch }) => {
             </div>
           </form>
 
-          <div className="flex items-center space-x-6">
+          {/* Iconos de la Derecha (con lógica de autenticación) */}
+          <div className="flex items-center space-x-4">
+            {user ? (
+              <>
+                <span className="text-gray-600 hidden md:inline">Hola, {user.email.split('@')[0]}</span>
+                <button onClick={onLogout} className="text-gray-600 hover:text-blue-600 font-semibold">
+                  Salir
+                </button>
+              </>
+            ) : (
+              <Link to="/login" className="hidden sm:flex items-center text-gray-600 hover:text-blue-600">
+                <Icon path={ICONS.user} />
+                <span className="ml-2">Mi Cuenta</span>
+              </Link>
+            )}
+            <div className="h-6 border-l border-gray-300 hidden sm:block"></div>
             <Link to="/cart" className="flex items-center text-gray-600 hover:text-blue-600 relative">
               <Icon path={ICONS.shoppingCart} />
               <span className="ml-2">Carrito</span>
