@@ -11,6 +11,8 @@ import Footer from './components/Footer';
 import HeroBanner from './components/HeroBanner';
 import ProductCard from './components/ProductCard';
 
+// ¡IMPORTANTE! La línea "import './App.css'" ha sido eliminada de aquí.
+
 // Componente principal que une toda la aplicación.
 export default function App() {
   const [cartItemCount, setCartItemCount] = useState(0);
@@ -54,9 +56,6 @@ export default function App() {
   );
 
   // --- PÁGINAS SIMULADAS ---
-  // En una app real, esto se manejaría con una librería de ruteo como React Router.
-  
-  // Por ahora, no tenemos estas páginas, pero el sistema está listo.
   const renderProductDetailPage = () => <div>Página de Detalle para: {selectedProduct?.name}</div>;
   const renderCartPage = () => <div>Página del Carrito</div>;
 

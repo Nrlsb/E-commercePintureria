@@ -1,6 +1,6 @@
-// src/data/products.js
-// Datos de muestra para los productos. En una aplicación real,
-// esto vendría de una API, pero para el frontend es útil tenerlo así.
+// backend-pintureria/data/products.js
+// Estos son los mismos datos que usamos en el frontend.
+// Los exportamos para que nuestro server.js pueda usarlos.
 
 export const mockProducts = [
   {
@@ -10,7 +10,7 @@ export const mockProducts = [
     category: 'Interior',
     price: 34500.00,
     oldPrice: 39000.00,
-    imageUrl: 'https://placehold.co/400x400/f0f0f0/333?text=Pintura+Interior',
+    imageUrl: 'https://placehold.co/600x600/f0f0f0/333?text=Pintura+Interior',
     tag: 'Oferta'
   },
   {
@@ -20,7 +20,7 @@ export const mockProducts = [
     category: 'Exterior',
     price: 21800.00,
     oldPrice: null,
-    imageUrl: 'https://placehold.co/400x400/e0e0e0/333?text=Impermeabilizante',
+    imageUrl: 'https://placehold.co/600x600/e0e0e0/333?text=Impermeabilizante',
     tag: 'Nuevo'
   },
   {
@@ -30,7 +30,7 @@ export const mockProducts = [
     category: 'Esmaltes',
     price: 7500.00,
     oldPrice: null,
-    imageUrl: 'https://placehold.co/400x400/f5f5f5/333?text=Esmalte',
+    imageUrl: 'https://placehold.co/600x600/f5f5f5/333?text=Esmalte',
     tag: null
   },
   {
@@ -40,7 +40,7 @@ export const mockProducts = [
     category: 'Aerosoles',
     price: 4950.00,
     oldPrice: 5500.00,
-    imageUrl: 'https://placehold.co/400x400/ddd/333?text=Aerosol',
+    imageUrl: 'https://placehold.co/600x600/ddd/333?text=Aerosol',
     tag: '10% OFF'
   }
 ];

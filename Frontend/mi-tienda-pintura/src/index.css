@@ -1,0 +1,4 @@
+/* Este archivo se deja vacío a propósito.
+  Tailwind CSS ahora se está cargando a través del CDN en el archivo index.html,
+  por lo que las directivas @tailwind ya no son necesarias aquí.
+*/
