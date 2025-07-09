@@ -1,13 +1,26 @@
 // backend-pintureria/db.js
 import dotenv from 'dotenv';
-dotenv.config(); // <-- AÑADIMOS ESTO AQUÍ para asegurar que las variables se carguen
+dotenv.config();
 
 import pg from 'pg';
 
 const { Pool } = pg;
 
-// Ahora, cuando se crea el Pool, las variables de process.env ya estarán disponibles.
-const pool = new Pool({
+// 1. Configuración de la conexión
+const connectionConfig = {
+  // Si estamos en producción (Render), usamos la URL de la base de datos.
+  // Render establece la variable NODE_ENV a 'production' automáticamente.
+  connectionString: process.env.DATABASE_URL,
+  // Esta configuración SSL es necesaria para las conexiones en producción en Render.
+  ssl: {
+    rejectUnauthorized: false,
+  },
+};
+
+// 2. Creamos el Pool de conexiones
+// Si no estamos en producción, el connectionString será 'undefined' y 'pg'
+// usará automáticamente las variables PG* (o DB_*) de nuestro .env local.
+const pool = new Pool(process.env.NODE_ENV === 'production' ? connectionConfig : {
   user: process.env.DB_USER,
   host: process.env.DB_HOST,
   database: process.env.DB_DATABASE,
