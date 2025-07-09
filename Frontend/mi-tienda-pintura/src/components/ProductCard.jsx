@@ -1,28 +1,40 @@
 // src/components/ProductCard.jsx
 import React from 'react';
-import { Link } from 'react-router-dom'; // Importar Link
+import { Link } from 'react-router-dom';
+import Icon from './Icon.jsx';
+import { ICONS } from '../data/icons.js';
 
 const ProductCard = ({ product, onAddToCart }) => {
   return (
-    <div className="bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-xl transition-shadow duration-300 flex flex-col overflow-hidden group">
-      {/* ... */}
-      <Link to={`/product/${product.id}`} className="relative w-full h-56 cursor-pointer">
+    // CAMBIO: Sombra más suave, bordes redondeados y efecto de elevación al pasar el mouse.
+    <div className="bg-white border border-gray-200 rounded-xl shadow-md hover:shadow-xl flex flex-col overflow-hidden transition-all duration-300 ease-in-out transform hover:-translate-y-1 group">
+      <Link to={`/product/${product.id}`} className="relative w-full h-56 cursor-pointer block">
         <img src={product.imageUrl} alt={`Imagen de ${product.name}`} className="w-full h-full object-cover"/>
       </Link>
       <div className="p-4 flex flex-col flex-grow">
         <h3 className="text-gray-500 text-xs uppercase tracking-widest mb-1">{product.brand}</h3>
-        <Link to={`/product/${product.id}`}>
-            <h2 className="text-gray-900 text-base font-medium mb-2 h-12 cursor-pointer group-hover:text-blue-600 transition-colors">
+        {/* CAMBIO: El título cambia al color de acento amarillo al hacer hover en la tarjeta. */}
+        <Link to={`/product/${product.id}`} className="h-12 mb-2">
+            <h2 className="text-gray-800 text-base font-semibold leading-tight cursor-pointer group-hover:text-[#0F3460] transition-colors">
                 {product.name}
             </h2>
         </Link>
-        {/* ... resto de la tarjeta ... */}
-        <button 
-            onClick={() => onAddToCart(product)}
-            className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg font-semibold hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 transition-colors duration-300"
-        >
-            Agregar al Carrito
-        </button>
+        <div className="mt-auto">
+          <div className="flex items-baseline mb-4">
+            <p className="text-2xl font-bold text-[#0F3460]">${new Intl.NumberFormat('es-AR').format(product.price)}</p>
+            {product.oldPrice && (
+              <p className="text-md text-gray-400 line-through ml-2">${new Intl.NumberFormat('es-AR').format(product.oldPrice)}</p>
+            )}
+          </div>
+          {/* CAMBIO: Botón rediseñado con el color primario y un ícono. */}
+          <button 
+              onClick={() => onAddToCart(product)}
+              className="w-full flex items-center justify-center bg-[#0F3460] text-white py-2.5 px-4 rounded-lg font-semibold hover:bg-[#1a4a8a] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#0F3460] transition-colors duration-300"
+          >
+              <Icon path={ICONS.shoppingCart} className="w-5 h-5 mr-2" />
+              Agregar al Carrito
+          </button>
+        </div>
       </div>
     </div>
   );

@@ -37,26 +37,30 @@ const RegisterPage = () => {
   };
 
   return (
-    <div className="flex justify-center items-center py-12">
-      <div className="w-full max-w-md p-8 space-y-6 bg-white rounded-lg shadow-md">
-        <h1 className="text-2xl font-bold text-center">Crear Cuenta</h1>
+    <div className="flex justify-center items-center py-12 px-4">
+      {/* CAMBIO: Sombra y bordes más pronunciados. */}
+      <div className="w-full max-w-md p-8 space-y-6 bg-white rounded-xl shadow-lg">
+        <h1 className="text-3xl font-bold text-center text-gray-800">Crear Cuenta</h1>
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
-            <label className="block mb-1 font-medium">Email</label>
-            <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full p-3 border rounded-md" required />
+            <label className="block mb-2 font-medium text-gray-700">Email</label>
+            {/* CAMBIO: Estilo de input mejorado con focus ring. */}
+            <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0F3460]" required />
           </div>
           <div>
-            <label className="block mb-1 font-medium">Contraseña</label>
-            <input type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full p-3 border rounded-md" required />
+            <label className="block mb-2 font-medium text-gray-700">Contraseña</label>
+            <input type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0F3460]" required />
           </div>
-          {error && <p className="text-red-500 text-sm">{error}</p>}
-          {success && <p className="text-green-500 text-sm">{success}</p>}
-          <button type="submit" className="w-full p-3 text-white bg-blue-600 rounded-md hover:bg-blue-700">
+          {error && <p className="text-red-500 text-sm text-center">{error}</p>}
+          {success && <p className="text-green-500 text-sm text-center">{success}</p>}
+          {/* CAMBIO: Botón con el color primario de la marca. */}
+          <button type="submit" className="w-full p-3 text-white bg-[#0F3460] rounded-lg font-semibold hover:bg-[#1a4a8a] transition-colors duration-300">
             Registrarse
           </button>
         </form>
-        <p className="text-center">
-          ¿Ya tienes una cuenta? <Link to="/login" className="text-blue-600 hover:underline">Inicia sesión aquí</Link>
+        <p className="text-center text-gray-600">
+          ¿Ya tienes una cuenta? {/* CAMBIO: Estilo del enlace. */}
+          <Link to="/login" className="font-semibold text-[#0F3460] hover:underline">Inicia sesión aquí</Link>
         </p>
       </div>
     </div>

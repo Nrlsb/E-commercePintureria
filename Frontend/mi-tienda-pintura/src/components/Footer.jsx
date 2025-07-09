@@ -1,10 +1,10 @@
-// src/components/Footer.js
+// src/components/Footer.jsx
 import React from 'react';
 
-// Componente para el pie de página.
 const Footer = () => {
     return (
-        <footer className="bg-gray-800 text-white mt-12">
+        // CAMBIO: Fondo con el color azul del logo.
+        <footer className="bg-[#0F3460] text-white mt-12">
             <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-12">
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
                     <div>
@@ -14,26 +14,28 @@ const Footer = () => {
                     <div>
                         <h3 className="text-lg font-bold mb-4">Categorías</h3>
                         <ul className="space-y-2">
-                            <li><a href="#" className="text-gray-400 hover:text-white">Interior</a></li>
-                            <li><a href="#" className="text-gray-400 hover:text-white">Exterior</a></li>
-                            <li><a href="#" className="text-gray-400 hover:text-white">Accesorios</a></li>
-                            <li><a href="#" className="text-gray-400 hover:text-white">Ofertas</a></li>
+                            {/* CAMBIO: Efecto de transición en los enlaces. */}
+                            <li><a href="#" className="text-gray-400 hover:text-white transition-colors">Interior</a></li>
+                            <li><a href="#" className="text-gray-400 hover:text-white transition-colors">Exterior</a></li>
+                            <li><a href="#" className="text-gray-400 hover:text-white transition-colors">Accesorios</a></li>
+                            <li><a href="#" className="text-gray-400 hover:text-white transition-colors">Ofertas</a></li>
                         </ul>
                     </div>
                     <div>
                         <h3 className="text-lg font-bold mb-4">Atención al Cliente</h3>
                         <ul className="space-y-2">
-                            <li><a href="#" className="text-gray-400 hover:text-white">Contacto</a></li>
-                            <li><a href="#" className="text-gray-400 hover:text-white">Preguntas Frecuentes</a></li>
-                            <li><a href="#" className="text-gray-400 hover:text-white">Cómo comprar</a></li>
+                            <li><a href="#" className="text-gray-400 hover:text-white transition-colors">Contacto</a></li>
+                            <li><a href="#" className="text-gray-400 hover:text-white transition-colors">Preguntas Frecuentes</a></li>
+                            <li><a href="#" className="text-gray-400 hover:text-white transition-colors">Cómo comprar</a></li>
                         </ul>
                     </div>
                     <div>
                         <h3 className="text-lg font-bold mb-4">Medios de Pago</h3>
+                        {/* CAMBIO: Placeholder de tarjetas con mejor estilo. */}
                         <div className="flex space-x-2">
-                            <div className="w-12 h-8 bg-gray-600 rounded-md flex items-center justify-center text-xs">Visa</div>
-                            <div className="w-12 h-8 bg-gray-600 rounded-md flex items-center justify-center text-xs">Master</div>
-                            <div className="w-12 h-8 bg-gray-600 rounded-md flex items-center justify-center text-xs">Amex</div>
+                            <div className="w-12 h-8 bg-gray-200 rounded-md flex items-center justify-center text-xs font-semibold text-gray-600">Visa</div>
+                            <div className="w-12 h-8 bg-gray-200 rounded-md flex items-center justify-center text-xs font-semibold text-gray-600">Master</div>
+                            <div className="w-12 h-8 bg-gray-200 rounded-md flex items-center justify-center text-xs font-semibold text-gray-600">Amex</div>
                         </div>
                     </div>
                 </div>
