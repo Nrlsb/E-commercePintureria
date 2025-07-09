@@ -8,7 +8,6 @@ import Header from './components/Header.jsx';
 import Navbar from './components/Navbar.jsx';
 import Footer from './components/Footer.jsx';
 import Notification from './components/Notification.jsx';
-// 1. Importar los nuevos componentes y páginas de administración
 import AdminRoute from './components/AdminRoute.jsx';
 import AdminDashboardPage from './pages/AdminDashboardPage.jsx';
 import ProductFormPage from './pages/ProductFormPage.jsx';
@@ -28,7 +27,6 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
 initMercadoPago('TU_PUBLIC_KEY', { locale: 'es-AR' });
 
-// Función para decodificar el token JWT y obtener los datos del usuario
 const parseJwt = (token) => {
   try {
     return JSON.parse(atob(token.split('.')[1]));
@@ -45,7 +43,6 @@ export default function App() {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  // 2. El estado 'user' ahora se inicializa desde el token en localStorage
   const [user, setUser] = useState(() => {
     const token = localStorage.getItem('token');
     return token ? parseJwt(token) : null;
@@ -73,7 +70,6 @@ export default function App() {
   const handleLoginSuccess = (newToken, userData) => {
     localStorage.setItem('token', newToken);
     setToken(newToken);
-    // 3. Guardamos toda la información del usuario, incluido el rol
     setUser(userData);
   };
 
@@ -148,7 +144,8 @@ export default function App() {
         <Routes>
           {/* Rutas Públicas */}
           <Route path="/" element={<HomePage products={products} onAddToCart={handleAddToCart} />} />
-          <Route path="/product/:productId" element={<ProductDetailPage onAddToCart={handleAddToCart} />} />
+          {/* CAMBIO: Se pasa la prop 'products' a ProductDetailPage */}
+          <Route path="/product/:productId" element={<ProductDetailPage products={products} onAddToCart={handleAddToCart} />} />
           <Route path="/cart" element={<CartPage cart={cart} onUpdateQuantity={handleUpdateQuantity} onRemoveItem={handleRemoveItem} />} />
           <Route path="/checkout" element={<CheckoutPage cart={cart} onPlaceOrder={handlePlaceOrder} />} />
           <Route path="/success" element={<OrderSuccessPage />} />
@@ -157,7 +154,7 @@ export default function App() {
           <Route path="/login" element={<LoginPage onLoginSuccess={handleLoginSuccess} />} />
           <Route path="/register" element={<RegisterPage />} />
 
-          {/* 4. Rutas de Administración Protegidas */}
+          {/* Rutas de Administración Protegidas */}
           <Route element={<AdminRoute user={user} />}>
             <Route path="/admin" element={<AdminDashboardPage />} />
             <Route path="/admin/product/new" element={<ProductFormPage />} />
