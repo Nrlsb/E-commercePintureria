@@ -27,7 +27,7 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 // 2. Inicializar el SDK de Mercado Pago con tu Public Key
 // ¡IMPORTANTE! Reemplaza 'TU_PUBLIC_KEY' con tu clave pública real.
 // Esta llamada se hace fuera del componente para que se ejecute una sola vez.
-initMercadoPago('APP_USR-8c7b48a0-dc73-48a1-9fd5-2829fdc647f9', {
+initMercadoPago('APP_USR-b2b31af4-7b53-466c-bf0b-430714909357', {
   locale: 'es-AR' // Opcional: define el idioma de la interfaz de Mercado Pago
 });
 
