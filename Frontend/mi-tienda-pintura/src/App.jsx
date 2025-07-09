@@ -5,7 +5,7 @@ import { Routes, Route, useNavigate } from 'react-router-dom';
 // Importación de Componentes
 import Header from './components/Header.jsx';
 import Navbar from './components/Navbar.jsx';
-import Footer from './components/Footer.jsx'; // <-- La importación que faltaba
+import Footer from './components/Footer.jsx';
 import Notification from './components/Notification.jsx';
 
 // Importación de Páginas
@@ -19,6 +19,9 @@ import CategoryPage from './pages/CategoryPage.jsx';
 import LoginPage from './pages/LoginPage.jsx';
 import RegisterPage from './pages/RegisterPage.jsx';
 
+// Definir la URL de la API usando la variable de entorno de Vite
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+
 export default function App() {
   const [cart, setCart] = useState([]);
   const navigate = useNavigate();
@@ -27,15 +30,14 @@ export default function App() {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  
-  // Estado para la autenticación
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(localStorage.getItem('token'));
 
   useEffect(() => {
     const fetchProducts = async () => {
       try {
-        const response = await fetch('http://localhost:5001/api/products');
+        // Usar la variable API_URL en la llamada fetch
+        const response = await fetch(`${API_URL}/api/products`);
         if (!response.ok) {
           throw new Error('No se pudo conectar con el servidor');
         }
@@ -49,7 +51,6 @@ export default function App() {
     };
 
     fetchProducts();
-    // Aquí también podrías añadir lógica para verificar el token y cargar los datos del usuario
   }, []);
 
   const handleLoginSuccess = (newToken, userData) => {
@@ -67,21 +68,26 @@ export default function App() {
 
   const handleAddToCart = (product, quantity = 1) => {
     setCart(prevCart => {
-        const existingProduct = prevCart.find(item => item.id === product.id);
-        if (existingProduct) {
-            return prevCart.map(item => 
-                item.id === product.id ? { ...item, quantity: item.quantity + quantity } : item
-            );
-        } else {
-            return [...prevCart, { ...product, quantity }];
-        }
+      const existingProduct = prevCart.find(item => item.id === product.id);
+      if (existingProduct) {
+        return prevCart.map(item =>
+          item.id === product.id ? { ...item, quantity: item.quantity + quantity } : item
+        );
+      } else {
+        return [...prevCart, { ...product, quantity }];
+      }
     });
     setNotification({ message: `¡Añadido al carrito!`, show: true });
   };
 
   const handleUpdateQuantity = (productId, newQuantity) => {
-    if (newQuantity <= 0) { handleRemoveItem(productId); return; }
-    setCart(prevCart => prevCart.map(item => item.id === productId ? { ...item, quantity: newQuantity } : item));
+    if (newQuantity <= 0) {
+      handleRemoveItem(productId);
+      return;
+    }
+    setCart(prevCart => prevCart.map(item =>
+      item.id === productId ? { ...item, quantity: newQuantity } : item
+    ));
   };
 
   const handleRemoveItem = (productId) => {
@@ -91,7 +97,7 @@ export default function App() {
   const handlePlaceOrder = () => {
     setCart([]);
     navigate('/success');
-  }
+  };
 
   const handleSearch = (query) => {
     setSearchQuery(query);
@@ -100,7 +106,9 @@ export default function App() {
 
   useEffect(() => {
     if (notification.show) {
-      const timer = setTimeout(() => { setNotification({ ...notification, show: false }); }, 3000);
+      const timer = setTimeout(() => {
+        setNotification({ ...notification, show: false });
+      }, 3000);
       return () => clearTimeout(timer);
     }
   }, [notification]);
@@ -118,7 +126,6 @@ export default function App() {
     <div className="bg-gray-50 min-h-screen font-sans flex flex-col relative">
       <Header cartItemCount={cartItemCount} onSearch={handleSearch} user={user} onLogout={handleLogout} />
       <Navbar />
-      
       <main className="flex-grow container mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Routes>
           <Route path="/" element={<HomePage products={products} onAddToCart={handleAddToCart} />} />
@@ -132,7 +139,6 @@ export default function App() {
           <Route path="/register" element={<RegisterPage />} />
         </Routes>
       </main>
-
       <Footer />
       <Notification message={notification.message} show={notification.show} />
     </div>

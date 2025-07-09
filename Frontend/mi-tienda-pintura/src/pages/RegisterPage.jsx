@@ -2,6 +2,8 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+
 const RegisterPage = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -18,7 +20,7 @@ const RegisterPage = () => {
         return;
     }
     try {
-      const response = await fetch('http://localhost:5001/api/auth/register', {
+      const response = await fetch(`${API_URL}/api/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
@@ -28,7 +30,7 @@ const RegisterPage = () => {
         throw new Error(data.message || 'Error al registrar');
       }
       setSuccess('¡Registro exitoso! Ahora puedes iniciar sesión.');
-      setTimeout(() => navigate('/login'), 2000); // Redirige al login después de 2 seg
+      setTimeout(() => navigate('/login'), 2000);
     } catch (err) {
       setError(err.message);
     }
@@ -44,7 +46,6 @@ const RegisterPage = () => {
             <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full p-3 border rounded-md" required />
           </div>
           <div>
-            {/* Aquí estaba el error, se corrigió </p> por </label> */}
             <label className="block mb-1 font-medium">Contraseña</label>
             <input type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full p-3 border rounded-md" required />
           </div>
