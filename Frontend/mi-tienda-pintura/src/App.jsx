@@ -1,6 +1,8 @@
 // src/App.jsx
 import React, { useState, useEffect } from 'react';
 import { Routes, Route, useNavigate } from 'react-router-dom';
+// 1. Importar la función de inicialización de Mercado Pago
+import { initMercadoPago } from '@mercadopago/sdk-react';
 
 // Importación de Componentes
 import Header from './components/Header.jsx';
@@ -21,6 +23,14 @@ import RegisterPage from './pages/RegisterPage.jsx';
 
 // Definir la URL de la API usando la variable de entorno de Vite
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+
+// 2. Inicializar el SDK de Mercado Pago con tu Public Key
+// ¡IMPORTANTE! Reemplaza 'TU_PUBLIC_KEY' con tu clave pública real.
+// Esta llamada se hace fuera del componente para que se ejecute una sola vez.
+initMercadoPago('APP_USR-8c7b48a0-dc73-48a1-9fd5-2829fdc647f9', {
+  locale: 'es-AR' // Opcional: define el idioma de la interfaz de Mercado Pago
+});
+
 
 export default function App() {
   const [cart, setCart] = useState([]);

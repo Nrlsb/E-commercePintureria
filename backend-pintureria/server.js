@@ -7,11 +7,14 @@ import cors from 'cors';
 import db from './db.js'; 
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import { MercadoPagoConfig, Preference } from 'mercadopago';
 
 const app = express();
-const PORT = 5001;
+const PORT = process.env.PORT || 5001;
 
 const JWT_SECRET = process.env.JWT_SECRET;
+const client = new MercadoPagoConfig({ accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN });
+
 
 app.use(cors()); 
 app.use(express.json()); 
@@ -92,6 +95,53 @@ app.post('/api/auth/login', async (req, res) => {
         console.error(err);
         res.status(500).json({ message: 'Error interno del servidor' });
     }
+});
+
+// --- RUTA PARA MERCADO PAGO (CORREGIDA) ---
+app.post('/api/create-payment-preference', async (req, res) => {
+  try {
+    const { cart } = req.body;
+    
+    if (!cart || cart.length === 0) {
+      return res.status(400).json({ message: 'El carrito está vacío.' });
+    }
+
+    // Definimos la URL base del frontend. Para producción, esto debería venir de una variable de entorno.
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+
+    const items = cart.map(product => ({
+      title: product.name,
+      description: product.brand,
+      picture_url: product.imageUrl,
+      quantity: Number(product.quantity),
+      unit_price: Number(product.price),
+      currency_id: 'ARS',
+    }));
+
+    const body = {
+      items: items,
+      back_urls: {
+        // Usamos la variable `frontendUrl` para asegurar que la URL sea absoluta
+        success: `${frontendUrl}/success`,
+        failure: `${frontendUrl}/cart`,
+        pending: `${frontendUrl}/cart`,
+      },
+      auto_return: 'approved',
+    };
+
+    const preference = new Preference(client);
+    const result = await preference.create({ body });
+
+    res.json({ id: result.id });
+
+  } catch (error) {
+    // Logueamos el error completo para tener más detalles
+    console.error('Error al crear la preferencia de pago:', error);
+    res.status(500).json({ 
+      message: 'Error interno del servidor al crear la preferencia.',
+      error: error.message // Opcional: enviar el mensaje de error para depuración
+    });
+  }
 });
 
 
