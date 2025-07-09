@@ -10,6 +10,7 @@ import jwt from 'jsonwebtoken';
 import { MercadoPagoConfig, Preference } from 'mercadopago';
 
 const app = express();
+// Render asigna el puerto dinámicamente, por eso usamos process.env.PORT
 const PORT = process.env.PORT || 5001;
 
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -97,7 +98,7 @@ app.post('/api/auth/login', async (req, res) => {
     }
 });
 
-// --- RUTA PARA MERCADO PAGO (CORREGIDA) ---
+// --- RUTA PARA MERCADO PAGO (VERSIÓN FINAL) ---
 app.post('/api/create-payment-preference', async (req, res) => {
   try {
     const { cart } = req.body;
@@ -106,8 +107,9 @@ app.post('/api/create-payment-preference', async (req, res) => {
       return res.status(400).json({ message: 'El carrito está vacío.' });
     }
 
-    // Definimos la URL base del frontend. Para producción, esto debería venir de una variable de entorno.
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    // Para producción, es crucial usar la URL del frontend desplegado.
+    // Asegúrate de tener VITE_FRONTEND_URL en las variables de entorno de Render.
+    const frontendUrl = process.env.VITE_FRONTEND_URL || 'http://localhost:5173';
 
     const items = cart.map(product => ({
       title: product.name,
@@ -121,7 +123,6 @@ app.post('/api/create-payment-preference', async (req, res) => {
     const body = {
       items: items,
       back_urls: {
-        // Usamos la variable `frontendUrl` para asegurar que la URL sea absoluta
         success: `${frontendUrl}/success`,
         failure: `${frontendUrl}/cart`,
         pending: `${frontendUrl}/cart`,
@@ -135,16 +136,16 @@ app.post('/api/create-payment-preference', async (req, res) => {
     res.json({ id: result.id });
 
   } catch (error) {
-    // Logueamos el error completo para tener más detalles
     console.error('Error al crear la preferencia de pago:', error);
     res.status(500).json({ 
       message: 'Error interno del servidor al crear la preferencia.',
-      error: error.message // Opcional: enviar el mensaje de error para depuración
+      error: error.message
     });
   }
 });
 
 
 app.listen(PORT, () => {
-  console.log(`Servidor corriendo en http://localhost:${PORT}`);
+  // En producción, Render usa el puerto 10000, pero localmente seguirá siendo 5001.
+  console.log(`Servidor corriendo en el puerto ${PORT}`);
 });
