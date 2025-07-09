@@ -1,7 +1,6 @@
 // src/App.jsx
 import React, { useState, useEffect } from 'react';
 import { Routes, Route, useNavigate } from 'react-router-dom';
-// 1. Importar la función de inicialización de Mercado Pago
 import { initMercadoPago } from '@mercadopago/sdk-react';
 
 // Importación de Componentes
@@ -9,6 +8,10 @@ import Header from './components/Header.jsx';
 import Navbar from './components/Navbar.jsx';
 import Footer from './components/Footer.jsx';
 import Notification from './components/Notification.jsx';
+// 1. Importar los nuevos componentes y páginas de administración
+import AdminRoute from './components/AdminRoute.jsx';
+import AdminDashboardPage from './pages/AdminDashboardPage.jsx';
+import ProductFormPage from './pages/ProductFormPage.jsx';
 
 // Importación de Páginas
 import HomePage from './pages/HomePage.jsx';
@@ -21,16 +24,18 @@ import CategoryPage from './pages/CategoryPage.jsx';
 import LoginPage from './pages/LoginPage.jsx';
 import RegisterPage from './pages/RegisterPage.jsx';
 
-// Definir la URL de la API usando la variable de entorno de Vite
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
-// 2. Inicializar el SDK de Mercado Pago con tu Public Key
-// ¡IMPORTANTE! Reemplaza 'TU_PUBLIC_KEY' con tu clave pública real.
-// Esta llamada se hace fuera del componente para que se ejecute una sola vez.
-initMercadoPago('APP_USR-b2b31af4-7b53-466c-bf0b-430714909357', {
-  locale: 'es-AR' // Opcional: define el idioma de la interfaz de Mercado Pago
-});
+initMercadoPago('TU_PUBLIC_KEY', { locale: 'es-AR' });
 
+// Función para decodificar el token JWT y obtener los datos del usuario
+const parseJwt = (token) => {
+  try {
+    return JSON.parse(atob(token.split('.')[1]));
+  } catch (e) {
+    return null;
+  }
+};
 
 export default function App() {
   const [cart, setCart] = useState([]);
@@ -40,13 +45,16 @@ export default function App() {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [user, setUser] = useState(null);
+  // 2. El estado 'user' ahora se inicializa desde el token en localStorage
+  const [user, setUser] = useState(() => {
+    const token = localStorage.getItem('token');
+    return token ? parseJwt(token) : null;
+  });
   const [token, setToken] = useState(localStorage.getItem('token'));
 
   useEffect(() => {
     const fetchProducts = async () => {
       try {
-        // Usar la variable API_URL en la llamada fetch
         const response = await fetch(`${API_URL}/api/products`);
         if (!response.ok) {
           throw new Error('No se pudo conectar con el servidor');
@@ -59,13 +67,13 @@ export default function App() {
         setLoading(false);
       }
     };
-
     fetchProducts();
   }, []);
 
   const handleLoginSuccess = (newToken, userData) => {
     localStorage.setItem('token', newToken);
     setToken(newToken);
+    // 3. Guardamos toda la información del usuario, incluido el rol
     setUser(userData);
   };
 
@@ -138,6 +146,7 @@ export default function App() {
       <Navbar />
       <main className="flex-grow container mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Routes>
+          {/* Rutas Públicas */}
           <Route path="/" element={<HomePage products={products} onAddToCart={handleAddToCart} />} />
           <Route path="/product/:productId" element={<ProductDetailPage onAddToCart={handleAddToCart} />} />
           <Route path="/cart" element={<CartPage cart={cart} onUpdateQuantity={handleUpdateQuantity} onRemoveItem={handleRemoveItem} />} />
@@ -147,6 +156,13 @@ export default function App() {
           <Route path="/category/:categoryName" element={<CategoryPage products={products} onAddToCart={handleAddToCart} />} />
           <Route path="/login" element={<LoginPage onLoginSuccess={handleLoginSuccess} />} />
           <Route path="/register" element={<RegisterPage />} />
+
+          {/* 4. Rutas de Administración Protegidas */}
+          <Route element={<AdminRoute user={user} />}>
+            <Route path="/admin" element={<AdminDashboardPage />} />
+            <Route path="/admin/product/new" element={<ProductFormPage />} />
+            <Route path="/admin/product/edit/:productId" element={<ProductFormPage />} />
+          </Route>
         </Routes>
       </main>
       <Footer />
