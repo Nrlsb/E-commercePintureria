@@ -1,20 +1,20 @@
 // backend-pintureria/db.js
+import dotenv from 'dotenv';
+dotenv.config(); // <-- AÑADIMOS ESTO AQUÍ para asegurar que las variables se carguen
+
 import pg from 'pg';
 
-// Importamos 'Pool' directamente desde la librería 'pg'
 const { Pool } = pg;
 
-// El Pool gestiona las conexiones a la base de datos de forma eficiente.
+// Ahora, cuando se crea el Pool, las variables de process.env ya estarán disponibles.
 const pool = new Pool({
-  user: 'postgres',          // Tu nombre de usuario de PostgreSQL (usualmente 'postgres')
-  host: 'localhost',         // La dirección del servidor de la base de datos
-  database: 'pintureria_db', // El nombre de la base de datos que creaste
-  password: 'Dragon10', // ¡IMPORTANTE! Reemplaza esto con tu contraseña real
-  port: 5432,                // El puerto por defecto de PostgreSQL
+  user: process.env.DB_USER,
+  host: process.env.DB_HOST,
+  database: process.env.DB_DATABASE,
+  password: process.env.DB_PASSWORD,
+  port: process.env.DB_PORT,
 });
 
-// Exportamos una función 'query' para poder usarla en el resto de la aplicación.
-// Esta función toma una consulta SQL y sus parámetros, y la ejecuta usando el pool.
 export default {
   query: (text, params) => pool.query(text, params),
 };

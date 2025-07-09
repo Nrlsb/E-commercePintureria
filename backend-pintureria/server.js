@@ -1,19 +1,22 @@
 // backend-pintureria/server.js
+import dotenv from 'dotenv';
+dotenv.config(); 
+
 import express from 'express';
 import cors from 'cors';
 import db from './db.js'; 
-import bcrypt from 'bcryptjs'; // 1. Importar bcrypt
-import jwt from 'jsonwebtoken'; // 2. Importar jsonwebtoken
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
 
 const app = express();
 const PORT = 5001;
-// 3. ¡IMPORTANTE! Necesitas una clave secreta para firmar los tokens.
-const JWT_SECRET = 'tu_clave_secreta_super_dificil_de_adivinar';
+
+const JWT_SECRET = process.env.JWT_SECRET;
 
 app.use(cors()); 
 app.use(express.json()); 
 
-// --- Rutas de Productos (sin cambios) ---
+// --- Rutas de Productos ---
 app.get('/api/products', async (req, res) => {
   try {
     const result = await db.query('SELECT * FROM products ORDER BY id ASC');
@@ -24,6 +27,7 @@ app.get('/api/products', async (req, res) => {
     res.status(500).json({ message: 'Error interno del servidor' });
   }
 });
+
 app.get('/api/products/:productId', async (req, res) => {
   const { productId } = req.params;
   try {
@@ -40,31 +44,22 @@ app.get('/api/products/:productId', async (req, res) => {
   }
 });
 
-// --- NUEVAS Rutas de Autenticación ---
-
-// Ruta para REGISTRAR un nuevo usuario
+// --- Rutas de Autenticación ---
 app.post('/api/auth/register', async (req, res) => {
   const { email, password } = req.body;
-
   if (!email || !password) {
     return res.status(400).json({ message: 'Email y contraseña son requeridos.' });
   }
-
   try {
-    // Encriptar la contraseña
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(password, salt);
-
-    // Guardar el nuevo usuario en la base de datos
     const result = await db.query(
       'INSERT INTO users (email, password_hash) VALUES ($1, $2) RETURNING id, email',
       [email, passwordHash]
     );
-
     res.status(201).json({ message: 'Usuario registrado con éxito', user: result.rows[0] });
   } catch (err) {
     console.error(err);
-    // Manejar error de email duplicado
     if (err.code === '23505') {
         return res.status(409).json({ message: 'El email ya está registrado.' });
     }
@@ -72,39 +67,27 @@ app.post('/api/auth/register', async (req, res) => {
   }
 });
 
-// Ruta para INICIAR SESIÓN
 app.post('/api/auth/login', async (req, res) => {
     const { email, password } = req.body;
-
     if (!email || !password) {
         return res.status(400).json({ message: 'Email y contraseña son requeridos.' });
     }
-
     try {
-        // Buscar al usuario por email
         const result = await db.query('SELECT * FROM users WHERE email = $1', [email]);
         const user = result.rows[0];
-
         if (!user) {
             return res.status(401).json({ message: 'Credenciales inválidas.' });
         }
-
-        // Comparar la contraseña ingresada con la encriptada en la BD
         const isMatch = await bcrypt.compare(password, user.password_hash);
-
         if (!isMatch) {
             return res.status(401).json({ message: 'Credenciales inválidas.' });
         }
-
-        // Crear el token JWT
         const token = jwt.sign(
             { userId: user.id, email: user.email },
             JWT_SECRET,
-            { expiresIn: '1h' } // El token expira en 1 hora
+            { expiresIn: '1h' }
         );
-
         res.json({ token, user: { id: user.id, email: user.email } });
-
     } catch (err) {
         console.error(err);
         res.status(500).json({ message: 'Error interno del servidor' });
@@ -112,7 +95,6 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 
-// --- Iniciar el Servidor ---
 app.listen(PORT, () => {
   console.log(`Servidor corriendo en http://localhost:${PORT}`);
 });
