@@ -9,13 +9,15 @@ const CartPage = ({ cart, onUpdateQuantity, onRemoveItem }) => {
 
   if (cart.length === 0) {
     return (
-      <div className="text-center p-10 bg-white rounded-lg shadow-md">
-        <h1 className="text-3xl font-bold text-gray-800 mb-4">Tu carrito está vacío</h1>
-        <p className="text-gray-600 mb-6">Parece que todavía no has añadido ningún producto. ¡Explora nuestra tienda!</p>
-        {/* CAMBIO: Botón con el color primario de la marca. */}
-        <Link to="/" className="inline-block bg-[#0F3460] text-white font-bold py-3 px-6 rounded-lg hover:bg-[#1a4a8a] transition-colors">
-          &larr; Volver a la tienda
-        </Link>
+      // CAMBIO: Este contenedor ahora crece y centra el mensaje, empujando el footer hacia abajo.
+      <div className="flex-grow flex flex-col items-center justify-center text-center">
+        <div className="p-10 bg-white rounded-lg shadow-md">
+          <h1 className="text-3xl font-bold text-gray-800 mb-4">Tu carrito está vacío</h1>
+          <p className="text-gray-600 mb-6">Parece que todavía no has añadido ningún producto. ¡Explora nuestra tienda!</p>
+          <Link to="/" className="inline-block bg-[#0F3460] text-white font-bold py-3 px-6 rounded-lg hover:bg-[#1a4a8a] transition-colors">
+            &larr; Volver a la tienda
+          </Link>
+        </div>
       </div>
     );
   }
@@ -37,7 +39,6 @@ const CartPage = ({ cart, onUpdateQuantity, onRemoveItem }) => {
                   </div>
                 </div>
                 <div className="flex items-center space-x-4">
-                  {/* CAMBIO: Botones de cantidad con mejor estilo. */}
                   <div className="flex items-center border border-gray-300 rounded-md">
                     <button onClick={() => onUpdateQuantity(item.id, item.quantity - 1)} className="px-3 py-1 text-lg font-bold hover:bg-gray-100 rounded-l-md transition-colors">-</button>
                     <span className="px-4 py-1 text-lg">{item.quantity}</span>
@@ -70,7 +71,6 @@ const CartPage = ({ cart, onUpdateQuantity, onRemoveItem }) => {
                     <span>Total</span>
                     <span>${new Intl.NumberFormat('es-AR').format(calculateTotal())}</span>
                 </div>
-                {/* CAMBIO: Botón con el color de acento amarillo/verde para que destaque. */}
                 <Link to="/checkout" className="block text-center w-full mt-6 bg-[#10B981] text-white font-bold py-3 rounded-lg hover:bg-green-600 transition-colors">
                     Finalizar Compra
                 </Link>

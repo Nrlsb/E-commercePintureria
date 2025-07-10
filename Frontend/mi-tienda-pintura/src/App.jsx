@@ -9,8 +9,6 @@ import Navbar from './components/Navbar.jsx';
 import Footer from './components/Footer.jsx';
 import Notification from './components/Notification.jsx';
 import AdminRoute from './components/AdminRoute.jsx';
-import AdminDashboardPage from './pages/AdminDashboardPage.jsx';
-import ProductFormPage from './pages/ProductFormPage.jsx';
 
 // Importación de Páginas
 import HomePage from './pages/HomePage.jsx';
@@ -22,11 +20,15 @@ import SearchResultsPage from './pages/SearchResultsPage.jsx';
 import CategoryPage from './pages/CategoryPage.jsx';
 import LoginPage from './pages/LoginPage.jsx';
 import RegisterPage from './pages/RegisterPage.jsx';
+import AdminDashboardPage from './pages/AdminDashboardPage.jsx';
+import ProductFormPage from './pages/ProductFormPage.jsx';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
+// ¡IMPORTANTE! Reemplaza 'TU_PUBLIC_KEY' con tu clave pública real de Mercado Pago.
 initMercadoPago('APP_USR-b2b31af4-7b53-466c-bf0b-430714909357', { locale: 'es-AR' });
 
+// Función para decodificar el token JWT y obtener los datos del usuario
 const parseJwt = (token) => {
   try {
     return JSON.parse(atob(token.split('.')[1]));
@@ -140,11 +142,10 @@ export default function App() {
     <div className="bg-gray-50 min-h-screen font-sans flex flex-col relative">
       <Header cartItemCount={cartItemCount} onSearch={handleSearch} user={user} onLogout={handleLogout} />
       <Navbar />
-      <main className="flex-grow container mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="flex-grow container mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col">
         <Routes>
           {/* Rutas Públicas */}
           <Route path="/" element={<HomePage products={products} onAddToCart={handleAddToCart} />} />
-          {/* CAMBIO: Se pasa la prop 'products' a ProductDetailPage */}
           <Route path="/product/:productId" element={<ProductDetailPage products={products} onAddToCart={handleAddToCart} />} />
           <Route path="/cart" element={<CartPage cart={cart} onUpdateQuantity={handleUpdateQuantity} onRemoveItem={handleRemoveItem} />} />
           <Route path="/checkout" element={<CheckoutPage cart={cart} onPlaceOrder={handlePlaceOrder} />} />
