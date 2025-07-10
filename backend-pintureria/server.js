@@ -41,11 +41,27 @@ const isAdmin = (req, res, next) => {
 };
 
 
-// --- Rutas Públicas de Productos ---
+// --- Rutas de Productos (Actualizadas para incluir reseñas) ---
 app.get('/api/products', async (req, res) => {
   try {
-    const result = await db.query('SELECT * FROM products ORDER BY id ASC');
-    const products = result.rows.map(p => ({ ...p, imageUrl: p.image_url, oldPrice: p.old_price }));
+    const query = `
+      SELECT 
+        p.*, 
+        COALESCE(AVG(r.rating), 0) as average_rating, 
+        COUNT(r.id) as review_count
+      FROM products p
+      LEFT JOIN reviews r ON p.id = r.product_id
+      GROUP BY p.id
+      ORDER BY p.id ASC;
+    `;
+    const result = await db.query(query);
+    const products = result.rows.map(p => ({ 
+      ...p, 
+      imageUrl: p.image_url, 
+      oldPrice: p.old_price,
+      averageRating: parseFloat(p.average_rating),
+      reviewCount: parseInt(p.review_count, 10)
+    }));
     res.json(products);
   } catch (err) {
     console.error(err);
@@ -56,10 +72,26 @@ app.get('/api/products', async (req, res) => {
 app.get('/api/products/:productId', async (req, res) => {
   const { productId } = req.params;
   try {
-    const result = await db.query('SELECT * FROM products WHERE id = $1', [productId]);
+    const query = `
+      SELECT 
+        p.*, 
+        COALESCE(AVG(r.rating), 0) as average_rating, 
+        COUNT(r.id) as review_count
+      FROM products p
+      LEFT JOIN reviews r ON p.id = r.product_id
+      WHERE p.id = $1
+      GROUP BY p.id;
+    `;
+    const result = await db.query(query, [productId]);
     if (result.rows.length > 0) {
       const product = result.rows[0];
-      res.json({ ...product, imageUrl: product.image_url, oldPrice: product.old_price });
+      res.json({ 
+        ...product, 
+        imageUrl: product.image_url, 
+        oldPrice: product.old_price,
+        averageRating: parseFloat(product.average_rating),
+        reviewCount: parseInt(product.review_count, 10)
+      });
     } else {
       res.status(404).json({ message: 'Producto no encontrado' });
     }
@@ -70,7 +102,49 @@ app.get('/api/products/:productId', async (req, res) => {
 });
 
 
-// --- RUTAS DE ADMINISTRACIÓN DE PRODUCTOS (PROTEGIDAS) ---
+// --- Rutas para Reseñas ---
+app.get('/api/products/:productId/reviews', async (req, res) => {
+  const { productId } = req.params;
+  try {
+    const query = `
+      SELECT r.*, u.first_name, u.last_name 
+      FROM reviews r
+      JOIN users u ON r.user_id = u.id
+      WHERE r.product_id = $1
+      ORDER BY r.created_at DESC;
+    `;
+    const result = await db.query(query, [productId]);
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Error al obtener las reseñas' });
+  }
+});
+
+app.post('/api/products/:productId/reviews', authenticateToken, async (req, res) => {
+  const { productId } = req.params;
+  const { rating, comment } = req.body;
+  const userId = req.user.userId;
+
+  try {
+    const query = `
+      INSERT INTO reviews (rating, comment, product_id, user_id)
+      VALUES ($1, $2, $3, $4)
+      RETURNING *;
+    `;
+    const result = await db.query(query, [rating, comment, productId, userId]);
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    if (err.code === '23505') { 
+      return res.status(409).json({ message: 'Ya has enviado una reseña para este producto.' });
+    }
+    res.status(500).json({ message: 'Error al crear la reseña' });
+  }
+});
+
+
+// --- Rutas de Administración de Productos (Protegidas) ---
 app.post('/api/products', [authenticateToken, isAdmin], async (req, res) => {
   const { name, brand, category, price, old_price, image_url, description } = req.body;
   try {
@@ -179,9 +253,6 @@ app.post('/api/create-payment-preference', async (req, res) => {
     }
 
     const frontendUrl = process.env.VITE_FRONTEND_URL || 'http://localhost:5173';
-    
-    // LOG DE DIAGNÓSTICO
-    console.log(`[DEBUG] La URL del frontend es: ${frontendUrl}`);
 
     const items = cart.map(product => ({
       title: product.name,
@@ -201,9 +272,6 @@ app.post('/api/create-payment-preference', async (req, res) => {
       },
       auto_return: 'approved',
     };
-    
-    // LOG DE DIAGNÓSTICO
-    console.log('[DEBUG] Creando preferencia con el siguiente cuerpo:', JSON.stringify(body, null, 2));
 
     const preference = new Preference(client);
     const result = await preference.create({ body });

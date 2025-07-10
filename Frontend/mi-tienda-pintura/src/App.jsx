@@ -3,14 +3,14 @@ import React, { useState, useEffect } from 'react';
 import { Routes, Route, useNavigate } from 'react-router-dom';
 import { initMercadoPago } from '@mercadopago/sdk-react';
 
-// Importación de Componentes
+// ... (importaciones se mantienen igual)
 import Header from './components/Header.jsx';
 import Navbar from './components/Navbar.jsx';
 import Footer from './components/Footer.jsx';
 import Notification from './components/Notification.jsx';
 import AdminRoute from './components/AdminRoute.jsx';
-
-// Importación de Páginas
+import AdminDashboardPage from './pages/AdminDashboardPage.jsx';
+import ProductFormPage from './pages/ProductFormPage.jsx';
 import HomePage from './pages/HomePage.jsx';
 import ProductDetailPage from './pages/ProductDetailPage.jsx';
 import CartPage from './pages/CartPage.jsx';
@@ -20,15 +20,11 @@ import SearchResultsPage from './pages/SearchResultsPage.jsx';
 import CategoryPage from './pages/CategoryPage.jsx';
 import LoginPage from './pages/LoginPage.jsx';
 import RegisterPage from './pages/RegisterPage.jsx';
-import AdminDashboardPage from './pages/AdminDashboardPage.jsx';
-import ProductFormPage from './pages/ProductFormPage.jsx';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
-// ¡IMPORTANTE! Reemplaza 'TU_PUBLIC_KEY' con tu clave pública real de Mercado Pago.
-initMercadoPago('APP_USR-b2b31af4-7b53-466c-bf0b-430714909357', { locale: 'es-AR' });
+initMercadoPago('TU_PUBLIC_KEY', { locale: 'es-AR' });
 
-// Función para decodificar el token JWT y obtener los datos del usuario
 const parseJwt = (token) => {
   try {
     return JSON.parse(atob(token.split('.')[1]));
@@ -110,9 +106,8 @@ export default function App() {
     setCart(prevCart => prevCart.filter(item => item.id !== productId));
   };
 
-  const handlePlaceOrder = () => {
+  const handleClearCart = () => {
     setCart([]);
-    navigate('/success');
   };
 
   const handleSearch = (query) => {
@@ -146,10 +141,16 @@ export default function App() {
         <Routes>
           {/* Rutas Públicas */}
           <Route path="/" element={<HomePage products={products} onAddToCart={handleAddToCart} />} />
-          <Route path="/product/:productId" element={<ProductDetailPage products={products} onAddToCart={handleAddToCart} />} />
+          
+          {/* CAMBIO: Se pasan las props 'user' y 'token' a ProductDetailPage */}
+          <Route 
+            path="/product/:productId" 
+            element={<ProductDetailPage products={products} onAddToCart={handleAddToCart} user={user} token={token} />} 
+          />
+
           <Route path="/cart" element={<CartPage cart={cart} onUpdateQuantity={handleUpdateQuantity} onRemoveItem={handleRemoveItem} />} />
-          <Route path="/checkout" element={<CheckoutPage cart={cart} onPlaceOrder={handlePlaceOrder} />} />
-          <Route path="/success" element={<OrderSuccessPage />} />
+          <Route path="/checkout" element={<CheckoutPage cart={cart} />} />
+          <Route path="/success" element={<OrderSuccessPage onClearCart={handleClearCart} />} />
           <Route path="/search" element={<SearchResultsPage products={products} query={searchQuery} onAddToCart={handleAddToCart} />} />
           <Route path="/category/:categoryName" element={<CategoryPage products={products} onAddToCart={handleAddToCart} />} />
           <Route path="/login" element={<LoginPage onLoginSuccess={handleLoginSuccess} />} />
