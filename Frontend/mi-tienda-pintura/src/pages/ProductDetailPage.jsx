@@ -8,7 +8,6 @@ import ReviewForm from '../components/ReviewForm.jsx';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
-// El componente ahora recibe el usuario y el token
 const ProductDetailPage = ({ products, onAddToCart, user, token }) => {
   const { productId } = useParams();
   const [product, setProduct] = useState(null);
@@ -21,13 +20,11 @@ const ProductDetailPage = ({ products, onAddToCart, user, token }) => {
   const fetchProductAndReviews = useCallback(async () => {
     try {
       setLoading(true);
-      // Obtener datos del producto
       const productResponse = await fetch(`${API_URL}/api/products/${productId}`);
       if (!productResponse.ok) throw new Error('Producto no encontrado');
       const productData = await productResponse.json();
       setProduct(productData);
 
-      // Obtener reseñas del producto
       const reviewsResponse = await fetch(`${API_URL}/api/products/${productId}/reviews`);
       if (!reviewsResponse.ok) throw new Error('Error al cargar las reseñas');
       const reviewsData = await reviewsResponse.json();
@@ -53,6 +50,33 @@ const ProductDetailPage = ({ products, onAddToCart, user, token }) => {
 
   const handleAddToCartClick = () => {
     onAddToCart(product, quantity);
+  };
+
+  // CAMBIO: Nueva función para manejar la eliminación de reseñas
+  const handleDeleteReview = async (reviewId) => {
+    if (window.confirm('¿Estás seguro de que quieres eliminar esta reseña?')) {
+      try {
+        const response = await fetch(`${API_URL}/api/reviews/${reviewId}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+
+        if (!response.ok) {
+          const data = await response.json();
+          throw new Error(data.message || 'Error al eliminar la reseña');
+        }
+
+        // Actualizamos la lista de reseñas en el estado para reflejar el cambio en la UI
+        setReviews(prevReviews => prevReviews.filter(review => review.id !== reviewId));
+        // Opcional: Recargamos los datos del producto para actualizar el contador de reseñas
+        fetchProductAndReviews(); 
+
+      } catch (err) {
+        alert(`Error: ${err.message}`);
+      }
+    }
   };
 
   const relatedProducts = product 
@@ -82,7 +106,6 @@ const ProductDetailPage = ({ products, onAddToCart, user, token }) => {
           <h2 className="text-gray-500 text-sm uppercase tracking-widest mb-2">{product.brand}</h2>
           <h1 className="text-4xl font-bold text-gray-900 mb-4 leading-tight">{product.name}</h1>
           
-          {/* CAMBIO: Mostrar calificación por estrellas */}
           <div className="mb-4">
             <StarRating rating={product.averageRating} reviewCount={product.reviewCount} />
           </div>
@@ -122,7 +145,6 @@ const ProductDetailPage = ({ products, onAddToCart, user, token }) => {
             >
               Detalles Técnicos
             </button>
-            {/* CAMBIO: Pestaña de Reseñas */}
             <button
               onClick={() => setActiveTab('reviews')}
               className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${activeTab === 'reviews' ? 'border-[#0F3460] text-[#0F3460]' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
@@ -145,7 +167,6 @@ const ProductDetailPage = ({ products, onAddToCart, user, token }) => {
               </ul>
             </div>
           )}
-          {/* CAMBIO: Contenido de la pestaña de reseñas */}
           {activeTab === 'reviews' && (
             <div>
               {user ? (
@@ -155,7 +176,8 @@ const ProductDetailPage = ({ products, onAddToCart, user, token }) => {
                   <Link to="/login" className="font-bold text-[#0F3460] hover:underline">Inicia sesión</Link> para dejar una reseña.
                 </p>
               )}
-              <ReviewList reviews={reviews} />
+              {/* CAMBIO: Pasamos el usuario y la función de eliminar a la lista de reseñas */}
+              <ReviewList reviews={reviews} user={user} onDelete={handleDeleteReview} />
             </div>
           )}
         </div>

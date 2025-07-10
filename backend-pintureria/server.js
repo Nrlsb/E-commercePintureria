@@ -143,6 +143,37 @@ app.post('/api/products/:productId/reviews', authenticateToken, async (req, res)
   }
 });
 
+// CAMBIO: Nueva ruta para eliminar una reseña
+app.delete('/api/reviews/:reviewId', authenticateToken, async (req, res) => {
+  const { reviewId } = req.params;
+  const { userId, role } = req.user; // Obtenemos el ID y rol del usuario desde el token
+
+  try {
+    // Primero, obtenemos la reseña para verificar los permisos
+    const reviewResult = await db.query('SELECT user_id FROM reviews WHERE id = $1', [reviewId]);
+    
+    if (reviewResult.rows.length === 0) {
+      return res.status(404).json({ message: 'Reseña no encontrada.' });
+    }
+
+    const review = reviewResult.rows[0];
+
+    // Verificamos si el usuario es el dueño de la reseña O si es un administrador
+    if (review.user_id !== userId && role !== 'admin') {
+      return res.status(403).json({ message: 'No tienes permiso para eliminar esta reseña.' });
+    }
+
+    // Si tiene permiso, procedemos a eliminar
+    await db.query('DELETE FROM reviews WHERE id = $1', [reviewId]);
+    
+    res.status(200).json({ message: 'Reseña eliminada con éxito.' });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Error al eliminar la reseña.' });
+  }
+});
+
 
 // --- Rutas de Administración de Productos (Protegidas) ---
 app.post('/api/products', [authenticateToken, isAdmin], async (req, res) => {
