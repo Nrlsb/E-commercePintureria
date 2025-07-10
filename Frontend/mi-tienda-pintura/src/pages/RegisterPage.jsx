@@ -4,64 +4,120 @@ import { Link, useNavigate } from 'react-router-dom';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
+// Componente auxiliar para los campos del formulario
+const InputField = ({ label, ...props }) => (
+  <div>
+    <label className="block mb-1 text-sm font-medium text-gray-600">{label}</label>
+    <input {...props} className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#0F3460]" />
+  </div>
+);
+
 const RegisterPage = () => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [formData, setFormData] = useState({
+    firstName: '',
+    lastName: '',
+    phone: '',
+    email: '',
+    emailConfirm: '',
+    password: '',
+    passwordConfirm: '',
+    terms: false,
+  });
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const navigate = useNavigate();
+
+  const handleChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : value,
+    }));
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setSuccess('');
-    if (password.length < 6) {
-        setError('La contraseña debe tener al menos 6 caracteres.');
-        return;
+
+    // Validaciones del formulario
+    if (formData.email !== formData.emailConfirm) {
+      return setError('Los correos electrónicos no coinciden.');
     }
+    if (formData.password !== formData.passwordConfirm) {
+      return setError('Las contraseñas no coinciden.');
+    }
+    if (formData.password.length < 6) {
+      return setError('La contraseña debe tener al menos 6 caracteres.');
+    }
+    if (!formData.terms) {
+      return setError('Debes aceptar los términos y condiciones.');
+    }
+
     try {
       const response = await fetch(`${API_URL}/api/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+          phone: formData.phone,
+          email: formData.email,
+          password: formData.password,
+        }),
       });
       const data = await response.json();
       if (!response.ok) {
         throw new Error(data.message || 'Error al registrar');
       }
-      setSuccess('¡Registro exitoso! Ahora puedes iniciar sesión.');
-      setTimeout(() => navigate('/login'), 2000);
+      setSuccess('¡Registro exitoso! Serás redirigido para iniciar sesión.');
+      setTimeout(() => navigate('/login'), 3000);
     } catch (err) {
       setError(err.message);
     }
   };
 
   return (
-    <div className="flex justify-center items-center py-12 px-4">
-      {/* CAMBIO: Sombra y bordes más pronunciados. */}
-      <div className="w-full max-w-md p-8 space-y-6 bg-white rounded-xl shadow-lg">
-        <h1 className="text-3xl font-bold text-center text-gray-800">Crear Cuenta</h1>
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div>
-            <label className="block mb-2 font-medium text-gray-700">Email</label>
-            {/* CAMBIO: Estilo de input mejorado con focus ring. */}
-            <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0F3460]" required />
+    <div className="container mx-auto px-4 py-8">
+      <div className="bg-white p-8 rounded-lg shadow-md">
+        <h1 className="text-2xl font-bold text-gray-800 mb-6 border-b pb-4">Crear una nueva cuenta</h1>
+        <form onSubmit={handleSubmit}>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-6">
+            
+            {/* Columna Izquierda: Información Personal */}
+            <div className="space-y-4">
+              <h2 className="text-lg font-semibold text-gray-700">1. Información personal</h2>
+              <InputField label="Nombres:" name="firstName" value={formData.firstName} onChange={handleChange} required />
+              <InputField label="Apellido:" name="lastName" value={formData.lastName} onChange={handleChange} required />
+              <InputField label="Teléfono:" name="phone" value={formData.phone} onChange={handleChange} />
+              <InputField label="Email:" name="email" type="email" value={formData.email} onChange={handleChange} required />
+              <InputField label="Repetir Email:" name="emailConfirm" type="email" value={formData.emailConfirm} onChange={handleChange} required />
+            </div>
+
+            {/* Columna Derecha: Contraseña y Envío */}
+            <div className="space-y-4">
+              <h2 className="text-lg font-semibold text-gray-700">2. Ingrese su clave</h2>
+              <InputField label="Contraseña:" name="password" type="password" value={formData.password} onChange={handleChange} required />
+              <InputField label="Repetir Contraseña:" name="passwordConfirm" type="password" value={formData.passwordConfirm} onChange={handleChange} required />
+              
+              <div className="pt-4">
+                <label className="flex items-center">
+                  <input type="checkbox" name="terms" checked={formData.terms} onChange={handleChange} className="h-4 w-4 text-[#0F3460] focus:ring-[#0F3460] border-gray-300 rounded" />
+                  <span className="ml-2 text-sm text-gray-600">He leído y estoy de acuerdo con los <a href="#" className="text-[#0F3460] hover:underline">Términos y condiciones</a> del servicio.</span>
+                </label>
+              </div>
+
+              {error && <p className="text-red-500 text-sm text-center pt-2">{error}</p>}
+              {success && <p className="text-green-500 text-sm text-center pt-2">{success}</p>}
+
+              <div className="flex justify-end pt-4">
+                <button type="submit" className="px-8 py-3 bg-[#0F3460] text-white font-semibold rounded-lg hover:bg-[#1a4a8a] transition-colors">
+                  Registrarme
+                </button>
+              </div>
+            </div>
           </div>
-          <div>
-            <label className="block mb-2 font-medium text-gray-700">Contraseña</label>
-            <input type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0F3460]" required />
-          </div>
-          {error && <p className="text-red-500 text-sm text-center">{error}</p>}
-          {success && <p className="text-green-500 text-sm text-center">{success}</p>}
-          {/* CAMBIO: Botón con el color primario de la marca. */}
-          <button type="submit" className="w-full p-3 text-white bg-[#0F3460] rounded-lg font-semibold hover:bg-[#1a4a8a] transition-colors duration-300">
-            Registrarse
-          </button>
         </form>
-        <p className="text-center text-gray-600">
-          ¿Ya tienes una cuenta? {/* CAMBIO: Estilo del enlace. */}
-          <Link to="/login" className="font-semibold text-[#0F3460] hover:underline">Inicia sesión aquí</Link>
-        </p>
       </div>
     </div>
   );

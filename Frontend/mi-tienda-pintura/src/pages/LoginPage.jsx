@@ -31,30 +31,49 @@ const LoginPage = ({ onLoginSuccess }) => {
   };
 
   return (
-    <div className="flex justify-center items-center py-12 px-4">
-      {/* CAMBIO: Sombra y bordes más pronunciados. */}
-      <div className="w-full max-w-md p-8 space-y-6 bg-white rounded-xl shadow-lg">
-        <h1 className="text-3xl font-bold text-center text-gray-800">Iniciar Sesión</h1>
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div>
-            <label className="block mb-2 font-medium text-gray-700">Email</label>
-            {/* CAMBIO: Estilo de input mejorado con focus ring. */}
-            <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0F3460]" required />
-          </div>
-          <div>
-            <label className="block mb-2 font-medium text-gray-700">Contraseña</label>
-            <input type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0F3460]" required />
-          </div>
-          {error && <p className="text-red-500 text-sm text-center">{error}</p>}
-          {/* CAMBIO: Botón con el color primario de la marca. */}
-          <button type="submit" className="w-full p-3 text-white bg-[#0F3460] rounded-lg font-semibold hover:bg-[#1a4a8a] transition-colors duration-300">
-            Ingresar
-          </button>
-        </form>
-        <p className="text-center text-gray-600">
-          ¿No tienes una cuenta? {/* CAMBIO: Estilo del enlace. */}
-          <Link to="/register" className="font-semibold text-[#0F3460] hover:underline">Regístrate aquí</Link>
-        </p>
+    <div className="container mx-auto px-4 py-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-start">
+        
+        {/* Columna Izquierda: Iniciar Sesión */}
+        <div className="bg-white p-8 rounded-lg shadow-md">
+          <h1 className="text-2xl font-bold text-gray-800 mb-6 border-b pb-4">Iniciar sesión</h1>
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div>
+              <label className="block mb-1 font-medium text-gray-600">Su E-Mail: <span className="text-red-500">*</span></label>
+              <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#0F3460]" required />
+            </div>
+            <div>
+              <label className="block mb-1 font-medium text-gray-600">Su Clave: <span className="text-red-500">*</span></label>
+              <input type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#0F3460]" required />
+            </div>
+            
+            <div className="flex items-center justify-between text-sm">
+                <label className="flex items-center">
+                    <input type="checkbox" className="h-4 w-4 text-[#0F3460] focus:ring-[#0F3460] border-gray-300 rounded" />
+                    <span className="ml-2 text-gray-600">Mantener iniciada</span>
+                </label>
+                <a href="#" className="font-medium text-[#0F3460] hover:underline">Olvidé mi contraseña</a>
+            </div>
+
+            {error && <p className="text-red-500 text-sm text-center">{error}</p>}
+            
+            <div className="flex justify-end">
+                <button type="submit" className="px-8 py-3 bg-[#0F3460] text-white font-semibold rounded-lg hover:bg-[#1a4a8a] transition-colors">
+                    Ingresar
+                </button>
+            </div>
+          </form>
+        </div>
+
+        {/* Columna Derecha: Registrarse */}
+        <div className="bg-white p-8 rounded-lg shadow-md">
+            <h2 className="text-2xl font-bold text-gray-800 mb-4">Registrarse</h2>
+            <p className="text-gray-600 mb-6">Creando una cuenta usted puede comprar productos y tener una lista de deseos.</p>
+            <Link to="/register" className="inline-block w-full text-center px-8 py-3 bg-gray-200 text-gray-800 font-semibold rounded-lg hover:bg-gray-300 transition-colors">
+                Registrarme
+            </Link>
+        </div>
+
       </div>
     </div>
   );
