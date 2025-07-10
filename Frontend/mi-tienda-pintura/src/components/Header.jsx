@@ -6,7 +6,6 @@ import { ICONS } from '../data/icons.js';
 
 const Header = ({ cartItemCount, onSearch, user, onLogout }) => {
   const [query, setQuery] = useState('');
-  // 1. Estado para controlar el menú móvil
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   const handleSubmit = (e) => {
@@ -18,7 +17,6 @@ const Header = ({ cartItemCount, onSearch, user, onLogout }) => {
     }
   };
 
-  // Efecto para evitar el scroll del body cuando el menú está abierto
   useEffect(() => {
     if (isMenuOpen) {
       document.body.style.overflow = 'hidden';
@@ -82,8 +80,19 @@ const Header = ({ cartItemCount, onSearch, user, onLogout }) => {
             </Link>
           </div>
 
-          {/* 2. Botón de Menú Móvil (Hamburguesa) */}
-          <div className="md:hidden flex items-center">
+          {/* CAMBIO: Iconos para la vista Móvil */}
+          <div className="md:hidden flex items-center space-x-4">
+            {/* Ícono del Carrito (siempre visible en móvil) */}
+            <Link to="/cart" className="text-white relative">
+              <Icon path={ICONS.shoppingCart} className="w-6 h-6" />
+              {cartItemCount > 0 && (
+                <span className="absolute -top-2 -right-2 bg-[#E9D502] text-[#0F3460] text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
+                  {cartItemCount}
+                </span>
+              )}
+            </Link>
+
+            {/* Botón de Menú Móvil (Hamburguesa) */}
             <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="text-white focus:outline-none">
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16m-7 6h7"></path></svg>
             </button>
@@ -91,7 +100,7 @@ const Header = ({ cartItemCount, onSearch, user, onLogout }) => {
         </div>
       </div>
 
-      {/* 3. Menú Lateral Deslizable (Overlay) */}
+      {/* Menú Lateral Deslizable (Overlay) */}
       <div className={`fixed top-0 left-0 w-full h-full bg-black bg-opacity-50 z-40 transition-opacity duration-300 ${isMenuOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} onClick={() => setIsMenuOpen(false)}>
         <div className={`fixed top-0 right-0 w-4/5 max-w-sm h-full bg-[#0F3460] shadow-xl z-50 transform transition-transform duration-300 ease-in-out ${isMenuOpen ? 'translate-x-0' : 'translate-x-full'}`} onClick={(e) => e.stopPropagation()}>
           <div className="p-6 flex flex-col h-full">
@@ -114,13 +123,13 @@ const Header = ({ cartItemCount, onSearch, user, onLogout }) => {
               {user ? (
                 <>
                   {user.role === 'admin' && <Link to="/admin" onClick={() => setIsMenuOpen(false)} className="hover:text-[#E9D502]">Panel Admin</Link>}
-                  <Link to="/cart" onClick={() => setIsMenuOpen(false)} className="hover:text-[#E9D502]">Carrito ({cartItemCount})</Link>
+                  {/* CAMBIO: Se elimina el enlace al carrito de aquí */}
                   <button onClick={() => { onLogout(); setIsMenuOpen(false); }} className="text-left hover:text-[#E9D502]">Salir</button>
                 </>
               ) : (
                 <>
                   <Link to="/login" onClick={() => setIsMenuOpen(false)} className="hover:text-[#E9D502]">Mi Cuenta</Link>
-                  <Link to="/cart" onClick={() => setIsMenuOpen(false)} className="hover:text-[#E9D502]">Carrito ({cartItemCount})</Link>
+                  {/* CAMBIO: Se elimina el enlace al carrito de aquí */}
                 </>
               )}
             </nav>
