@@ -119,8 +119,6 @@ app.delete('/api/products/:id', [authenticateToken, isAdmin], async (req, res) =
 
 
 // --- Rutas de Autenticación ---
-
-// CAMBIO: El endpoint de registro ahora acepta los nuevos campos.
 app.post('/api/auth/register', async (req, res) => {
   const { email, password, firstName, lastName, phone } = req.body;
   if (!email || !password || !firstName || !lastName) {
@@ -181,6 +179,9 @@ app.post('/api/create-payment-preference', async (req, res) => {
     }
 
     const frontendUrl = process.env.VITE_FRONTEND_URL || 'http://localhost:5173';
+    
+    // LOG DE DIAGNÓSTICO
+    console.log(`[DEBUG] La URL del frontend es: ${frontendUrl}`);
 
     const items = cart.map(product => ({
       title: product.name,
@@ -200,6 +201,9 @@ app.post('/api/create-payment-preference', async (req, res) => {
       },
       auto_return: 'approved',
     };
+    
+    // LOG DE DIAGNÓSTICO
+    console.log('[DEBUG] Creando preferencia con el siguiente cuerpo:', JSON.stringify(body, null, 2));
 
     const preference = new Preference(client);
     const result = await preference.create({ body });
