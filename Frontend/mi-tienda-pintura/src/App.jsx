@@ -25,7 +25,7 @@ import RegisterPage from './pages/RegisterPage.jsx';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
-initMercadoPago('TU_PUBLIC_KEY', { locale: 'es-AR' });
+initMercadoPago('APP_USR-b2b31af4-7b53-466c-bf0b-430714909357', { locale: 'es-AR' });
 
 const parseJwt = (token) => {
   try {
