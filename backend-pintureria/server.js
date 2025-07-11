@@ -9,19 +9,19 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { sendOrderConfirmationEmail } from './emailService.js';
 
-// --- CAMBIO 1: Importar la clase 'Refund' ---
+// --- CAMBIO: Importar mercadopago directamente ---
 import mercadopago from 'mercadopago';
-const { MercadoPagoConfig, Preference, Payment, Refund } = mercadopago;
 
 
 const app = express();
 const PORT = process.env.PORT || 5001;
 
 const JWT_SECRET = process.env.JWT_SECRET;
-const client = new MercadoPagoConfig({ accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN });
-const payment = new Payment(client);
-// --- CAMBIO 2: Crear una instancia de 'Refund' ---
-const refund = new Refund(client);
+
+// --- CAMBIO: Usar mercadopago. directly ---
+const client = new mercadopago.MercadoPagoConfig({ accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN });
+const payment = new mercadopago.Payment(client);
+const refund = new mercadopago.Refund(client);
 
 
 app.use(cors()); 
@@ -324,7 +324,7 @@ app.get('/api/admin/orders', [authenticateToken, isAdmin], async (req, res) => {
     }
 });
 
-// --- RUTA CORREGIDA: Cancelar una orden (Admin) ---
+// --- RUTA: Cancelar una orden (Admin) ---
 app.post('/api/orders/:orderId/cancel', [authenticateToken, isAdmin], async (req, res) => {
     const { orderId } = req.params;
     try {
@@ -341,7 +341,6 @@ app.post('/api/orders/:orderId/cancel', [authenticateToken, isAdmin], async (req
         if (order.mercadopago_transaction_id) {
             console.log(`Iniciando reembolso para la transacción de MP: ${order.mercadopago_transaction_id}`);
             
-            // --- CAMBIO 3: Usar la instancia 'refund' para crear el reembolso ---
             await refund.create({
                 payment_id: order.mercadopago_transaction_id
             });
@@ -356,14 +355,13 @@ app.post('/api/orders/:orderId/cancel', [authenticateToken, isAdmin], async (req
 
     } catch (error) {
         console.error('Error al cancelar la orden:', error);
-        // Proporciona un mensaje de error más detallado si está disponible desde la API de MP
         const errorMessage = error.cause?.message || 'Error interno del servidor al procesar la cancelación.';
         res.status(500).json({ message: errorMessage });
     }
 });
 
 
-// --- RUTA: Creación de Preferencia de Pago (Sin cambios) ---
+// --- RUTA: Creación de Preferencia de Pago ---
 app.post('/api/create-payment-preference', authenticateToken, async (req, res) => {
   const { cart } = req.body;
   const userId = req.user.userId;
@@ -413,7 +411,8 @@ app.post('/api/create-payment-preference', authenticateToken, async (req, res) =
       notification_url: notification_url,
     };
 
-    const preference = new Preference(client);
+    // --- CAMBIO: Usar mercadopago.Preference ---
+    const preference = new mercadopago.Preference(client);
     const result = await preference.create({ body });
     
     await db.query('UPDATE orders SET mercadopago_payment_id = $1 WHERE id = $2', [result.id, orderId]);
