@@ -41,7 +41,7 @@ const isAdmin = (req, res, next) => {
 };
 
 
-// --- Rutas de Productos (Actualizadas para incluir reseñas) ---
+// --- Rutas de Productos (Sin cambios) ---
 app.get('/api/products', async (req, res) => {
   try {
     const query = `
@@ -102,7 +102,7 @@ app.get('/api/products/:productId', async (req, res) => {
 });
 
 
-// --- Rutas para Reseñas ---
+// --- Rutas para Reseñas (Sin cambios) ---
 app.get('/api/products/:productId/reviews', async (req, res) => {
   const { productId } = req.params;
   try {
@@ -143,13 +143,11 @@ app.post('/api/products/:productId/reviews', authenticateToken, async (req, res)
   }
 });
 
-// CAMBIO: Nueva ruta para eliminar una reseña
 app.delete('/api/reviews/:reviewId', authenticateToken, async (req, res) => {
   const { reviewId } = req.params;
-  const { userId, role } = req.user; // Obtenemos el ID y rol del usuario desde el token
+  const { userId, role } = req.user;
 
   try {
-    // Primero, obtenemos la reseña para verificar los permisos
     const reviewResult = await db.query('SELECT user_id FROM reviews WHERE id = $1', [reviewId]);
     
     if (reviewResult.rows.length === 0) {
@@ -158,12 +156,10 @@ app.delete('/api/reviews/:reviewId', authenticateToken, async (req, res) => {
 
     const review = reviewResult.rows[0];
 
-    // Verificamos si el usuario es el dueño de la reseña O si es un administrador
     if (review.user_id !== userId && role !== 'admin') {
       return res.status(403).json({ message: 'No tienes permiso para eliminar esta reseña.' });
     }
 
-    // Si tiene permiso, procedemos a eliminar
     await db.query('DELETE FROM reviews WHERE id = $1', [reviewId]);
     
     res.status(200).json({ message: 'Reseña eliminada con éxito.' });
@@ -175,7 +171,7 @@ app.delete('/api/reviews/:reviewId', authenticateToken, async (req, res) => {
 });
 
 
-// --- Rutas de Administración de Productos (Protegidas) ---
+// --- Rutas de Administración de Productos (Sin cambios) ---
 app.post('/api/products', [authenticateToken, isAdmin], async (req, res) => {
   const { name, brand, category, price, old_price, image_url, description } = req.body;
   try {
@@ -223,7 +219,7 @@ app.delete('/api/products/:id', [authenticateToken, isAdmin], async (req, res) =
 });
 
 
-// --- Rutas de Autenticación ---
+// --- Rutas de Autenticación (Sin cambios) ---
 app.post('/api/auth/register', async (req, res) => {
   const { email, password, firstName, lastName, phone } = req.body;
   if (!email || !password || !firstName || !lastName) {
@@ -273,19 +269,68 @@ app.post('/api/auth/login', async (req, res) => {
     }
 });
 
-
-// --- Ruta de Mercado Pago ---
-app.post('/api/create-payment-preference', async (req, res) => {
+// --- NUEVA RUTA: Historial de Órdenes ---
+app.get('/api/orders', authenticateToken, async (req, res) => {
+  const userId = req.user.userId;
   try {
-    const { cart } = req.body;
-    
-    if (!cart || cart.length === 0) {
-      return res.status(400).json({ message: 'El carrito está vacío.' });
+    // Obtenemos todas las órdenes del usuario
+    const ordersResult = await db.query(
+      'SELECT * FROM orders WHERE user_id = $1 ORDER BY created_at DESC',
+      [userId]
+    );
+    const orders = ordersResult.rows;
+
+    // Para cada orden, obtenemos sus items
+    for (const order of orders) {
+      const itemsResult = await db.query(`
+        SELECT oi.quantity, oi.price, p.name, p.image_url
+        FROM order_items oi
+        JOIN products p ON oi.product_id = p.id
+        WHERE oi.order_id = $1
+      `, [order.id]);
+      order.items = itemsResult.rows.map(item => ({...item, imageUrl: item.image_url}));
     }
 
+    res.json(orders);
+  } catch (error) {
+    console.error('Error al obtener el historial de órdenes:', error);
+    res.status(500).json({ message: 'Error interno del servidor.' });
+  }
+});
+
+// --- RUTA MODIFICADA: Mercado Pago ---
+// Se protege con authenticateToken y ahora crea la orden en la BD
+app.post('/api/create-payment-preference', authenticateToken, async (req, res) => {
+  const { cart } = req.body;
+  const userId = req.user.userId;
+
+  if (!cart || cart.length === 0) {
+    return res.status(400).json({ message: 'El carrito está vacío.' });
+  }
+  
+  const totalAmount = cart.reduce((total, item) => total + item.price * item.quantity, 0);
+
+  try {
+    // 1. Crear la orden en la base de datos
+    const orderResult = await db.query(
+      'INSERT INTO orders (user_id, total_amount, status) VALUES ($1, $2, $3) RETURNING id',
+      [userId, totalAmount, 'pending']
+    );
+    const orderId = orderResult.rows[0].id;
+
+    // 2. Insertar cada item del carrito en order_items
+    for (const item of cart) {
+      await db.query(
+        'INSERT INTO order_items (order_id, product_id, quantity, price) VALUES ($1, $2, $3, $4)',
+        [orderId, item.id, item.quantity, item.price]
+      );
+    }
+    
+    // 3. Crear la preferencia de Mercado Pago
     const frontendUrl = process.env.VITE_FRONTEND_URL || 'http://localhost:5173';
 
     const items = cart.map(product => ({
+      id: product.id,
       title: product.name,
       description: product.brand,
       picture_url: product.imageUrl,
@@ -302,10 +347,14 @@ app.post('/api/create-payment-preference', async (req, res) => {
         pending: `${frontendUrl}/cart`,
       },
       auto_return: 'approved',
+      external_reference: orderId.toString(), // Guardamos el ID de nuestra orden
     };
 
     const preference = new Preference(client);
     const result = await preference.create({ body });
+    
+    // Opcional: Actualizar la orden con el ID de pago de MP
+    await db.query('UPDATE orders SET mercadopago_payment_id = $1 WHERE id = $2', [result.id, orderId]);
 
     res.json({ id: result.id });
 

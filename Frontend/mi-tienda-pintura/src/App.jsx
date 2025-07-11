@@ -3,14 +3,13 @@ import React, { useState, useEffect } from 'react';
 import { Routes, Route, useNavigate } from 'react-router-dom';
 import { initMercadoPago } from '@mercadopago/sdk-react';
 
-// ... (importaciones se mantienen igual)
+// Componentes y Páginas
 import Header from './components/Header.jsx';
 import Navbar from './components/Navbar.jsx';
 import Footer from './components/Footer.jsx';
 import Notification from './components/Notification.jsx';
 import AdminRoute from './components/AdminRoute.jsx';
-import AdminDashboardPage from './pages/AdminDashboardPage.jsx';
-import ProductFormPage from './pages/ProductFormPage.jsx';
+import ProtectedRoute from './components/ProtectedRoute.jsx'; // <-- NUEVO
 import HomePage from './pages/HomePage.jsx';
 import ProductDetailPage from './pages/ProductDetailPage.jsx';
 import CartPage from './pages/CartPage.jsx';
@@ -20,10 +19,14 @@ import SearchResultsPage from './pages/SearchResultsPage.jsx';
 import CategoryPage from './pages/CategoryPage.jsx';
 import LoginPage from './pages/LoginPage.jsx';
 import RegisterPage from './pages/RegisterPage.jsx';
+import AdminDashboardPage from './pages/AdminDashboardPage.jsx';
+import ProductFormPage from './pages/ProductFormPage.jsx';
+import OrderHistoryPage from './pages/OrderHistoryPage.jsx'; // <-- NUEVO
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
-initMercadoPago('TU_PUBLIC_KEY', { locale: 'es-AR' });
+// Reemplaza 'TU_PUBLIC_KEY' con tu clave pública real de Mercado Pago
+initMercadoPago(import.meta.env.VITE_MERCADOPAGO_PUBLIC_KEY, { locale: 'es-AR' });
 
 const parseJwt = (token) => {
   try {
@@ -65,10 +68,10 @@ export default function App() {
     fetchProducts();
   }, []);
 
-  const handleLoginSuccess = (newToken, userData) => {
+  const handleLoginSuccess = (newToken) => {
     localStorage.setItem('token', newToken);
     setToken(newToken);
-    setUser(userData);
+    setUser(parseJwt(newToken));
   };
 
   const handleLogout = () => {
@@ -139,24 +142,23 @@ export default function App() {
       <Navbar />
       <main className="flex-grow container mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col">
         <Routes>
-          {/* Rutas Públicas */}
+          {/* --- Rutas Públicas --- */}
           <Route path="/" element={<HomePage products={products} onAddToCart={handleAddToCart} />} />
-          
-          {/* CAMBIO: Se pasan las props 'user' y 'token' a ProductDetailPage */}
-          <Route 
-            path="/product/:productId" 
-            element={<ProductDetailPage products={products} onAddToCart={handleAddToCart} user={user} token={token} />} 
-          />
-
+          <Route path="/product/:productId" element={<ProductDetailPage products={products} onAddToCart={handleAddToCart} user={user} token={token} />} />
           <Route path="/cart" element={<CartPage cart={cart} onUpdateQuantity={handleUpdateQuantity} onRemoveItem={handleRemoveItem} />} />
-          <Route path="/checkout" element={<CheckoutPage cart={cart} />} />
           <Route path="/success" element={<OrderSuccessPage onClearCart={handleClearCart} />} />
           <Route path="/search" element={<SearchResultsPage products={products} query={searchQuery} onAddToCart={handleAddToCart} />} />
           <Route path="/category/:categoryName" element={<CategoryPage products={products} onAddToCart={handleAddToCart} />} />
           <Route path="/login" element={<LoginPage onLoginSuccess={handleLoginSuccess} />} />
           <Route path="/register" element={<RegisterPage />} />
 
-          {/* Rutas de Administración Protegidas */}
+          {/* --- Rutas Protegidas para Usuarios Logueados --- */}
+          <Route element={<ProtectedRoute user={user} />}>
+            <Route path="/checkout" element={<CheckoutPage cart={cart} token={token} />} />
+            <Route path="/my-orders" element={<OrderHistoryPage token={token} />} />
+          </Route>
+
+          {/* --- Rutas de Administración Protegidas --- */}
           <Route element={<AdminRoute user={user} />}>
             <Route path="/admin" element={<AdminDashboardPage />} />
             <Route path="/admin/product/new" element={<ProductFormPage />} />

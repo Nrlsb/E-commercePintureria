@@ -1,20 +1,28 @@
 // src/pages/CheckoutPage.jsx
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Wallet } from '@mercadopago/sdk-react';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
-const CheckoutPage = ({ cart }) => {
+// El componente ahora recibe el token para autenticar la petición
+const CheckoutPage = ({ cart, token }) => {
   const [preferenceId, setPreferenceId] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const navigate = useNavigate();
 
   const calculateTotal = () => {
     return cart.reduce((total, item) => total + item.price * item.quantity, 0);
   };
 
   const handleCreatePreference = async () => {
+    // Si no hay token, redirigir a login
+    if (!token) {
+        navigate('/login?redirect=/checkout');
+        return;
+    }
+
     setLoading(true);
     setError(null);
     try {
@@ -22,12 +30,15 @@ const CheckoutPage = ({ cart }) => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          // Enviamos el token para la autenticación
+          'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({ cart }),
       });
       
       if (!response.ok) {
-        throw new Error('Hubo un problema al generar el link de pago.');
+        const data = await response.json();
+        throw new Error(data.message || 'Hubo un problema al generar el link de pago.');
       }
 
       const data = await response.json();
@@ -49,7 +60,6 @@ const CheckoutPage = ({ cart }) => {
           <div className="space-y-8">
             <div>
               <h2 className="text-2xl font-semibold mb-4">1. Información de Contacto</h2>
-              {/* CAMBIO: Estilo de input mejorado. */}
               <input type="email" placeholder="Correo electrónico" className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0F3460]" required />
             </div>
 
@@ -92,7 +102,6 @@ const CheckoutPage = ({ cart }) => {
 
             <div className="mt-6">
               {!preferenceId ? (
-                // CAMBIO: Botón con el color primario de la marca.
                 <button 
                   onClick={handleCreatePreference} 
                   disabled={loading || cart.length === 0}
