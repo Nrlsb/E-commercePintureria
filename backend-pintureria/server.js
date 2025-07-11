@@ -9,10 +9,9 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { sendOrderConfirmationEmail } from './emailService.js';
 
-// --- Forma correcta de importar de Mercado Pago ---
+// --- CAMBIO 1: Importar la clase 'Refund' ---
 import mercadopago from 'mercadopago';
-// Quitamos 'Refund' de aquí, ya que no se usa como una clase independiente
-const { MercadoPagoConfig, Preference, Payment } = mercadopago;
+const { MercadoPagoConfig, Preference, Payment, Refund } = mercadopago;
 
 
 const app = express();
@@ -21,6 +20,8 @@ const PORT = process.env.PORT || 5001;
 const JWT_SECRET = process.env.JWT_SECRET;
 const client = new MercadoPagoConfig({ accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN });
 const payment = new Payment(client);
+// --- CAMBIO 2: Crear una instancia de 'Refund' ---
+const refund = new Refund(client);
 
 
 app.use(cors()); 
@@ -340,9 +341,8 @@ app.post('/api/orders/:orderId/cancel', [authenticateToken, isAdmin], async (req
         if (order.mercadopago_transaction_id) {
             console.log(`Iniciando reembolso para la transacción de MP: ${order.mercadopago_transaction_id}`);
             
-            // --- CÓDIGO CORREGIDO ---
-            // Se utiliza el objeto 'payment' existente y se llama a la propiedad 'refunds' (en plural).
-            await payment.refunds.create({
+            // --- CAMBIO 3: Usar la instancia 'refund' para crear el reembolso ---
+            await refund.create({
                 payment_id: order.mercadopago_transaction_id
             });
         }
@@ -356,6 +356,7 @@ app.post('/api/orders/:orderId/cancel', [authenticateToken, isAdmin], async (req
 
     } catch (error) {
         console.error('Error al cancelar la orden:', error);
+        // Proporciona un mensaje de error más detallado si está disponible desde la API de MP
         const errorMessage = error.cause?.message || 'Error interno del servidor al procesar la cancelación.';
         res.status(500).json({ message: errorMessage });
     }
