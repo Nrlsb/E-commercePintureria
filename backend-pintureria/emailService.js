@@ -1,21 +1,17 @@
 // backend-pintureria/emailService.js
 import nodemailer from 'nodemailer';
 
-// Configura el "transportador" de correo.
-// Utiliza las variables de entorno para las credenciales.
 const transporter = nodemailer.createTransport({
   host: process.env.EMAIL_HOST,
   port: process.env.EMAIL_PORT,
-  secure: process.env.EMAIL_PORT == 465, // true para puerto 465, false para otros
+  secure: process.env.EMAIL_PORT == 465,
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,
   },
 });
 
-// Función para enviar el email de confirmación de compra
 export const sendOrderConfirmationEmail = async (userEmail, order) => {
-  // Genera el HTML para la lista de productos en el email
   const itemsHtml = order.items.map(item => `
     <tr>
       <td style="padding: 10px; border-bottom: 1px solid #ddd;">${item.name} (x${item.quantity})</td>
@@ -23,7 +19,6 @@ export const sendOrderConfirmationEmail = async (userEmail, order) => {
     </tr>
   `).join('');
 
-  // Plantilla HTML del correo
   const emailHtml = `
     <div style="font-family: Arial, sans-serif; color: #333;">
       <h1 style="color: #0F3460;">¡Gracias por tu compra!</h1>
@@ -50,8 +45,12 @@ export const sendOrderConfirmationEmail = async (userEmail, order) => {
     </div>
   `;
 
+  // --- CAMBIO CLAVE ---
+  // Resend requiere que el email del remitente sea del tipo 'onboarding@resend.dev'
+  // o una dirección de un dominio que hayas verificado.
+  // Usamos el nombre que queramos, pero la dirección de email debe ser la permitida.
   const mailOptions = {
-    from: `"Pinturerías Mercurio" <${process.env.EMAIL_USER}>`,
+    from: `"Pinturerías Mercurio" <onboarding@resend.dev>`,
     to: userEmail,
     subject: `Confirmación de tu pedido #${order.id}`,
     html: emailHtml,
