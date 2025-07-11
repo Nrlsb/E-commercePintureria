@@ -7,32 +7,39 @@ import cors from 'cors';
 import db from './db.js'; 
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { MercadoPagoConfig, Preference } from 'mercadopago';
+import { MercadoPagoConfig, Preference, Payment } from 'mercadopago';
+import { sendOrderConfirmationEmail } from './emailService.js'; // <-- NUEVA IMPORTACIÓN
 
 const app = express();
 const PORT = process.env.PORT || 5001;
 
 const JWT_SECRET = process.env.JWT_SECRET;
 const client = new MercadoPagoConfig({ accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN });
+const payment = new Payment(client);
 
 
 app.use(cors()); 
-app.use(express.json()); 
+// Usamos express.json() para el cuerpo de las peticiones normales
+// y express.raw() específicamente para el webhook de MercadoPago
+app.use((req, res, next) => {
+  if (req.originalUrl === '/api/payment-notification') {
+    express.raw({ type: 'application/json' })(req, res, next);
+  } else {
+    express.json()(req, res, next);
+  }
+});
 
-// --- MIDDLEWARE DE AUTENTICACIÓN Y AUTORIZACIÓN ---
+// --- MIDDLEWARE DE AUTENTICACIÓN Y AUTORIZACIÓN (Sin cambios) ---
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
-
   if (token == null) return res.sendStatus(401);
-
   jwt.verify(token, JWT_SECRET, (err, user) => {
     if (err) return res.sendStatus(403);
     req.user = user;
     next();
   });
 };
-
 const isAdmin = (req, res, next) => {
   if (req.user.role !== 'admin') {
     return res.status(403).json({ message: 'Acceso denegado. Se requiere rol de administrador.' });
@@ -40,7 +47,8 @@ const isAdmin = (req, res, next) => {
   next();
 };
 
-
+// --- RUTAS DE PRODUCTOS, RESEÑAS, ADMIN Y AUTH (Sin cambios) ---
+// ... (todas las rutas desde /api/products hasta /api/auth/login se mantienen igual)
 // --- Rutas de Productos (Sin cambios) ---
 app.get('/api/products', async (req, res) => {
   try {
@@ -268,19 +276,16 @@ app.post('/api/auth/login', async (req, res) => {
         res.status(500).json({ message: 'Error interno del servidor' });
     }
 });
-
-// --- NUEVA RUTA: Historial de Órdenes ---
+// --- RUTA: Historial de Órdenes (Sin cambios) ---
 app.get('/api/orders', authenticateToken, async (req, res) => {
   const userId = req.user.userId;
   try {
-    // Obtenemos todas las órdenes del usuario
     const ordersResult = await db.query(
       'SELECT * FROM orders WHERE user_id = $1 ORDER BY created_at DESC',
       [userId]
     );
     const orders = ordersResult.rows;
 
-    // Para cada orden, obtenemos sus items
     for (const order of orders) {
       const itemsResult = await db.query(`
         SELECT oi.quantity, oi.price, p.name, p.image_url
@@ -298,8 +303,7 @@ app.get('/api/orders', authenticateToken, async (req, res) => {
   }
 });
 
-// --- RUTA MODIFICADA: Mercado Pago ---
-// Se protege con authenticateToken y ahora crea la orden en la BD
+// --- RUTA MODIFICADA: Creación de Preferencia de Pago ---
 app.post('/api/create-payment-preference', authenticateToken, async (req, res) => {
   const { cart } = req.body;
   const userId = req.user.userId;
@@ -311,14 +315,12 @@ app.post('/api/create-payment-preference', authenticateToken, async (req, res) =
   const totalAmount = cart.reduce((total, item) => total + item.price * item.quantity, 0);
 
   try {
-    // 1. Crear la orden en la base de datos
     const orderResult = await db.query(
       'INSERT INTO orders (user_id, total_amount, status) VALUES ($1, $2, $3) RETURNING id',
       [userId, totalAmount, 'pending']
     );
     const orderId = orderResult.rows[0].id;
 
-    // 2. Insertar cada item del carrito en order_items
     for (const item of cart) {
       await db.query(
         'INSERT INTO order_items (order_id, product_id, quantity, price) VALUES ($1, $2, $3, $4)',
@@ -326,8 +328,9 @@ app.post('/api/create-payment-preference', authenticateToken, async (req, res) =
       );
     }
     
-    // 3. Crear la preferencia de Mercado Pago
     const frontendUrl = process.env.VITE_FRONTEND_URL || 'http://localhost:5173';
+    // --- CAMBIO CLAVE: Añadimos la URL del webhook ---
+    const notification_url = `${process.env.BACKEND_URL}/api/payment-notification`;
 
     const items = cart.map(product => ({
       id: product.id,
@@ -342,18 +345,18 @@ app.post('/api/create-payment-preference', authenticateToken, async (req, res) =
     const body = {
       items: items,
       back_urls: {
-        success: `${frontendUrl}/success`,
+        success: `${frontendUrl}/success?order_id=${orderId}`,
         failure: `${frontendUrl}/cart`,
         pending: `${frontendUrl}/cart`,
       },
       auto_return: 'approved',
-      external_reference: orderId.toString(), // Guardamos el ID de nuestra orden
+      external_reference: orderId.toString(),
+      notification_url: notification_url, // <-- AÑADIDO
     };
 
     const preference = new Preference(client);
     const result = await preference.create({ body });
     
-    // Opcional: Actualizar la orden con el ID de pago de MP
     await db.query('UPDATE orders SET mercadopago_payment_id = $1 WHERE id = $2', [result.id, orderId]);
 
     res.json({ id: result.id });
@@ -364,6 +367,50 @@ app.post('/api/create-payment-preference', authenticateToken, async (req, res) =
       message: 'Error interno del servidor al crear la preferencia.',
       error: error.message
     });
+  }
+});
+
+// --- NUEVA RUTA: Webhook para Notificaciones de Pago ---
+app.post('/api/payment-notification', async (req, res) => {
+  const { query } = req;
+  const topic = query.topic || query.type;
+  
+  console.log('Notificación recibida:', { topic, id: query.id });
+
+  try {
+    if (topic === 'payment') {
+      const paymentId = query.id;
+      const paymentInfo = await payment.get({ id: paymentId });
+      
+      const orderId = paymentInfo.external_reference;
+      
+      if (paymentInfo.status === 'approved') {
+        // 1. Actualizar el estado de la orden en la base de datos
+        await db.query("UPDATE orders SET status = 'approved' WHERE id = $1", [orderId]);
+        
+        // 2. Obtener los datos completos de la orden y el email del usuario para el correo
+        const orderDataResult = await db.query(`
+          SELECT o.*, u.email
+          FROM orders o
+          JOIN users u ON o.user_id = u.id
+          WHERE o.id = $1
+        `, [orderId]);
+        
+        if (orderDataResult.rows.length > 0) {
+          const order = orderDataResult.rows[0];
+          const itemsResult = await db.query('SELECT name, quantity, price FROM order_items JOIN products ON products.id = order_items.product_id WHERE order_id = $1', [orderId]);
+          order.items = itemsResult.rows;
+
+          // 3. Enviar el email de confirmación
+          await sendOrderConfirmationEmail(order.email, order);
+        }
+      }
+    }
+    // Respondemos a Mercado Pago para que sepa que recibimos la notificación
+    res.sendStatus(200);
+  } catch (error) {
+    console.error('Error en el webhook de Mercado Pago:', error);
+    res.sendStatus(500);
   }
 });
 
