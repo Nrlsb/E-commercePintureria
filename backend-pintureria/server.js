@@ -7,9 +7,12 @@ import cors from 'cors';
 import db from './db.js'; 
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-// --- CAMBIO CLAVE: Importamos 'Refund' ---
-import { MercadoPagoConfig, Preference, Payment, Refund } from 'mercadopago';
 import { sendOrderConfirmationEmail } from './emailService.js';
+
+// --- CAMBIO CLAVE: Corregimos la forma de importar de Mercado Pago ---
+import mercadopago from 'mercadopago';
+const { MercadoPagoConfig, Preference, Payment, Refund } = mercadopago;
+
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -320,7 +323,7 @@ app.get('/api/admin/orders', [authenticateToken, isAdmin], async (req, res) => {
     }
 });
 
-// --- RUTA CORREGIDA: Cancelar una orden (Admin) ---
+// --- RUTA: Cancelar una orden (Admin) (Sin cambios en la lógica, solo en la importación de arriba) ---
 app.post('/api/orders/:orderId/cancel', [authenticateToken, isAdmin], async (req, res) => {
     const { orderId } = req.params;
     try {
@@ -337,7 +340,6 @@ app.post('/api/orders/:orderId/cancel', [authenticateToken, isAdmin], async (req
         if (order.mercadopago_transaction_id) {
             console.log(`Iniciando reembolso para la transacción de MP: ${order.mercadopago_transaction_id}`);
             
-            // --- CÓDIGO CORREGIDO ---
             const refund = new Refund(client);
             await refund.create({
                 payment_id: order.mercadopago_transaction_id
