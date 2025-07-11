@@ -30,15 +30,16 @@ const CheckoutPage = ({ cart, token }) => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          // Enviamos el token para la autenticación
+          // --- CAMBIO CLAVE: Enviamos el token para la autenticación ---
           'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({ cart }),
       });
       
+      // Si la respuesta no es OK, intentamos leer el mensaje de error del backend
       if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.message || 'Hubo un problema al generar el link de pago.');
+        const data = await response.json().catch(() => ({ message: 'Hubo un problema al generar el link de pago.' }));
+        throw new Error(data.message);
       }
 
       const data = await response.json();

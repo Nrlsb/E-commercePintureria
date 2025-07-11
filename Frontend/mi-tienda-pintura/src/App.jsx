@@ -24,17 +24,13 @@ import ProductFormPage from './pages/ProductFormPage.jsx';
 import OrderHistoryPage from './pages/OrderHistoryPage.jsx';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
-// --- CAMBIO CLAVE ---
-// Obtenemos la Public Key desde las variables de entorno de Vite.
 const MERCADOPAGO_PUBLIC_KEY = import.meta.env.VITE_MERCADOPAGO_PUBLIC_KEY;
 
-// Solo inicializamos Mercado Pago si la clave pública existe.
 if (MERCADOPAGO_PUBLIC_KEY) {
   initMercadoPago(MERCADOPAGO_PUBLIC_KEY, { locale: 'es-AR' });
 } else {
-  console.error("Error: La Public Key de Mercado Pago no está configurada. Por favor, añade VITE_MERCADOPAGO_PUBLIC_KEY a tu archivo .env o a las variables de entorno de tu hosting.");
+  console.error("Error: La Public Key de Mercado Pago no está configurada.");
 }
-
 
 const parseJwt = (token) => {
   try {
@@ -162,6 +158,7 @@ export default function App() {
 
           {/* --- Rutas Protegidas para Usuarios Logueados --- */}
           <Route element={<ProtectedRoute user={user} />}>
+            {/* --- CAMBIO CLAVE: Pasamos el token al CheckoutPage --- */}
             <Route path="/checkout" element={<CheckoutPage cart={cart} token={token} />} />
             <Route path="/my-orders" element={<OrderHistoryPage token={token} />} />
           </Route>
