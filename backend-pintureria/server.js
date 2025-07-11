@@ -336,7 +336,7 @@ app.post('/api/orders/:orderId/cancel', [authenticateToken, isAdmin], async (req
         if (order.mercadopago_transaction_id) {
             console.log(`Iniciando reembolso para la transacción de MP: ${order.mercadopago_transaction_id}`);
             // --- CAMBIO CLAVE: Usamos el método correcto para reembolsar ---
-            await payment.refunds.create({ payment_id: order.mercadopago_transaction_id });
+            await payment.refund.create({ payment_id: order.mercadopago_transaction_id });
         }
 
         const updatedOrderResult = await db.query(
