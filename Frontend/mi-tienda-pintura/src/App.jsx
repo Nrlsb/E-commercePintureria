@@ -9,7 +9,7 @@ import Navbar from './components/Navbar.jsx';
 import Footer from './components/Footer.jsx';
 import Notification from './components/Notification.jsx';
 import AdminRoute from './components/AdminRoute.jsx';
-import ProtectedRoute from './components/ProtectedRoute.jsx'; // <-- NUEVO
+import ProtectedRoute from './components/ProtectedRoute.jsx';
 import HomePage from './pages/HomePage.jsx';
 import ProductDetailPage from './pages/ProductDetailPage.jsx';
 import CartPage from './pages/CartPage.jsx';
@@ -21,12 +21,20 @@ import LoginPage from './pages/LoginPage.jsx';
 import RegisterPage from './pages/RegisterPage.jsx';
 import AdminDashboardPage from './pages/AdminDashboardPage.jsx';
 import ProductFormPage from './pages/ProductFormPage.jsx';
-import OrderHistoryPage from './pages/OrderHistoryPage.jsx'; // <-- NUEVO
+import OrderHistoryPage from './pages/OrderHistoryPage.jsx';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+// --- CAMBIO CLAVE ---
+// Obtenemos la Public Key desde las variables de entorno de Vite.
+const MERCADOPAGO_PUBLIC_KEY = import.meta.env.VITE_MERCADOPAGO_PUBLIC_KEY;
 
-// Reemplaza 'TU_PUBLIC_KEY' con tu clave pública real de Mercado Pago
-initMercadoPago(import.meta.env.VITE_MERCADOPAGO_PUBLIC_KEY, { locale: 'es-AR' });
+// Solo inicializamos Mercado Pago si la clave pública existe.
+if (MERCADOPAGO_PUBLIC_KEY) {
+  initMercadoPago(MERCADOPAGO_PUBLIC_KEY, { locale: 'es-AR' });
+} else {
+  console.error("Error: La Public Key de Mercado Pago no está configurada. Por favor, añade VITE_MERCADOPAGO_PUBLIC_KEY a tu archivo .env o a las variables de entorno de tu hosting.");
+}
+
 
 const parseJwt = (token) => {
   try {
