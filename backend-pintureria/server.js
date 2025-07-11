@@ -8,7 +8,7 @@ import db from './db.js';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { MercadoPagoConfig, Preference, Payment } from 'mercadopago';
-import { sendOrderConfirmationEmail } from './emailService.js'; // <-- NUEVA IMPORTACIÓN
+import { sendOrderConfirmationEmail } from './emailService.js';
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -19,8 +19,6 @@ const payment = new Payment(client);
 
 
 app.use(cors()); 
-// Usamos express.json() para el cuerpo de las peticiones normales
-// y express.raw() específicamente para el webhook de MercadoPago
 app.use((req, res, next) => {
   if (req.originalUrl === '/api/payment-notification') {
     express.raw({ type: 'application/json' })(req, res, next);
@@ -329,7 +327,6 @@ app.post('/api/create-payment-preference', authenticateToken, async (req, res) =
     }
     
     const frontendUrl = process.env.VITE_FRONTEND_URL || 'http://localhost:5173';
-    // --- CAMBIO CLAVE: Añadimos la URL del webhook ---
     const notification_url = `${process.env.BACKEND_URL}/api/payment-notification`;
 
     const items = cart.map(product => ({
@@ -351,7 +348,7 @@ app.post('/api/create-payment-preference', authenticateToken, async (req, res) =
       },
       auto_return: 'approved',
       external_reference: orderId.toString(),
-      notification_url: notification_url, // <-- AÑADIDO
+      notification_url: notification_url,
     };
 
     const preference = new Preference(client);
@@ -380,15 +377,17 @@ app.post('/api/payment-notification', async (req, res) => {
   try {
     if (topic === 'payment') {
       const paymentId = query.id;
+      if (!paymentId) {
+        // A veces MP envía una notificación sin ID, la ignoramos.
+        return res.sendStatus(200);
+      }
       const paymentInfo = await payment.get({ id: paymentId });
       
       const orderId = paymentInfo.external_reference;
       
       if (paymentInfo.status === 'approved') {
-        // 1. Actualizar el estado de la orden en la base de datos
         await db.query("UPDATE orders SET status = 'approved' WHERE id = $1", [orderId]);
         
-        // 2. Obtener los datos completos de la orden y el email del usuario para el correo
         const orderDataResult = await db.query(`
           SELECT o.*, u.email
           FROM orders o
@@ -398,15 +397,19 @@ app.post('/api/payment-notification', async (req, res) => {
         
         if (orderDataResult.rows.length > 0) {
           const order = orderDataResult.rows[0];
-          const itemsResult = await db.query('SELECT name, quantity, price FROM order_items JOIN products ON products.id = order_items.product_id WHERE order_id = $1', [orderId]);
+          // --- CAMBIO CLAVE: Especificamos la tabla para 'price' ---
+          const itemsResult = await db.query(`
+            SELECT p.name, oi.quantity, oi.price 
+            FROM order_items oi 
+            JOIN products p ON p.id = oi.product_id 
+            WHERE oi.order_id = $1
+          `, [orderId]);
           order.items = itemsResult.rows;
 
-          // 3. Enviar el email de confirmación
           await sendOrderConfirmationEmail(order.email, order);
         }
       }
     }
-    // Respondemos a Mercado Pago para que sepa que recibimos la notificación
     res.sendStatus(200);
   } catch (error) {
     console.error('Error en el webhook de Mercado Pago:', error);
