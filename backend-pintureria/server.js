@@ -9,21 +9,18 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { sendOrderConfirmationEmail } from './emailService.js';
 
+// --- Forma correcta de importar de Mercado Pago ---
 import mercadopago from 'mercadopago';
+// Quitamos 'Refund' de aquí, ya que no se usa como una clase independiente
+const { MercadoPagoConfig, Preference, Payment } = mercadopago;
 
 
 const app = express();
 const PORT = process.env.PORT || 5001;
 
 const JWT_SECRET = process.env.JWT_SECRET;
-
-// --- CAMBIO: Manejo robusto de la importación de Mercado Pago ---
-// Esto soluciona problemas de compatibilidad entre módulos ESM y CJS.
-const MP = mercadopago.default || mercadopago;
-
-const client = new MP.MercadoPagoConfig({ accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN });
-const payment = new MP.Payment(client);
-const refund = new MP.Refund(client);
+const client = new MercadoPagoConfig({ accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN });
+const payment = new Payment(client);
 
 
 app.use(cors()); 
@@ -326,7 +323,7 @@ app.get('/api/admin/orders', [authenticateToken, isAdmin], async (req, res) => {
     }
 });
 
-// --- RUTA: Cancelar una orden (Admin) ---
+// --- RUTA CORREGIDA: Cancelar una orden (Admin) ---
 app.post('/api/orders/:orderId/cancel', [authenticateToken, isAdmin], async (req, res) => {
     const { orderId } = req.params;
     try {
@@ -343,7 +340,9 @@ app.post('/api/orders/:orderId/cancel', [authenticateToken, isAdmin], async (req
         if (order.mercadopago_transaction_id) {
             console.log(`Iniciando reembolso para la transacción de MP: ${order.mercadopago_transaction_id}`);
             
-            await refund.create({
+            // --- CÓDIGO CORREGIDO ---
+            // Se utiliza el objeto 'payment' existente y se llama a la propiedad 'refunds' (en plural).
+            await payment.refunds.create({
                 payment_id: order.mercadopago_transaction_id
             });
         }
@@ -363,7 +362,7 @@ app.post('/api/orders/:orderId/cancel', [authenticateToken, isAdmin], async (req
 });
 
 
-// --- RUTA: Creación de Preferencia de Pago ---
+// --- RUTA: Creación de Preferencia de Pago (Sin cambios) ---
 app.post('/api/create-payment-preference', authenticateToken, async (req, res) => {
   const { cart } = req.body;
   const userId = req.user.userId;
@@ -413,8 +412,7 @@ app.post('/api/create-payment-preference', authenticateToken, async (req, res) =
       notification_url: notification_url,
     };
 
-    // --- CAMBIO: Usar MP.Preference ---
-    const preference = new MP.Preference(client);
+    const preference = new Preference(client);
     const result = await preference.create({ body });
     
     await db.query('UPDATE orders SET mercadopago_payment_id = $1 WHERE id = $2', [result.id, orderId]);
