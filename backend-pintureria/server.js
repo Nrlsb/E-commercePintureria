@@ -7,8 +7,12 @@ import cors from 'cors';
 import db from './db.js'; 
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { MercadoPagoConfig, Preference, Payment } from 'mercadopago';
 import { sendOrderConfirmationEmail } from './emailService.js';
+
+// --- CAMBIO CLAVE: Corregimos la forma de importar de Mercado Pago ---
+import mercadopago from 'mercadopago';
+const { MercadoPagoConfig, Preference, Payment, Refund } = mercadopago;
+
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -319,7 +323,7 @@ app.get('/api/admin/orders', [authenticateToken, isAdmin], async (req, res) => {
     }
 });
 
-// --- RUTA CORREGIDA: Cancelar una orden (Admin) ---
+// --- RUTA: Cancelar una orden (Admin) (Sin cambios en la lógica, solo en la importación de arriba) ---
 app.post('/api/orders/:orderId/cancel', [authenticateToken, isAdmin], async (req, res) => {
     const { orderId } = req.params;
     try {
@@ -335,8 +339,11 @@ app.post('/api/orders/:orderId/cancel', [authenticateToken, isAdmin], async (req
 
         if (order.mercadopago_transaction_id) {
             console.log(`Iniciando reembolso para la transacción de MP: ${order.mercadopago_transaction_id}`);
-            // --- CAMBIO CLAVE: Usamos el método correcto para reembolsar ---
-            await payment.refunds.create({ payment_id: order.mercadopago_transaction_id });
+            
+            const refund = new Refund(client);
+            await refund.create({
+                payment_id: order.mercadopago_transaction_id
+            });
         }
 
         const updatedOrderResult = await db.query(
@@ -344,11 +351,11 @@ app.post('/api/orders/:orderId/cancel', [authenticateToken, isAdmin], async (req
             [orderId]
         );
 
-        res.status(200).json({ message: 'Orden cancelada con éxito.', order: updatedOrderResult.rows[0] });
+        res.status(200).json({ message: 'Orden cancelada y reembolso procesado con éxito.', order: updatedOrderResult.rows[0] });
 
     } catch (error) {
         console.error('Error al cancelar la orden:', error);
-        const errorMessage = error.cause?.message || 'Error interno del servidor.';
+        const errorMessage = error.cause?.message || 'Error interno del servidor al procesar la cancelación.';
         res.status(500).json({ message: errorMessage });
     }
 });
