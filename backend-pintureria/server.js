@@ -9,24 +9,17 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { sendOrderConfirmationEmail } from './emailService.js';
 
-<<<<<<< HEAD
-// --- CAMBIO CLAVE: Corregimos la forma de importar de Mercado Pago ---
+// --- Forma correcta de importar de Mercado Pago ---
 import mercadopago from 'mercadopago';
 const { MercadoPagoConfig, Preference, Payment, Refund } = mercadopago;
 
-=======
-// --- CAMBIO CLAVE 1: Solo importamos el objeto principal ---
-import mercadopago from 'mercadopago';
->>>>>>> 6a8b803a9595f31338186300c45e383c8557b890
 
 const app = express();
 const PORT = process.env.PORT || 5001;
 
 const JWT_SECRET = process.env.JWT_SECRET;
-
-// --- CAMBIO CLAVE 2: Usamos mercadopago. para acceder a los componentes ---
-const client = new mercadopago.MercadoPagoConfig({ accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN });
-const payment = new mercadopago.Payment(client);
+const client = new MercadoPagoConfig({ accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN });
+const payment = new Payment(client);
 
 
 app.use(cors()); 
@@ -38,7 +31,7 @@ app.use((req, res, next) => {
   }
 });
 
-// --- MIDDLEWARE ---
+// --- MIDDLEWARE (Sin cambios) ---
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
@@ -57,7 +50,7 @@ const isAdmin = (req, res, next) => {
 };
 
 // --- RUTAS DE PRODUCTOS, RESEÑAS, ADMIN Y AUTH (Sin cambios) ---
-// --- Rutas de Productos ---
+// --- Rutas de Productos (Sin cambios) ---
 app.get('/api/products', async (req, res) => {
   try {
     const query = `
@@ -118,7 +111,7 @@ app.get('/api/products/:productId', async (req, res) => {
 });
 
 
-// --- Rutas para Reseñas ---
+// --- Rutas para Reseñas (Sin cambios) ---
 app.get('/api/products/:productId/reviews', async (req, res) => {
   const { productId } = req.params;
   try {
@@ -165,7 +158,7 @@ app.delete('/api/reviews/:reviewId', authenticateToken, async (req, res) => {
 
   try {
     const reviewResult = await db.query('SELECT user_id FROM reviews WHERE id = $1', [reviewId]);
-
+    
     if (reviewResult.rows.length === 0) {
       return res.status(404).json({ message: 'Reseña no encontrada.' });
     }
@@ -177,7 +170,7 @@ app.delete('/api/reviews/:reviewId', authenticateToken, async (req, res) => {
     }
 
     await db.query('DELETE FROM reviews WHERE id = $1', [reviewId]);
-
+    
     res.status(200).json({ message: 'Reseña eliminada con éxito.' });
 
   } catch (err) {
@@ -187,7 +180,7 @@ app.delete('/api/reviews/:reviewId', authenticateToken, async (req, res) => {
 });
 
 
-// --- Rutas de Administración de Productos ---
+// --- Rutas de Administración de Productos (Sin cambios) ---
 app.post('/api/products', [authenticateToken, isAdmin], async (req, res) => {
   const { name, brand, category, price, old_price, image_url, description } = req.body;
   try {
@@ -235,7 +228,7 @@ app.delete('/api/products/:id', [authenticateToken, isAdmin], async (req, res) =
 });
 
 
-// --- Rutas de Autenticación ---
+// --- Rutas de Autenticación (Sin cambios) ---
 app.post('/api/auth/register', async (req, res) => {
   const { email, password, firstName, lastName, phone } = req.body;
   if (!email || !password || !firstName || !lastName) {
@@ -285,7 +278,7 @@ app.post('/api/auth/login', async (req, res) => {
     }
 });
 
-// --- RUTA: Historial de Órdenes ---
+// --- RUTA: Historial de Órdenes (Sin cambios) ---
 app.get('/api/orders', authenticateToken, async (req, res) => {
   const userId = req.user.userId;
   try {
@@ -313,7 +306,7 @@ app.get('/api/orders', authenticateToken, async (req, res) => {
 });
 
 
-// --- RUTA: Obtener todas las órdenes para el Admin ---
+// --- RUTA: Obtener todas las órdenes para el Admin (Sin cambios) ---
 app.get('/api/admin/orders', [authenticateToken, isAdmin], async (req, res) => {
     try {
         const result = await db.query(`
@@ -329,11 +322,7 @@ app.get('/api/admin/orders', [authenticateToken, isAdmin], async (req, res) => {
     }
 });
 
-<<<<<<< HEAD
-// --- RUTA: Cancelar una orden (Admin) (Sin cambios en la lógica, solo en la importación de arriba) ---
-=======
 // --- RUTA: Cancelar una orden (Admin) ---
->>>>>>> 6a8b803a9595f31338186300c45e383c8557b890
 app.post('/api/orders/:orderId/cancel', [authenticateToken, isAdmin], async (req, res) => {
     const { orderId } = req.params;
     try {
@@ -349,14 +338,8 @@ app.post('/api/orders/:orderId/cancel', [authenticateToken, isAdmin], async (req
 
         if (order.mercadopago_transaction_id) {
             console.log(`Iniciando reembolso para la transacción de MP: ${order.mercadopago_transaction_id}`);
-<<<<<<< HEAD
             
             const refund = new Refund(client);
-=======
-
-            // --- CAMBIO CLAVE 3: Usamos mercadopago.Refund ---
-            const refund = new mercadopago.Refund(client);
->>>>>>> 6a8b803a9595f31338186300c45e383c8557b890
             await refund.create({
                 payment_id: order.mercadopago_transaction_id
             });
@@ -377,7 +360,7 @@ app.post('/api/orders/:orderId/cancel', [authenticateToken, isAdmin], async (req
 });
 
 
-// --- RUTA: Creación de Preferencia de Pago ---
+// --- RUTA: Creación de Preferencia de Pago (Sin cambios) ---
 app.post('/api/create-payment-preference', authenticateToken, async (req, res) => {
   const { cart } = req.body;
   const userId = req.user.userId;
@@ -385,7 +368,7 @@ app.post('/api/create-payment-preference', authenticateToken, async (req, res) =
   if (!cart || cart.length === 0) {
     return res.status(400).json({ message: 'El carrito está vacío.' });
   }
-
+  
   const totalAmount = cart.reduce((total, item) => total + item.price * item.quantity, 0);
 
   try {
@@ -401,7 +384,7 @@ app.post('/api/create-payment-preference', authenticateToken, async (req, res) =
         [orderId, item.id, item.quantity, item.price]
       );
     }
-
+    
     const frontendUrl = process.env.VITE_FRONTEND_URL || 'http://localhost:5173';
     const notification_url = `${process.env.BACKEND_URL}/api/payment-notification`;
 
@@ -427,10 +410,9 @@ app.post('/api/create-payment-preference', authenticateToken, async (req, res) =
       notification_url: notification_url,
     };
 
-    // --- CAMBIO CLAVE 4: Usamos mercadopago.Preference ---
-    const preference = new mercadopago.Preference(client);
+    const preference = new Preference(client);
     const result = await preference.create({ body });
-
+    
     await db.query('UPDATE orders SET mercadopago_payment_id = $1 WHERE id = $2', [result.id, orderId]);
 
     res.json({ id: result.id });
@@ -444,11 +426,11 @@ app.post('/api/create-payment-preference', authenticateToken, async (req, res) =
   }
 });
 
-// --- WEBHOOK ---
+// --- WEBHOOK (Sin cambios) ---
 app.post('/api/payment-notification', async (req, res) => {
   const { query } = req;
   const topic = query.topic || query.type;
-
+  
   console.log('Notificación recibida:', { topic, id: query.id });
 
   try {
@@ -457,24 +439,23 @@ app.post('/api/payment-notification', async (req, res) => {
       if (!paymentId) {
         return res.sendStatus(200);
       }
-      // 'payment' ya está definido arriba, no hay necesidad de cambiarlo aquí
       const paymentInfo = await payment.get({ id: paymentId });
-
+      
       const orderId = paymentInfo.external_reference;
-
+      
       if (paymentInfo.status === 'approved') {
         await db.query(
             "UPDATE orders SET status = 'approved', mercadopago_transaction_id = $1 WHERE id = $2", 
             [paymentId, orderId]
         );
-
+        
         const orderDataResult = await db.query(`
           SELECT o.*, u.email
           FROM orders o
           JOIN users u ON o.user_id = u.id
           WHERE o.id = $1
         `, [orderId]);
-
+        
         if (orderDataResult.rows.length > 0) {
           const order = orderDataResult.rows[0];
           const itemsResult = await db.query(`
@@ -500,4 +481,3 @@ app.post('/api/payment-notification', async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Servidor corriendo en el puerto ${PORT}`);
 });
-
