@@ -1,6 +1,6 @@
 // src/pages/AdminOrdersPage.jsx
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
@@ -8,26 +8,36 @@ const AdminOrdersPage = () => {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const navigate = useNavigate();
   const token = localStorage.getItem('token');
 
-  const fetchOrders = async () => {
-    try {
-      const response = await fetch(`${API_URL}/api/admin/orders`, {
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-      if (!response.ok) throw new Error('No se pudieron cargar las órdenes.');
-      const data = await response.json();
-      setOrders(data);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
+    const fetchOrders = async () => {
+      try {
+        const response = await fetch(`${API_URL}/api/admin/orders`, {
+          headers: { 'Authorization': `Bearer ${token}` },
+        });
+
+        // --- CAMBIO CLAVE: Manejo de error 403 ---
+        if (response.status === 403) {
+          alert("Acceso denegado. Por favor, inicia sesión con una cuenta de administrador.");
+          navigate('/login');
+          return;
+        }
+
+        if (!response.ok) throw new Error('No se pudieron cargar las órdenes.');
+        
+        const data = await response.json();
+        setOrders(data);
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
     fetchOrders();
-  }, [token]);
+  }, [token, navigate]);
 
   const handleCancelOrder = async (orderId) => {
     if (window.confirm(`¿Estás seguro de que quieres cancelar la orden #${orderId}? Esta acción es irreversible.`)) {
@@ -40,8 +50,12 @@ const AdminOrdersPage = () => {
         if (!response.ok) throw new Error(data.message || 'Error al cancelar la orden.');
         
         alert('Orden cancelada con éxito.');
-        // Actualizamos la lista para reflejar el cambio de estado
-        fetchOrders();
+        // Para no volver a llamar a la API, actualizamos el estado localmente
+        setOrders(prevOrders => 
+            prevOrders.map(order => 
+                order.id === orderId ? { ...order, status: 'cancelled' } : order
+            )
+        );
       } catch (err) {
         alert(`Error: ${err.message}`);
         setError(err.message);
