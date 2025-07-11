@@ -9,7 +9,6 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { sendOrderConfirmationEmail } from './emailService.js';
 
-// --- CAMBIO: Importar mercadopago directamente ---
 import mercadopago from 'mercadopago';
 
 
@@ -18,10 +17,13 @@ const PORT = process.env.PORT || 5001;
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
-// --- CAMBIO: Usar mercadopago. directly ---
-const client = new mercadopago.MercadoPagoConfig({ accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN });
-const payment = new mercadopago.Payment(client);
-const refund = new mercadopago.Refund(client);
+// --- CAMBIO: Manejo robusto de la importación de Mercado Pago ---
+// Esto soluciona problemas de compatibilidad entre módulos ESM y CJS.
+const MP = mercadopago.default || mercadopago;
+
+const client = new MP.MercadoPagoConfig({ accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN });
+const payment = new MP.Payment(client);
+const refund = new MP.Refund(client);
 
 
 app.use(cors()); 
@@ -411,8 +413,8 @@ app.post('/api/create-payment-preference', authenticateToken, async (req, res) =
       notification_url: notification_url,
     };
 
-    // --- CAMBIO: Usar mercadopago.Preference ---
-    const preference = new mercadopago.Preference(client);
+    // --- CAMBIO: Usar MP.Preference ---
+    const preference = new MP.Preference(client);
     const result = await preference.create({ body });
     
     await db.query('UPDATE orders SET mercadopago_payment_id = $1 WHERE id = $2', [result.id, orderId]);
