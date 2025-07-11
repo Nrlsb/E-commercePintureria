@@ -7,7 +7,6 @@ import cors from 'cors';
 import db from './db.js'; 
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-// Añadimos 'Payment' para poder gestionar pagos y reembolsos
 import { MercadoPagoConfig, Preference, Payment } from 'mercadopago';
 import { sendOrderConfirmationEmail } from './emailService.js';
 
@@ -16,7 +15,6 @@ const PORT = process.env.PORT || 5001;
 
 const JWT_SECRET = process.env.JWT_SECRET;
 const client = new MercadoPagoConfig({ accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN });
-// Creamos una instancia de Payment para usarla en el webhook y en cancelaciones
 const payment = new Payment(client);
 
 
@@ -305,7 +303,7 @@ app.get('/api/orders', authenticateToken, async (req, res) => {
 });
 
 
-// --- NUEVA RUTA: Obtener todas las órdenes para el Admin ---
+// --- RUTA: Obtener todas las órdenes para el Admin (Sin cambios) ---
 app.get('/api/admin/orders', [authenticateToken, isAdmin], async (req, res) => {
     try {
         const result = await db.query(`
@@ -321,30 +319,26 @@ app.get('/api/admin/orders', [authenticateToken, isAdmin], async (req, res) => {
     }
 });
 
-// --- NUEVA RUTA: Cancelar una orden (Admin) ---
+// --- RUTA CORREGIDA: Cancelar una orden (Admin) ---
 app.post('/api/orders/:orderId/cancel', [authenticateToken, isAdmin], async (req, res) => {
     const { orderId } = req.params;
     try {
-        // 1. Obtener la orden de la BD
         const orderResult = await db.query('SELECT * FROM orders WHERE id = $1', [orderId]);
         if (orderResult.rows.length === 0) {
             return res.status(404).json({ message: 'Orden no encontrada.' });
         }
         const order = orderResult.rows[0];
 
-        // 2. No se puede cancelar si ya está cancelada
         if (order.status === 'cancelled') {
             return res.status(400).json({ message: 'La orden ya ha sido cancelada.' });
         }
 
-        // 3. Si tiene un ID de transacción, procesar el reembolso en Mercado Pago
         if (order.mercadopago_transaction_id) {
             console.log(`Iniciando reembolso para la transacción de MP: ${order.mercadopago_transaction_id}`);
-            // La API de Mercado Pago requiere el ID del pago, no el de la orden
-            await payment.refund.create({ payment_id: order.mercadopago_transaction_id });
+            // --- CAMBIO CLAVE: Usamos el método correcto para reembolsar ---
+            await payment.refunds.create({ payment_id: order.mercadopago_transaction_id });
         }
 
-        // 4. Actualizar el estado de la orden en nuestra BD a 'cancelled'
         const updatedOrderResult = await db.query(
             "UPDATE orders SET status = 'cancelled' WHERE id = $1 RETURNING *",
             [orderId]
@@ -354,14 +348,13 @@ app.post('/api/orders/:orderId/cancel', [authenticateToken, isAdmin], async (req
 
     } catch (error) {
         console.error('Error al cancelar la orden:', error);
-        // Devolvemos el mensaje de error de la API de MP si existe
         const errorMessage = error.cause?.message || 'Error interno del servidor.';
         res.status(500).json({ message: errorMessage });
     }
 });
 
 
-// --- RUTA MODIFICADA: Creación de Preferencia de Pago (Sin cambios) ---
+// --- RUTA: Creación de Preferencia de Pago (Sin cambios) ---
 app.post('/api/create-payment-preference', authenticateToken, async (req, res) => {
   const { cart } = req.body;
   const userId = req.user.userId;
@@ -427,7 +420,7 @@ app.post('/api/create-payment-preference', authenticateToken, async (req, res) =
   }
 });
 
-// --- WEBHOOK MODIFICADO: Ahora guarda el ID de la transacción ---
+// --- WEBHOOK (Sin cambios) ---
 app.post('/api/payment-notification', async (req, res) => {
   const { query } = req;
   const topic = query.topic || query.type;
@@ -445,7 +438,6 @@ app.post('/api/payment-notification', async (req, res) => {
       const orderId = paymentInfo.external_reference;
       
       if (paymentInfo.status === 'approved') {
-        // --- CAMBIO CLAVE: Guardamos el ID de la transacción ---
         await db.query(
             "UPDATE orders SET status = 'approved', mercadopago_transaction_id = $1 WHERE id = $2", 
             [paymentId, orderId]
