@@ -5,7 +5,6 @@ import { Wallet } from '@mercadopago/sdk-react';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
-// El componente ahora recibe el token para autenticar la petición
 const CheckoutPage = ({ cart, token }) => {
   const [preferenceId, setPreferenceId] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -17,7 +16,6 @@ const CheckoutPage = ({ cart, token }) => {
   };
 
   const handleCreatePreference = async () => {
-    // Si no hay token, redirigir a login
     if (!token) {
         navigate('/login?redirect=/checkout');
         return;
@@ -30,13 +28,19 @@ const CheckoutPage = ({ cart, token }) => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          // --- CAMBIO CLAVE: Enviamos el token para la autenticación ---
           'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({ cart }),
       });
       
-      // Si la respuesta no es OK, intentamos leer el mensaje de error del backend
+      // --- CAMBIO CLAVE: Manejo específico del error 403 Forbidden ---
+      if (response.status === 403) {
+        // Si el token es rechazado (probablemente expiró), forzamos al usuario a loguearse de nuevo.
+        alert("Tu sesión ha expirado. Por favor, inicia sesión de nuevo para continuar.");
+        navigate('/login?redirect=/checkout');
+        return;
+      }
+
       if (!response.ok) {
         const data = await response.json().catch(() => ({ message: 'Hubo un problema al generar el link de pago.' }));
         throw new Error(data.message);
