@@ -11,7 +11,8 @@ import { sendOrderConfirmationEmail } from './emailService.js';
 
 // --- Forma correcta de importar de Mercado Pago ---
 import mercadopago from 'mercadopago';
-const { MercadoPagoConfig, Preference, Payment, Refund } = mercadopago;
+// Quitamos 'Refund' de aquí, ya que no se usa como una clase independiente
+const { MercadoPagoConfig, Preference, Payment } = mercadopago;
 
 
 const app = express();
@@ -322,7 +323,7 @@ app.get('/api/admin/orders', [authenticateToken, isAdmin], async (req, res) => {
     }
 });
 
-// --- RUTA: Cancelar una orden (Admin) ---
+// --- RUTA CORREGIDA: Cancelar una orden (Admin) ---
 app.post('/api/orders/:orderId/cancel', [authenticateToken, isAdmin], async (req, res) => {
     const { orderId } = req.params;
     try {
@@ -339,8 +340,9 @@ app.post('/api/orders/:orderId/cancel', [authenticateToken, isAdmin], async (req
         if (order.mercadopago_transaction_id) {
             console.log(`Iniciando reembolso para la transacción de MP: ${order.mercadopago_transaction_id}`);
             
-            const refund = new Refund(client);
-            await refund.create({
+            // --- CÓDIGO CORREGIDO ---
+            // Se utiliza el objeto 'payment' existente y se llama a la propiedad 'refunds' (en plural).
+            await payment.refunds.create({
                 payment_id: order.mercadopago_transaction_id
             });
         }
