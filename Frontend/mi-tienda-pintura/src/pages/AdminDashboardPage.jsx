@@ -29,25 +29,16 @@ const AdminDashboardPage = () => {
   }, []);
 
   const handleDelete = async (productId) => {
-    // Pedimos confirmación antes de borrar
     if (window.confirm('¿Estás seguro de que quieres eliminar este producto?')) {
       try {
         const response = await fetch(`${API_URL}/api/products/${productId}`, {
           method: 'DELETE',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
+          headers: { 'Authorization': `Bearer ${token}` },
         });
-
-        if (!response.ok) {
-          throw new Error('Error al eliminar el producto');
-        }
-
-        // Actualizamos la lista de productos en el estado para reflejar el cambio
+        if (!response.ok) throw new Error('Error al eliminar el producto');
         setProducts(products.filter(p => p.id !== productId));
         alert('Producto eliminado con éxito');
       } catch (err) {
-        setError(err.message);
         alert(`Error: ${err.message}`);
       }
     }
@@ -60,12 +51,19 @@ const AdminDashboardPage = () => {
     <div className="container mx-auto px-4 py-8">
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-3xl font-bold text-gray-800">Panel de Administración</h1>
-        <Link to="/admin/product/new" className="bg-[#10B981] text-white font-bold py-2 px-4 rounded-lg hover:bg-green-600 transition-colors">
-          Crear Nuevo Producto
-        </Link>
+        {/* --- CAMBIO: Añadimos un link a la nueva página de órdenes --- */}
+        <div className="flex space-x-4">
+            <Link to="/admin/orders" className="bg-blue-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-600 transition-colors">
+                Gestionar Órdenes
+            </Link>
+            <Link to="/admin/product/new" className="bg-green-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-600 transition-colors">
+                Crear Producto
+            </Link>
+        </div>
       </div>
       
       <div className="bg-white p-6 rounded-lg shadow-md overflow-x-auto">
+        <h2 className="text-2xl font-bold mb-4">Gestión de Productos</h2>
         <table className="w-full text-left">
           <thead>
             <tr className="border-b">

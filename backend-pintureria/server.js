@@ -7,6 +7,7 @@ import cors from 'cors';
 import db from './db.js'; 
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+// Añadimos 'Payment' para poder gestionar pagos y reembolsos
 import { MercadoPagoConfig, Preference, Payment } from 'mercadopago';
 import { sendOrderConfirmationEmail } from './emailService.js';
 
@@ -15,19 +16,20 @@ const PORT = process.env.PORT || 5001;
 
 const JWT_SECRET = process.env.JWT_SECRET;
 const client = new MercadoPagoConfig({ accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN });
+// Creamos una instancia de Payment para usarla en el webhook y en cancelaciones
 const payment = new Payment(client);
 
 
 app.use(cors()); 
 app.use((req, res, next) => {
-  if (req.originalUrl === '/api/payment-notification') {
+  if (req.originalUrl.includes('/api/payment-notification')) {
     express.raw({ type: 'application/json' })(req, res, next);
   } else {
     express.json()(req, res, next);
   }
 });
 
-// --- MIDDLEWARE DE AUTENTICACIÓN Y AUTORIZACIÓN (Sin cambios) ---
+// --- MIDDLEWARE (Sin cambios) ---
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
@@ -274,6 +276,7 @@ app.post('/api/auth/login', async (req, res) => {
         res.status(500).json({ message: 'Error interno del servidor' });
     }
 });
+
 // --- RUTA: Historial de Órdenes (Sin cambios) ---
 app.get('/api/orders', authenticateToken, async (req, res) => {
   const userId = req.user.userId;
@@ -301,7 +304,64 @@ app.get('/api/orders', authenticateToken, async (req, res) => {
   }
 });
 
-// --- RUTA MODIFICADA: Creación de Preferencia de Pago ---
+
+// --- NUEVA RUTA: Obtener todas las órdenes para el Admin ---
+app.get('/api/admin/orders', [authenticateToken, isAdmin], async (req, res) => {
+    try {
+        const result = await db.query(`
+            SELECT o.*, u.email as user_email 
+            FROM orders o
+            JOIN users u ON o.user_id = u.id
+            ORDER BY o.created_at DESC
+        `);
+        res.json(result.rows);
+    } catch (error) {
+        console.error('Error al obtener todas las órdenes:', error);
+        res.status(500).json({ message: 'Error interno del servidor' });
+    }
+});
+
+// --- NUEVA RUTA: Cancelar una orden (Admin) ---
+app.post('/api/orders/:orderId/cancel', [authenticateToken, isAdmin], async (req, res) => {
+    const { orderId } = req.params;
+    try {
+        // 1. Obtener la orden de la BD
+        const orderResult = await db.query('SELECT * FROM orders WHERE id = $1', [orderId]);
+        if (orderResult.rows.length === 0) {
+            return res.status(404).json({ message: 'Orden no encontrada.' });
+        }
+        const order = orderResult.rows[0];
+
+        // 2. No se puede cancelar si ya está cancelada
+        if (order.status === 'cancelled') {
+            return res.status(400).json({ message: 'La orden ya ha sido cancelada.' });
+        }
+
+        // 3. Si tiene un ID de transacción, procesar el reembolso en Mercado Pago
+        if (order.mercadopago_transaction_id) {
+            console.log(`Iniciando reembolso para la transacción de MP: ${order.mercadopago_transaction_id}`);
+            // La API de Mercado Pago requiere el ID del pago, no el de la orden
+            await payment.refund.create({ payment_id: order.mercadopago_transaction_id });
+        }
+
+        // 4. Actualizar el estado de la orden en nuestra BD a 'cancelled'
+        const updatedOrderResult = await db.query(
+            "UPDATE orders SET status = 'cancelled' WHERE id = $1 RETURNING *",
+            [orderId]
+        );
+
+        res.status(200).json({ message: 'Orden cancelada con éxito.', order: updatedOrderResult.rows[0] });
+
+    } catch (error) {
+        console.error('Error al cancelar la orden:', error);
+        // Devolvemos el mensaje de error de la API de MP si existe
+        const errorMessage = error.cause?.message || 'Error interno del servidor.';
+        res.status(500).json({ message: errorMessage });
+    }
+});
+
+
+// --- RUTA MODIFICADA: Creación de Preferencia de Pago (Sin cambios) ---
 app.post('/api/create-payment-preference', authenticateToken, async (req, res) => {
   const { cart } = req.body;
   const userId = req.user.userId;
@@ -367,7 +427,7 @@ app.post('/api/create-payment-preference', authenticateToken, async (req, res) =
   }
 });
 
-// --- NUEVA RUTA: Webhook para Notificaciones de Pago ---
+// --- WEBHOOK MODIFICADO: Ahora guarda el ID de la transacción ---
 app.post('/api/payment-notification', async (req, res) => {
   const { query } = req;
   const topic = query.topic || query.type;
@@ -378,7 +438,6 @@ app.post('/api/payment-notification', async (req, res) => {
     if (topic === 'payment') {
       const paymentId = query.id;
       if (!paymentId) {
-        // A veces MP envía una notificación sin ID, la ignoramos.
         return res.sendStatus(200);
       }
       const paymentInfo = await payment.get({ id: paymentId });
@@ -386,7 +445,11 @@ app.post('/api/payment-notification', async (req, res) => {
       const orderId = paymentInfo.external_reference;
       
       if (paymentInfo.status === 'approved') {
-        await db.query("UPDATE orders SET status = 'approved' WHERE id = $1", [orderId]);
+        // --- CAMBIO CLAVE: Guardamos el ID de la transacción ---
+        await db.query(
+            "UPDATE orders SET status = 'approved', mercadopago_transaction_id = $1 WHERE id = $2", 
+            [paymentId, orderId]
+        );
         
         const orderDataResult = await db.query(`
           SELECT o.*, u.email
@@ -397,7 +460,6 @@ app.post('/api/payment-notification', async (req, res) => {
         
         if (orderDataResult.rows.length > 0) {
           const order = orderDataResult.rows[0];
-          // --- CAMBIO CLAVE: Especificamos la tabla para 'price' ---
           const itemsResult = await db.query(`
             SELECT p.name, oi.quantity, oi.price 
             FROM order_items oi 

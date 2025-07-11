@@ -22,6 +22,7 @@ import RegisterPage from './pages/RegisterPage.jsx';
 import AdminDashboardPage from './pages/AdminDashboardPage.jsx';
 import ProductFormPage from './pages/ProductFormPage.jsx';
 import OrderHistoryPage from './pages/OrderHistoryPage.jsx';
+import AdminOrdersPage from './pages/AdminOrdersPage.jsx'; // <-- NUEVA IMPORTACIÓN
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 const MERCADOPAGO_PUBLIC_KEY = import.meta.env.VITE_MERCADOPAGO_PUBLIC_KEY;
@@ -158,7 +159,6 @@ export default function App() {
 
           {/* --- Rutas Protegidas para Usuarios Logueados --- */}
           <Route element={<ProtectedRoute user={user} />}>
-            {/* --- CAMBIO CLAVE: Pasamos el token al CheckoutPage --- */}
             <Route path="/checkout" element={<CheckoutPage cart={cart} token={token} />} />
             <Route path="/my-orders" element={<OrderHistoryPage token={token} />} />
           </Route>
@@ -166,6 +166,7 @@ export default function App() {
           {/* --- Rutas de Administración Protegidas --- */}
           <Route element={<AdminRoute user={user} />}>
             <Route path="/admin" element={<AdminDashboardPage />} />
+            <Route path="/admin/orders" element={<AdminOrdersPage />} /> {/* <-- NUEVA RUTA */}
             <Route path="/admin/product/new" element={<ProductFormPage />} />
             <Route path="/admin/product/edit/:productId" element={<ProductFormPage />} />
           </Route>
