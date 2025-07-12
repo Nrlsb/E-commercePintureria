@@ -9,9 +9,9 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { sendOrderConfirmationEmail } from './emailService.js';
 
-// --- Forma correcta de importar de Mercado Pago, incluyendo Refund ---
+// --- CAMBIO: Se importa 'PaymentRefund' en lugar de 'Refund' ---
 import mercadopago from 'mercadopago';
-const { MercadoPagoConfig, Preference, Payment, Refund } = mercadopago;
+const { MercadoPagoConfig, Preference, Payment, PaymentRefund } = mercadopago;
 
 
 const app = express();
@@ -31,7 +31,7 @@ app.use((req, res, next) => {
   }
 });
 
-// --- MIDDLEWARE (Sin cambios) ---
+// --- MIDDLEWARE ---
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
@@ -50,7 +50,7 @@ const isAdmin = (req, res, next) => {
 };
 
 // --- RUTAS DE PRODUCTOS, RESEÑAS, ADMIN Y AUTH (Sin cambios) ---
-// --- Rutas de Productos (Sin cambios) ---
+// --- Rutas de Productos ---
 app.get('/api/products', async (req, res) => {
   try {
     const query = `
@@ -98,8 +98,8 @@ app.get('/api/products/:productId', async (req, res) => {
         ...product, 
         imageUrl: product.image_url, 
         oldPrice: product.old_price,
-        averageRating: parseFloat(p.average_rating),
-        reviewCount: parseInt(p.review_count, 10)
+        averageRating: parseFloat(product.average_rating),
+        reviewCount: parseInt(product.review_count, 10)
       });
     } else {
       res.status(404).json({ message: 'Producto no encontrado' });
@@ -111,7 +111,7 @@ app.get('/api/products/:productId', async (req, res) => {
 });
 
 
-// --- Rutas para Reseñas (Sin cambios) ---
+// --- Rutas para Reseñas ---
 app.get('/api/products/:productId/reviews', async (req, res) => {
   const { productId } = req.params;
   try {
@@ -180,7 +180,7 @@ app.delete('/api/reviews/:reviewId', authenticateToken, async (req, res) => {
 });
 
 
-// --- Rutas de Administración de Productos (Sin cambios) ---
+// --- Rutas de Administración de Productos ---
 app.post('/api/products', [authenticateToken, isAdmin], async (req, res) => {
   const { name, brand, category, price, old_price, image_url, description } = req.body;
   try {
@@ -228,7 +228,7 @@ app.delete('/api/products/:id', [authenticateToken, isAdmin], async (req, res) =
 });
 
 
-// --- Rutas de Autenticación (Sin cambios) ---
+// --- Rutas de Autenticación ---
 app.post('/api/auth/register', async (req, res) => {
   const { email, password, firstName, lastName, phone } = req.body;
   if (!email || !password || !firstName || !lastName) {
@@ -278,7 +278,7 @@ app.post('/api/auth/login', async (req, res) => {
     }
 });
 
-// --- RUTA: Historial de Órdenes (Sin cambios) ---
+// --- RUTA: Historial de Órdenes ---
 app.get('/api/orders', authenticateToken, async (req, res) => {
   const userId = req.user.userId;
   try {
@@ -306,7 +306,7 @@ app.get('/api/orders', authenticateToken, async (req, res) => {
 });
 
 
-// --- RUTA: Obtener todas las órdenes para el Admin (Sin cambios) ---
+// --- RUTA: Obtener todas las órdenes para el Admin ---
 app.get('/api/admin/orders', [authenticateToken, isAdmin], async (req, res) => {
     try {
         const result = await db.query(`
@@ -340,8 +340,9 @@ app.post('/api/orders/:orderId/cancel', [authenticateToken, isAdmin], async (req
             console.log(`Iniciando reembolso para la transacción de MP: ${order.mercadopago_transaction_id}`);
             
             // --- CÓDIGO CORREGIDO ---
-            const refund = new Refund(client);
-            await refund.create({
+            // Se instancia un cliente de Reembolso y se utiliza para crear el reembolso.
+            const refundClient = new PaymentRefund(client);
+            await refundClient.create({
                 payment_id: order.mercadopago_transaction_id
             });
         }
@@ -364,7 +365,7 @@ app.post('/api/orders/:orderId/cancel', [authenticateToken, isAdmin], async (req
 });
 
 
-// --- RUTA: Creación de Preferencia de Pago (Sin cambios) ---
+// --- RUTA: Creación de Preferencia de Pago ---
 app.post('/api/create-payment-preference', authenticateToken, async (req, res) => {
   const { cart } = req.body;
   const userId = req.user.userId;
@@ -430,7 +431,7 @@ app.post('/api/create-payment-preference', authenticateToken, async (req, res) =
   }
 });
 
-// --- WEBHOOK (Sin cambios) ---
+// --- WEBHOOK ---
 app.post('/api/payment-notification', async (req, res) => {
   const { query } = req;
   const topic = query.topic || query.type;
