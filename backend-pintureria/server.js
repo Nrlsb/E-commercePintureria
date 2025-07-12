@@ -323,7 +323,7 @@ app.get('/api/admin/orders', [authenticateToken, isAdmin], async (req, res) => {
     }
 });
 
-// --- RUTA CORREGIDA: Cancelar una orden (Admin) ---
+// --- RUTA: Cancelar una orden (Admin) ---
 app.post('/api/orders/:orderId/cancel', [authenticateToken, isAdmin], async (req, res) => {
     const { orderId } = req.params;
     try {
@@ -340,8 +340,6 @@ app.post('/api/orders/:orderId/cancel', [authenticateToken, isAdmin], async (req
         if (order.mercadopago_transaction_id) {
             console.log(`Iniciando reembolso para la transacción de MP: ${order.mercadopago_transaction_id}`);
             
-            // --- CÓDIGO CORREGIDO ---
-            // Se utiliza el objeto 'payment' existente y se llama a la propiedad 'refunds' (en plural).
             await payment.refunds.create({
                 payment_id: order.mercadopago_transaction_id
             });
@@ -355,8 +353,12 @@ app.post('/api/orders/:orderId/cancel', [authenticateToken, isAdmin], async (req
         res.status(200).json({ message: 'Orden cancelada y reembolso procesado con éxito.', order: updatedOrderResult.rows[0] });
 
     } catch (error) {
-        console.error('Error al cancelar la orden:', error);
-        const errorMessage = error.cause?.message || 'Error interno del servidor al procesar la cancelación.';
+        // --- CAMBIO CLAVE: Añadimos un log detallado del error ---
+        console.error('--- DETALLE COMPLETO DEL ERROR AL CANCELAR ---');
+        console.error(error);
+        console.error('--- FIN DEL DETALLE ---');
+        
+        const errorMessage = error.cause?.message || error.message || 'Error interno del servidor al procesar la cancelación.';
         res.status(500).json({ message: errorMessage });
     }
 });
