@@ -9,10 +9,9 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { sendOrderConfirmationEmail } from './emailService.js';
 
-// --- Forma correcta de importar de Mercado Pago ---
+// --- Forma correcta de importar de Mercado Pago, incluyendo Refund ---
 import mercadopago from 'mercadopago';
-// Quitamos 'Refund' de aquí, ya que no se usa como una clase independiente
-const { MercadoPagoConfig, Preference, Payment } = mercadopago;
+const { MercadoPagoConfig, Preference, Payment, Refund } = mercadopago;
 
 
 const app = express();
@@ -99,8 +98,8 @@ app.get('/api/products/:productId', async (req, res) => {
         ...product, 
         imageUrl: product.image_url, 
         oldPrice: product.old_price,
-        averageRating: parseFloat(product.average_rating),
-        reviewCount: parseInt(product.review_count, 10)
+        averageRating: parseFloat(p.average_rating),
+        reviewCount: parseInt(p.review_count, 10)
       });
     } else {
       res.status(404).json({ message: 'Producto no encontrado' });
@@ -323,7 +322,7 @@ app.get('/api/admin/orders', [authenticateToken, isAdmin], async (req, res) => {
     }
 });
 
-// --- RUTA: Cancelar una orden (Admin) ---
+// --- RUTA CORREGIDA: Cancelar una orden (Admin) ---
 app.post('/api/orders/:orderId/cancel', [authenticateToken, isAdmin], async (req, res) => {
     const { orderId } = req.params;
     try {
@@ -340,7 +339,9 @@ app.post('/api/orders/:orderId/cancel', [authenticateToken, isAdmin], async (req
         if (order.mercadopago_transaction_id) {
             console.log(`Iniciando reembolso para la transacción de MP: ${order.mercadopago_transaction_id}`);
             
-            await payment.refunds.create({
+            // --- CÓDIGO CORREGIDO ---
+            const refund = new Refund(client);
+            await refund.create({
                 payment_id: order.mercadopago_transaction_id
             });
         }
@@ -353,7 +354,6 @@ app.post('/api/orders/:orderId/cancel', [authenticateToken, isAdmin], async (req
         res.status(200).json({ message: 'Orden cancelada y reembolso procesado con éxito.', order: updatedOrderResult.rows[0] });
 
     } catch (error) {
-        // --- CAMBIO CLAVE: Añadimos un log detallado del error ---
         console.error('--- DETALLE COMPLETO DEL ERROR AL CANCELAR ---');
         console.error(error);
         console.error('--- FIN DEL DETALLE ---');
