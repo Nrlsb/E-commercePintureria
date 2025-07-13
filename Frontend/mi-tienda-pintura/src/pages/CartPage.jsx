@@ -1,15 +1,17 @@
 // src/pages/CartPage.jsx
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { useCartStore } from '../stores/useCartStore'; // 1. Importamos el store del carrito
 
-const CartPage = ({ cart, onUpdateQuantity, onRemoveItem }) => {
+const CartPage = () => {
+  // 2. Obtenemos el estado y las acciones directamente del store
+  const { cart, updateQuantity, removeItem } = useCartStore();
   
   const calculateSubtotal = (item) => item.price * item.quantity;
   const calculateTotal = () => cart.reduce((total, item) => total + calculateSubtotal(item), 0);
 
   if (cart.length === 0) {
     return (
-      // CAMBIO: Este contenedor ahora crece y centra el mensaje, empujando el footer hacia abajo.
       <div className="flex-grow flex flex-col items-center justify-center text-center">
         <div className="p-10 bg-white rounded-lg shadow-md">
           <h1 className="text-3xl font-bold text-gray-800 mb-4">Tu carrito está vacío</h1>
@@ -40,12 +42,13 @@ const CartPage = ({ cart, onUpdateQuantity, onRemoveItem }) => {
                 </div>
                 <div className="flex items-center space-x-4">
                   <div className="flex items-center border border-gray-300 rounded-md">
-                    <button onClick={() => onUpdateQuantity(item.id, item.quantity - 1)} className="px-3 py-1 text-lg font-bold hover:bg-gray-100 rounded-l-md transition-colors">-</button>
+                    {/* 3. Usamos las acciones del store */}
+                    <button onClick={() => updateQuantity(item.id, item.quantity - 1)} className="px-3 py-1 text-lg font-bold hover:bg-gray-100 rounded-l-md transition-colors">-</button>
                     <span className="px-4 py-1 text-lg">{item.quantity}</span>
-                    <button onClick={() => onUpdateQuantity(item.id, item.quantity + 1)} className="px-3 py-1 text-lg font-bold hover:bg-gray-100 rounded-r-md transition-colors">+</button>
+                    <button onClick={() => updateQuantity(item.id, item.quantity + 1)} className="px-3 py-1 text-lg font-bold hover:bg-gray-100 rounded-r-md transition-colors">+</button>
                   </div>
                   <p className="font-bold text-lg w-28 text-right">${new Intl.NumberFormat('es-AR').format(calculateSubtotal(item))}</p>
-                  <button onClick={() => onRemoveItem(item.id)} className="text-gray-400 hover:text-red-500 transition-colors">
+                  <button onClick={() => removeItem(item.id)} className="text-gray-400 hover:text-red-500 transition-colors">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                     </svg>
