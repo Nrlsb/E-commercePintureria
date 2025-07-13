@@ -2,23 +2,28 @@
 import React, { useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import ProductCard from '../components/ProductCard.jsx';
-import ProductFilters from '../components/ProductFilters.jsx'; // 1. Importamos el nuevo componente
+import ProductFilters from '../components/ProductFilters.jsx';
 import { useProductStore } from '../stores/useProductStore.js';
 
 const CategoryPage = () => {
   const { categoryName } = useParams();
-  const { products, loading, error, fetchProducts } = useProductStore();
+  
+  // Obtenemos los estados y la acción del store
+  const { products, loading, error } = useProductStore();
+  const fetchProducts = useProductStore(state => state.fetchProducts);
 
-  // 2. Usamos useEffect para llamar a fetchProducts cuando la categoría cambie
+  // Usamos useEffect para llamar a fetchProducts cuando la categoría cambie.
+  // La función fetchProducts de Zustand es estable, pero para evitar bucles
+  // y advertencias del linter, la forma más segura es no incluirla en el
+  // array de dependencias y solo observar el cambio de `categoryName`.
   useEffect(() => {
     fetchProducts(categoryName);
-  }, [categoryName, fetchProducts]);
+  }, [categoryName]); // Solo dependemos de `categoryName`
 
   return (
     <div>
       <h1 className="text-3xl font-bold text-gray-800 mb-8">Categoría: <span className="text-blue-600">{categoryName}</span></h1>
       
-      {/* 3. Añadimos el componente de filtros */}
       <ProductFilters category={categoryName} />
 
       {loading && <div className="text-center p-10">Cargando productos...</div>}
