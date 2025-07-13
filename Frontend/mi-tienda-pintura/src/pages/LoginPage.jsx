@@ -1,14 +1,18 @@
 // src/pages/LoginPage.jsx
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useAuthStore } from '../stores/useAuthStore'; // 1. Importamos el store de autenticación
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
-const LoginPage = ({ onLoginSuccess }) => {
+const LoginPage = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const navigate = useNavigate();
+  
+  // 2. Obtenemos la acción `login` de nuestro store
+  const login = useAuthStore(state => state.login);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -23,8 +27,11 @@ const LoginPage = ({ onLoginSuccess }) => {
       if (!response.ok) {
         throw new Error(data.message || 'Error al iniciar sesión');
       }
-      onLoginSuccess(data.token, data.user);
-      navigate('/');
+      
+      // 3. Llamamos a la acción `login` del store con el token recibido
+      login(data.token);
+      
+      navigate('/'); // Redirigimos al usuario a la página de inicio
     } catch (err) {
       setError(err.message);
     }
@@ -34,7 +41,6 @@ const LoginPage = ({ onLoginSuccess }) => {
     <div className="container mx-auto px-4 py-8">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-start">
         
-        {/* Columna Izquierda: Iniciar Sesión */}
         <div className="bg-white p-8 rounded-lg shadow-md">
           <h1 className="text-2xl font-bold text-gray-800 mb-6 border-b pb-4">Iniciar sesión</h1>
           <form onSubmit={handleSubmit} className="space-y-6">
@@ -65,7 +71,6 @@ const LoginPage = ({ onLoginSuccess }) => {
           </form>
         </div>
 
-        {/* Columna Derecha: Registrarse */}
         <div className="bg-white p-8 rounded-lg shadow-md">
             <h2 className="text-2xl font-bold text-gray-800 mb-4">Registrarse</h2>
             <p className="text-gray-600 mb-6">Creando una cuenta usted puede comprar productos y tener una lista de deseos.</p>
