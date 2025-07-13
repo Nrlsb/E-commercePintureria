@@ -4,7 +4,7 @@ dotenv.config();
 
 import express from 'express';
 import cors from 'cors';
-import db from './db.js'; // Ahora 'db' es el pool de conexiones
+import db from './db.js';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { sendOrderConfirmationEmail } from './emailService.js';
@@ -45,20 +45,68 @@ const isAdmin = (req, res, next) => {
   next();
 };
 
-// --- RUTAS DE PRODUCTOS ---
+// --- RUTA DE PRODUCTOS (MODIFICADA) ---
 app.get('/api/products', async (req, res) => {
   try {
-    const query = `
+    const { category, sortBy, brands, minPrice, maxPrice } = req.query;
+
+    let baseQuery = `
       SELECT 
         p.*, 
         COALESCE(AVG(r.rating), 0) as average_rating, 
         COUNT(r.id) as review_count
       FROM products p
       LEFT JOIN reviews r ON p.id = r.product_id
-      GROUP BY p.id
-      ORDER BY p.id ASC;
     `;
-    const result = await db.query(query);
+    
+    const whereClauses = [];
+    const queryParams = [];
+    let paramIndex = 1;
+
+    if (category) {
+      whereClauses.push(`p.category = $${paramIndex++}`);
+      queryParams.push(category);
+    }
+
+    if (brands) {
+      const brandList = brands.split(',');
+      whereClauses.push(`p.brand = ANY($${paramIndex++})`);
+      queryParams.push(brandList);
+    }
+
+    if (minPrice) {
+      whereClauses.push(`p.price >= $${paramIndex++}`);
+      queryParams.push(minPrice);
+    }
+
+    if (maxPrice) {
+      whereClauses.push(`p.price <= $${paramIndex++}`);
+      queryParams.push(maxPrice);
+    }
+
+    if (whereClauses.length > 0) {
+      baseQuery += ` WHERE ${whereClauses.join(' AND ')}`;
+    }
+
+    baseQuery += ` GROUP BY p.id`;
+
+    // Lógica de Ordenamiento
+    let orderByClause = ' ORDER BY p.id ASC'; // Orden por defecto
+    switch (sortBy) {
+      case 'price_asc':
+        orderByClause = ' ORDER BY p.price ASC';
+        break;
+      case 'price_desc':
+        orderByClause = ' ORDER BY p.price DESC';
+        break;
+      case 'rating_desc':
+        orderByClause = ' ORDER BY average_rating DESC';
+        break;
+    }
+    baseQuery += orderByClause;
+
+    const result = await db.query(baseQuery, queryParams);
+    
     const products = result.rows.map(p => ({ 
       ...p, 
       imageUrl: p.image_url, 
@@ -67,9 +115,10 @@ app.get('/api/products', async (req, res) => {
       reviewCount: parseInt(p.review_count, 10),
       stock: parseInt(p.stock, 10)
     }));
+    
     res.json(products);
   } catch (err) {
-    console.error(err);
+    console.error('Error al obtener productos:', err);
     res.status(500).json({ message: 'Error interno del servidor' });
   }
 });
@@ -425,14 +474,13 @@ app.post('/api/create-payment-preference', authenticateToken, async (req, res) =
   }
 });
 
-// --- WEBHOOK (CORREGIDO) ---
+// --- WEBHOOK ---
 app.post('/api/payment-notification', async (req, res) => {
   const { query } = req;
   const topic = query.topic || query.type;
   
   console.log('Notificación recibida:', { topic, id: query.id });
 
-  // Obtenemos un cliente del pool para la transacción
   const dbClient = await db.connect();
 
   try {
@@ -444,7 +492,6 @@ app.post('/api/payment-notification', async (req, res) => {
       const orderId = paymentInfo.external_reference;
       
       if (paymentInfo.status === 'approved') {
-        // Todas las operaciones de la transacción usan el mismo cliente (dbClient)
         await dbClient.query('BEGIN');
         
         const orderItemsResult = await dbClient.query('SELECT product_id, quantity FROM order_items WHERE order_id = $1', [orderId]);
@@ -491,7 +538,6 @@ app.post('/api/payment-notification', async (req, res) => {
     console.error('Error en el webhook de Mercado Pago:', error);
     res.sendStatus(500);
   } finally {
-    // Liberamos el cliente para que vuelva al pool
     dbClient.release();
   }
 });
