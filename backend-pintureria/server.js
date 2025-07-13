@@ -18,7 +18,30 @@ const JWT_SECRET = process.env.JWT_SECRET;
 const client = new MercadoPagoConfig({ accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN });
 const payment = new Payment(client);
 
-app.use(cors());
+// --- **CONFIGURACIÓN DE CORS CORREGIDA** ---
+// Lista de dominios autorizados para hacer solicitudes a tu API.
+const whitelist = [
+  'http://localhost:5173', // Para desarrollo local
+  'https://e-commerce-pintureria.vercel.app' // Tu URL de producción en Vercel
+];
+
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Permite solicitudes sin 'origin' (como las de Postman o apps móviles)
+    // o si el origen está en nuestra lista blanca.
+    if (whitelist.indexOf(origin) !== -1 || !origin) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  }
+};
+
+// Usamos la configuración de CORS
+app.use(cors(corsOptions));
+// --- Fin de la corrección de CORS ---
+
+
 app.use((req, res, next) => {
   if (req.originalUrl.includes('/api/payment-notification')) {
     express.raw({ type: 'application/json' })(req, res, next);
@@ -45,7 +68,7 @@ const isAdmin = (req, res, next) => {
   next();
 };
 
-// --- RUTA DE PRODUCTOS (MODIFICADA) ---
+// --- RUTA DE PRODUCTOS ---
 app.get('/api/products', async (req, res) => {
   try {
     const { category, sortBy, brands, minPrice, maxPrice } = req.query;
@@ -90,8 +113,7 @@ app.get('/api/products', async (req, res) => {
 
     baseQuery += ` GROUP BY p.id`;
 
-    // Lógica de Ordenamiento
-    let orderByClause = ' ORDER BY p.id ASC'; // Orden por defecto
+    let orderByClause = ' ORDER BY p.id ASC';
     switch (sortBy) {
       case 'price_asc':
         orderByClause = ' ORDER BY p.price ASC';
