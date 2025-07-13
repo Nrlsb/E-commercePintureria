@@ -17,6 +17,7 @@ const ProductFormPage = () => {
     old_price: '',
     image_url: '',
     description: '',
+    stock: 0,
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -38,6 +39,7 @@ const ProductFormPage = () => {
             old_price: data.old_price || '',
             image_url: data.image_url || '',
             description: data.description || '',
+            stock: data.stock || 0,
           });
         } catch (err) {
           setError('Error al cargar el producto');
@@ -73,6 +75,7 @@ const ProductFormPage = () => {
             ...product,
             price: parseFloat(product.price) || 0,
             old_price: parseFloat(product.old_price) || null,
+            stock: parseInt(product.stock, 10) || 0,
         }),
       });
 
@@ -99,11 +102,11 @@ const ProductFormPage = () => {
       </h1>
       <div className="bg-white p-8 rounded-lg shadow-md max-w-2xl mx-auto">
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Campos del formulario */}
           <InputField label="Nombre" name="name" value={product.name} onChange={handleChange} required />
           <InputField label="Marca" name="brand" value={product.brand} onChange={handleChange} required />
           <InputField label="Categoría" name="category" value={product.category} onChange={handleChange} required />
           <InputField label="Precio" name="price" type="number" value={product.price} onChange={handleChange} required />
+          <InputField label="Stock disponible" name="stock" type="number" value={product.stock} onChange={handleChange} required />
           <InputField label="Precio Anterior (Opcional)" name="old_price" type="number" value={product.old_price} onChange={handleChange} />
           <InputField label="URL de la Imagen" name="image_url" value={product.image_url} onChange={handleChange} required />
           <div>
@@ -132,7 +135,6 @@ const ProductFormPage = () => {
   );
 };
 
-// Componente auxiliar para los campos del formulario
 const InputField = ({ label, ...props }) => (
   <div>
     <label className="block mb-2 font-medium text-gray-700">{label}</label>

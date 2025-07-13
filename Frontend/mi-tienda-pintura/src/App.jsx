@@ -22,7 +22,7 @@ import RegisterPage from './pages/RegisterPage.jsx';
 import AdminDashboardPage from './pages/AdminDashboardPage.jsx';
 import ProductFormPage from './pages/ProductFormPage.jsx';
 import OrderHistoryPage from './pages/OrderHistoryPage.jsx';
-import AdminOrdersPage from './pages/AdminOrdersPage.jsx'; // <-- NUEVA IMPORTACIÓN
+import AdminOrdersPage from './pages/AdminOrdersPage.jsx';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 const MERCADOPAGO_PUBLIC_KEY = import.meta.env.VITE_MERCADOPAGO_PUBLIC_KEY;
@@ -87,6 +87,14 @@ export default function App() {
   };
 
   const handleAddToCart = (product, quantity = 1) => {
+    const itemInCart = cart.find(item => item.id === product.id);
+    const currentQuantityInCart = itemInCart ? itemInCart.quantity : 0;
+
+    if (currentQuantityInCart + quantity > product.stock) {
+      setNotification({ message: `No puedes añadir más. Stock máximo: ${product.stock}`, show: true });
+      return;
+    }
+
     setCart(prevCart => {
       const existingProduct = prevCart.find(item => item.id === product.id);
       if (existingProduct) {
@@ -147,7 +155,6 @@ export default function App() {
       <Navbar />
       <main className="flex-grow container mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col">
         <Routes>
-          {/* --- Rutas Públicas --- */}
           <Route path="/" element={<HomePage products={products} onAddToCart={handleAddToCart} />} />
           <Route path="/product/:productId" element={<ProductDetailPage products={products} onAddToCart={handleAddToCart} user={user} token={token} />} />
           <Route path="/cart" element={<CartPage cart={cart} onUpdateQuantity={handleUpdateQuantity} onRemoveItem={handleRemoveItem} />} />
@@ -157,16 +164,14 @@ export default function App() {
           <Route path="/login" element={<LoginPage onLoginSuccess={handleLoginSuccess} />} />
           <Route path="/register" element={<RegisterPage />} />
 
-          {/* --- Rutas Protegidas para Usuarios Logueados --- */}
           <Route element={<ProtectedRoute user={user} />}>
             <Route path="/checkout" element={<CheckoutPage cart={cart} token={token} />} />
             <Route path="/my-orders" element={<OrderHistoryPage token={token} />} />
           </Route>
 
-          {/* --- Rutas de Administración Protegidas --- */}
           <Route element={<AdminRoute user={user} />}>
             <Route path="/admin" element={<AdminDashboardPage />} />
-            <Route path="/admin/orders" element={<AdminOrdersPage />} /> {/* <-- NUEVA RUTA */}
+            <Route path="/admin/orders" element={<AdminOrdersPage />} />
             <Route path="/admin/product/new" element={<ProductFormPage />} />
             <Route path="/admin/product/edit/:productId" element={<ProductFormPage />} />
           </Route>

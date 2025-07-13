@@ -45,14 +45,18 @@ const ProductDetailPage = ({ products, onAddToCart, user, token }) => {
   }, [productId, fetchProductAndReviews]);
 
   const handleQuantityChange = (amount) => {
-    setQuantity(prev => Math.max(1, prev + amount));
+    setQuantity(prev => {
+        const newQuantity = prev + amount;
+        if (newQuantity < 1) return 1;
+        if (product && newQuantity > product.stock) return product.stock;
+        return newQuantity;
+    });
   };
 
   const handleAddToCartClick = () => {
     onAddToCart(product, quantity);
   };
 
-  // CAMBIO: Nueva función para manejar la eliminación de reseñas
   const handleDeleteReview = async (reviewId) => {
     if (window.confirm('¿Estás seguro de que quieres eliminar esta reseña?')) {
       try {
@@ -67,10 +71,7 @@ const ProductDetailPage = ({ products, onAddToCart, user, token }) => {
           const data = await response.json();
           throw new Error(data.message || 'Error al eliminar la reseña');
         }
-
-        // Actualizamos la lista de reseñas en el estado para reflejar el cambio en la UI
-        setReviews(prevReviews => prevReviews.filter(review => review.id !== reviewId));
-        // Opcional: Recargamos los datos del producto para actualizar el contador de reseñas
+        
         fetchProductAndReviews(); 
 
       } catch (err) {
@@ -118,14 +119,20 @@ const ProductDetailPage = ({ products, onAddToCart, user, token }) => {
           <div className="flex items-center space-x-4 mb-6">
             <p className="font-semibold text-lg">Cantidad:</p>
             <div className="flex items-center border border-gray-300 rounded-md">
-              <button onClick={() => handleQuantityChange(-1)} className="px-4 py-2 text-xl font-bold hover:bg-gray-100 rounded-l-md transition-colors">-</button>
-              <span className="px-6 py-2 text-lg font-semibold">{quantity}</span>
-              <button onClick={() => handleQuantityChange(1)} className="px-4 py-2 text-xl font-bold hover:bg-gray-100 rounded-r-md transition-colors">+</button>
+              <button onClick={() => handleQuantityChange(-1)} disabled={product.stock === 0} className="px-4 py-2 text-xl font-bold hover:bg-gray-100 rounded-l-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed">-</button>
+              <span className="px-6 py-2 text-lg font-semibold">{product.stock > 0 ? quantity : 0}</span>
+              <button onClick={() => handleQuantityChange(1)} disabled={product.stock === 0} className="px-4 py-2 text-xl font-bold hover:bg-gray-100 rounded-r-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed">+</button>
             </div>
+            {product.stock > 0 && product.stock <= 5 && <span className="text-sm text-red-500 font-semibold">¡Últimas {product.stock} unidades!</span>}
+            {product.stock > 5 && <span className="text-sm text-gray-500">({product.stock} disponibles)</span>}
           </div>
           
-          <button onClick={handleAddToCartClick} className="w-full bg-[#0F3460] text-white py-4 px-6 rounded-lg font-bold text-lg hover:bg-[#1a4a8a] transition-colors duration-300">
-            Agregar al Carrito
+          <button 
+            onClick={handleAddToCartClick} 
+            disabled={product.stock === 0}
+            className="w-full bg-[#0F3460] text-white py-4 px-6 rounded-lg font-bold text-lg hover:bg-[#1a4a8a] transition-colors duration-300 disabled:bg-gray-400 disabled:cursor-not-allowed"
+          >
+            {product.stock > 0 ? 'Agregar al Carrito' : 'Sin Stock'}
           </button>
         </div>
       </div>
@@ -176,7 +183,6 @@ const ProductDetailPage = ({ products, onAddToCart, user, token }) => {
                   <Link to="/login" className="font-bold text-[#0F3460] hover:underline">Inicia sesión</Link> para dejar una reseña.
                 </p>
               )}
-              {/* CAMBIO: Pasamos el usuario y la función de eliminar a la lista de reseñas */}
               <ReviewList reviews={reviews} user={user} onDelete={handleDeleteReview} />
             </div>
           )}

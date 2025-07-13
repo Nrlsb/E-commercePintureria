@@ -8,11 +8,8 @@ import db from './db.js';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { sendOrderConfirmationEmail } from './emailService.js';
-
-// --- CAMBIO: Se importa 'PaymentRefund' en lugar de 'Refund' ---
 import mercadopago from 'mercadopago';
 const { MercadoPagoConfig, Preference, Payment, PaymentRefund } = mercadopago;
-
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -21,8 +18,8 @@ const JWT_SECRET = process.env.JWT_SECRET;
 const client = new MercadoPagoConfig({ accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN });
 const payment = new Payment(client);
 
-
-app.use(cors()); 
+app.use(cors());
+// Middleware para parsear JSON, con una excepción para el webhook de MercadoPago
 app.use((req, res, next) => {
   if (req.originalUrl.includes('/api/payment-notification')) {
     express.raw({ type: 'application/json' })(req, res, next);
@@ -49,8 +46,7 @@ const isAdmin = (req, res, next) => {
   next();
 };
 
-// --- RUTAS DE PRODUCTOS, RESEÑAS, ADMIN Y AUTH (Sin cambios) ---
-// --- Rutas de Productos ---
+// --- RUTAS DE PRODUCTOS ---
 app.get('/api/products', async (req, res) => {
   try {
     const query = `
@@ -69,7 +65,8 @@ app.get('/api/products', async (req, res) => {
       imageUrl: p.image_url, 
       oldPrice: p.old_price,
       averageRating: parseFloat(p.average_rating),
-      reviewCount: parseInt(p.review_count, 10)
+      reviewCount: parseInt(p.review_count, 10),
+      stock: parseInt(p.stock, 10)
     }));
     res.json(products);
   } catch (err) {
@@ -99,7 +96,8 @@ app.get('/api/products/:productId', async (req, res) => {
         imageUrl: product.image_url, 
         oldPrice: product.old_price,
         averageRating: parseFloat(product.average_rating),
-        reviewCount: parseInt(product.review_count, 10)
+        reviewCount: parseInt(product.review_count, 10),
+        stock: parseInt(product.stock, 10)
       });
     } else {
       res.status(404).json({ message: 'Producto no encontrado' });
@@ -110,8 +108,7 @@ app.get('/api/products/:productId', async (req, res) => {
   }
 });
 
-
-// --- Rutas para Reseñas ---
+// --- RUTAS PARA RESEÑAS ---
 app.get('/api/products/:productId/reviews', async (req, res) => {
   const { productId } = req.params;
   try {
@@ -179,14 +176,13 @@ app.delete('/api/reviews/:reviewId', authenticateToken, async (req, res) => {
   }
 });
 
-
-// --- Rutas de Administración de Productos ---
+// --- RUTAS DE ADMINISTRACIÓN DE PRODUCTOS ---
 app.post('/api/products', [authenticateToken, isAdmin], async (req, res) => {
-  const { name, brand, category, price, old_price, image_url, description } = req.body;
+  const { name, brand, category, price, old_price, image_url, description, stock } = req.body;
   try {
     const result = await db.query(
-      'INSERT INTO products (name, brand, category, price, old_price, image_url, description) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
-      [name, brand, category, price, old_price, image_url, description]
+      'INSERT INTO products (name, brand, category, price, old_price, image_url, description, stock) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *',
+      [name, brand, category, price, old_price, image_url, description, stock]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -197,11 +193,11 @@ app.post('/api/products', [authenticateToken, isAdmin], async (req, res) => {
 
 app.put('/api/products/:id', [authenticateToken, isAdmin], async (req, res) => {
   const { id } = req.params;
-  const { name, brand, category, price, old_price, image_url, description } = req.body;
+  const { name, brand, category, price, old_price, image_url, description, stock } = req.body;
   try {
     const result = await db.query(
-      'UPDATE products SET name = $1, brand = $2, category = $3, price = $4, old_price = $5, image_url = $6, description = $7 WHERE id = $8 RETURNING *',
-      [name, brand, category, price, old_price, image_url, description, id]
+      'UPDATE products SET name = $1, brand = $2, category = $3, price = $4, old_price = $5, image_url = $6, description = $7, stock = $8 WHERE id = $9 RETURNING *',
+      [name, brand, category, price, old_price, image_url, description, stock, id]
     );
     if (result.rows.length === 0) {
       return res.status(404).json({ message: 'Producto no encontrado' });
@@ -227,8 +223,7 @@ app.delete('/api/products/:id', [authenticateToken, isAdmin], async (req, res) =
   }
 });
 
-
-// --- Rutas de Autenticación ---
+// --- RUTAS DE AUTENTICACIÓN ---
 app.post('/api/auth/register', async (req, res) => {
   const { email, password, firstName, lastName, phone } = req.body;
   if (!email || !password || !firstName || !lastName) {
@@ -278,7 +273,7 @@ app.post('/api/auth/login', async (req, res) => {
     }
 });
 
-// --- RUTA: Historial de Órdenes ---
+// --- RUTAS DE ÓRDENES ---
 app.get('/api/orders', authenticateToken, async (req, res) => {
   const userId = req.user.userId;
   try {
@@ -305,8 +300,6 @@ app.get('/api/orders', authenticateToken, async (req, res) => {
   }
 });
 
-
-// --- RUTA: Obtener todas las órdenes para el Admin ---
 app.get('/api/admin/orders', [authenticateToken, isAdmin], async (req, res) => {
     try {
         const result = await db.query(`
@@ -322,7 +315,6 @@ app.get('/api/admin/orders', [authenticateToken, isAdmin], async (req, res) => {
     }
 });
 
-// --- RUTA CORREGIDA: Cancelar una orden (Admin) ---
 app.post('/api/orders/:orderId/cancel', [authenticateToken, isAdmin], async (req, res) => {
     const { orderId } = req.params;
     try {
@@ -337,10 +329,6 @@ app.post('/api/orders/:orderId/cancel', [authenticateToken, isAdmin], async (req
         }
 
         if (order.mercadopago_transaction_id) {
-            console.log(`Iniciando reembolso para la transacción de MP: ${order.mercadopago_transaction_id}`);
-            
-            // --- CÓDIGO CORREGIDO ---
-            // Se instancia un cliente de Reembolso y se utiliza para crear el reembolso.
             const refundClient = new PaymentRefund(client);
             await refundClient.create({
                 payment_id: order.mercadopago_transaction_id
@@ -355,15 +343,11 @@ app.post('/api/orders/:orderId/cancel', [authenticateToken, isAdmin], async (req
         res.status(200).json({ message: 'Orden cancelada y reembolso procesado con éxito.', order: updatedOrderResult.rows[0] });
 
     } catch (error) {
-        console.error('--- DETALLE COMPLETO DEL ERROR AL CANCELAR ---');
-        console.error(error);
-        console.error('--- FIN DEL DETALLE ---');
-        
+        console.error('Error al cancelar orden:', error);
         const errorMessage = error.cause?.message || error.message || 'Error interno del servidor al procesar la cancelación.';
         res.status(500).json({ message: errorMessage });
     }
 });
-
 
 // --- RUTA: Creación de Preferencia de Pago ---
 app.post('/api/create-payment-preference', authenticateToken, async (req, res) => {
@@ -373,10 +357,21 @@ app.post('/api/create-payment-preference', authenticateToken, async (req, res) =
   if (!cart || cart.length === 0) {
     return res.status(400).json({ message: 'El carrito está vacío.' });
   }
-  
-  const totalAmount = cart.reduce((total, item) => total + item.price * item.quantity, 0);
 
   try {
+    for (const item of cart) {
+      const stockResult = await db.query('SELECT stock FROM products WHERE id = $1', [item.id]);
+      if (stockResult.rows.length === 0) {
+        return res.status(404).json({ message: `Producto "${item.name}" no encontrado.` });
+      }
+      const availableStock = stockResult.rows[0].stock;
+      if (item.quantity > availableStock) {
+        return res.status(400).json({ message: `Stock insuficiente para "${item.name}". Solo quedan ${availableStock} unidades.` });
+      }
+    }
+
+    const totalAmount = cart.reduce((total, item) => total + item.price * item.quantity, 0);
+
     const orderResult = await db.query(
       'INSERT INTO orders (user_id, total_amount, status) VALUES ($1, $2, $3) RETURNING id',
       [userId, totalAmount, 'pending']
@@ -438,22 +433,33 @@ app.post('/api/payment-notification', async (req, res) => {
   
   console.log('Notificación recibida:', { topic, id: query.id });
 
+  const client = db.connect(); // Obtenemos un cliente para manejar la transacción
+
   try {
     if (topic === 'payment') {
       const paymentId = query.id;
-      if (!paymentId) {
-        return res.sendStatus(200);
-      }
-      const paymentInfo = await payment.get({ id: paymentId });
+      if (!paymentId) return res.sendStatus(200);
       
+      const paymentInfo = await payment.get({ id: paymentId });
       const orderId = paymentInfo.external_reference;
       
       if (paymentInfo.status === 'approved') {
+        const orderItemsResult = await db.query('SELECT product_id, quantity FROM order_items WHERE order_id = $1', [orderId]);
+        const orderItems = orderItemsResult.rows;
+
+        await db.query('BEGIN');
+        for (const item of orderItems) {
+          await db.query(
+            'UPDATE products SET stock = stock - $1 WHERE id = $2',
+            [item.quantity, item.product_id]
+          );
+        }
+        
         await db.query(
             "UPDATE orders SET status = 'approved', mercadopago_transaction_id = $1 WHERE id = $2", 
             [paymentId, orderId]
         );
-        
+
         const orderDataResult = await db.query(`
           SELECT o.*, u.email
           FROM orders o
@@ -463,22 +469,27 @@ app.post('/api/payment-notification', async (req, res) => {
         
         if (orderDataResult.rows.length > 0) {
           const order = orderDataResult.rows[0];
-          const itemsResult = await db.query(`
+          const itemsForEmailResult = await db.query(`
             SELECT p.name, oi.quantity, oi.price 
             FROM order_items oi 
             JOIN products p ON p.id = oi.product_id 
             WHERE oi.order_id = $1
           `, [orderId]);
-          order.items = itemsResult.rows;
+          order.items = itemsForEmailResult.rows;
 
           await sendOrderConfirmationEmail(order.email, order);
         }
+        
+        await db.query('COMMIT');
       }
     }
     res.sendStatus(200);
   } catch (error) {
+    await db.query('ROLLBACK');
     console.error('Error en el webhook de Mercado Pago:', error);
     res.sendStatus(500);
+  } finally {
+    (await client).release(); // Liberamos el cliente de la base de datos
   }
 });
 
