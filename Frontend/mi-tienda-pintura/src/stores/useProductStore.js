@@ -5,12 +5,10 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
 export const useProductStore = create((set, get) => ({
   products: [],
-  allProducts: [], // Guardamos todos los productos para derivar filtros
   loading: true,
   error: null,
   searchQuery: '',
   
-  // Nuevos estados para filtros y ordenamiento
   filters: {
     brands: [],
     minPrice: '',
@@ -47,11 +45,6 @@ export const useProductStore = create((set, get) => ({
       }
       const data = await response.json();
       set({ products: data, loading: false });
-
-      // Si es la primera carga (sin categoría), guardamos todos los productos
-      if (!category && get().allProducts.length === 0) {
-        set({ allProducts: data });
-      }
     } catch (err) {
       set({ error: err.message, loading: false });
     }
@@ -65,6 +58,14 @@ export const useProductStore = create((set, get) => ({
   // Acción para actualizar la opción de ordenamiento
   setSortOption: (option) => {
     set({ sortOption: option });
+  },
+
+  // **NUEVA ACCIÓN** para resetear filtros y ordenamiento
+  resetFiltersAndSort: () => {
+    set({
+      filters: { brands: [], minPrice: '', maxPrice: '' },
+      sortOption: 'default',
+    });
   },
 
   setSearchQuery: (query) => set({ searchQuery: query }),

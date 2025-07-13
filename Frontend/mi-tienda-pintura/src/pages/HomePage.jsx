@@ -5,15 +5,18 @@ import ProductCard from '../components/ProductCard.jsx';
 import { useProductStore } from '../stores/useProductStore.js';
 
 const HomePage = () => {
-  // Obtenemos los productos y la acción para buscarlos desde el store
-  const { products, fetchProducts } = useProductStore();
+  // Seleccionamos individualmente el estado y las acciones que necesitamos
+  const products = useProductStore(state => state.products);
+  const fetchProducts = useProductStore(state => state.fetchProducts);
+  const resetFiltersAndSort = useProductStore(state => state.resetFiltersAndSort);
 
-  // Usamos useEffect para asegurarnos de que se carguen todos los productos
-  // cada vez que el usuario visite la página de inicio.
   useEffect(() => {
-    // Llamamos a fetchProducts sin argumentos para obtener la lista completa.
+    // Cuando el usuario llega a la página de inicio, reseteamos cualquier filtro
+    // o ordenamiento que pudiera haber aplicado en otras páginas.
+    resetFiltersAndSort();
+    // Luego, buscamos todos los productos sin filtros.
     fetchProducts();
-  }, [fetchProducts]); // El array de dependencias asegura que solo se ejecute una vez por carga del componente.
+  }, []); // El array de dependencias vacío asegura que esto se ejecute UNA SOLA VEZ al montar el componente.
 
   return (
     <>

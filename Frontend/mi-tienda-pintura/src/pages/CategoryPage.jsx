@@ -8,17 +8,18 @@ import { useProductStore } from '../stores/useProductStore.js';
 const CategoryPage = () => {
   const { categoryName } = useParams();
   
-  // Obtenemos los estados y la acción del store
-  const { products, loading, error } = useProductStore();
+  const products = useProductStore(state => state.products);
+  const loading = useProductStore(state => state.loading);
+  const error = useProductStore(state => state.error);
   const fetchProducts = useProductStore(state => state.fetchProducts);
+  const resetFiltersAndSort = useProductStore(state => state.resetFiltersAndSort);
 
-  // Usamos useEffect para llamar a fetchProducts cuando la categoría cambie.
-  // La función fetchProducts de Zustand es estable, pero para evitar bucles
-  // y advertencias del linter, la forma más segura es no incluirla en el
-  // array de dependencias y solo observar el cambio de `categoryName`.
   useEffect(() => {
+    // Cada vez que la categoría cambia, reseteamos los filtros
+    // y buscamos los productos para esa nueva categoría.
+    resetFiltersAndSort();
     fetchProducts(categoryName);
-  }, [categoryName]); // Solo dependemos de `categoryName`
+  }, [categoryName]); // Dependemos solo de `categoryName` para que se ejecute al cambiar de categoría.
 
   return (
     <div>
