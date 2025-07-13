@@ -6,10 +6,21 @@ import StarRating from '../components/StarRating.jsx';
 import ReviewList from '../components/ReviewList.jsx';
 import ReviewForm from '../components/ReviewForm.jsx';
 
+// 1. Importamos los stores que necesitamos
+import { useProductStore } from '../stores/useProductStore.js';
+import { useCartStore } from '../stores/useCartStore.js';
+import { useAuthStore } from '../stores/useAuthStore.js';
+
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
-const ProductDetailPage = ({ products, onAddToCart, user, token }) => {
+const ProductDetailPage = () => {
   const { productId } = useParams();
+  
+  // 2. Obtenemos el estado y las acciones de los stores
+  const { products } = useProductStore();
+  const { addToCart } = useCartStore();
+  const { user, token } = useAuthStore();
+
   const [product, setProduct] = useState(null);
   const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -54,7 +65,7 @@ const ProductDetailPage = ({ products, onAddToCart, user, token }) => {
   };
 
   const handleAddToCartClick = () => {
-    onAddToCart(product, quantity);
+    addToCart(product, quantity); // Usamos la acción del store
   };
 
   const handleDeleteReview = async (reviewId) => {
@@ -80,6 +91,7 @@ const ProductDetailPage = ({ products, onAddToCart, user, token }) => {
     }
   };
 
+  // 3. Ahora 'products' viene del store y siempre estará definido
   const relatedProducts = product 
     ? products.filter(p => p.category === product.category && p.id !== product.id).slice(0, 4)
     : [];
@@ -194,7 +206,7 @@ const ProductDetailPage = ({ products, onAddToCart, user, token }) => {
           <h2 className="text-2xl font-bold text-gray-800 mb-6">También te puede interesar</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {relatedProducts.map(p => (
-              <ProductCard key={p.id} product={p} onAddToCart={onAddToCart} />
+              <ProductCard key={p.id} product={p} />
             ))}
           </div>
         </div>
