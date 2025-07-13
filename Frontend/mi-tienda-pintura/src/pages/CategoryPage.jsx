@@ -14,12 +14,15 @@ const CategoryPage = () => {
   const fetchProducts = useProductStore(state => state.fetchProducts);
   const resetFiltersAndSort = useProductStore(state => state.resetFiltersAndSort);
 
+  // --- CONSOLE LOG PARA DEBUGGING ---
+  console.log(`CategoryPage renderizando para: ${categoryName}`);
+
   useEffect(() => {
-    // Cada vez que la categoría cambia, reseteamos los filtros
-    // y buscamos los productos para esa nueva categoría.
+    // --- CONSOLE LOG PARA DEBUGGING ---
+    console.log(`%c[CategoryPage] useEffect ejecutándose para: ${categoryName}`, 'color: purple; font-weight: bold;');
     resetFiltersAndSort();
     fetchProducts(categoryName);
-  }, [categoryName]); // Dependemos solo de `categoryName` para que se ejecute al cambiar de categoría.
+  }, [categoryName]);
 
   return (
     <div>

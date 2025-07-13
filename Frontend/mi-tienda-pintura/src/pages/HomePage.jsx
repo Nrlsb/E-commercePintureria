@@ -5,32 +5,39 @@ import ProductCard from '../components/ProductCard.jsx';
 import { useProductStore } from '../stores/useProductStore.js';
 
 const HomePage = () => {
-  // Seleccionamos individualmente el estado y las acciones que necesitamos
   const products = useProductStore(state => state.products);
+  const loading = useProductStore(state => state.loading);
+  const error = useProductStore(state => state.error);
   const fetchProducts = useProductStore(state => state.fetchProducts);
   const resetFiltersAndSort = useProductStore(state => state.resetFiltersAndSort);
 
+  // --- CONSOLE LOG PARA DEBUGGING ---
+  console.log('HomePage renderizando...');
+
   useEffect(() => {
-    // Cuando el usuario llega a la página de inicio, reseteamos cualquier filtro
-    // o ordenamiento que pudiera haber aplicado en otras páginas.
+    // --- CONSOLE LOG PARA DEBUGGING ---
+    console.log('%c[HomePage] useEffect ejecutándose.', 'color: purple; font-weight: bold;');
     resetFiltersAndSort();
-    // Luego, buscamos todos los productos sin filtros.
     fetchProducts();
-  }, []); // El array de dependencias vacío asegura que esto se ejecute UNA SOLA VEZ al montar el componente.
+  }, []); // El array vacío es correcto, solo debe ejecutarse una vez.
 
   return (
     <>
       <HeroBanner />
       <section>
         <h2 className="text-3xl font-bold text-gray-800 mb-6 text-center">Los Más Buscados</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {products.map(product => (
-            <ProductCard 
-                key={product.id} 
-                product={product}
-            />
-          ))}
-        </div>
+        {loading && <div className="text-center p-10">Cargando productos...</div>}
+        {error && <div className="text-center p-10 text-red-500">Error: {error}</div>}
+        {!loading && !error && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {products.map(product => (
+              <ProductCard 
+                  key={product.id} 
+                  product={product}
+              />
+            ))}
+          </div>
+        )}
       </section>
     </>
   );
