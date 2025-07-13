@@ -1,10 +1,14 @@
 // src/pages/OrderHistoryPage.jsx
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { useAuthStore } from '../stores/useAuthStore'; // 1. Importamos el store de autenticación
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
-const OrderHistoryPage = ({ token }) => {
+const OrderHistoryPage = () => {
+  // 2. Obtenemos el token directamente del store
+  const token = useAuthStore(state => state.token);
+
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -14,6 +18,7 @@ const OrderHistoryPage = ({ token }) => {
       try {
         const response = await fetch(`${API_URL}/api/orders`, {
           headers: {
+            // 3. Usamos el token obtenido del store
             'Authorization': `Bearer ${token}`,
           },
         });
@@ -29,10 +34,11 @@ const OrderHistoryPage = ({ token }) => {
       }
     };
 
+    // La lógica se mantiene, pero ahora el token viene del store
     if (token) {
       fetchOrders();
     }
-  }, [token]);
+  }, [token]); // El efecto se ejecuta cuando el token del store está disponible
 
   if (loading) {
     return <div className="text-center p-10">Cargando historial...</div>;
@@ -78,7 +84,7 @@ const OrderHistoryPage = ({ token }) => {
                       <p className="font-semibold">{item.name}</p>
                       <p className="text-sm text-gray-600">Cantidad: {item.quantity}</p>
                     </div>
-                    <p className="font-medium">${new Intl.NumberFormat('es-AR').format(item.price)} c/u</p>
+                    <p className="font-medium">${new Intl.NumberFormat('es-AR').format(item.price * item.quantity)} c/u</p>
                   </div>
                 ))}
               </div>
