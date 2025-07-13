@@ -1,69 +1,82 @@
-import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { BrowserRouter } from 'react-router-dom';
+import { render, screen, fireEvent, act } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest';
+import { MemoryRouter, useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
 import useCartStore from '../stores/useCartStore';
 import useAuthStore from '../stores/useAuthStore';
 import useProductStore from '../stores/useProductStore';
 
-describe('Componente Header', () => {
-  const onSearchMock = vi.fn();
+vi.mock('react-router-dom', async () => {
+  const actual = await vi.importActual('react-router-dom');
+  return { ...actual, useNavigate: vi.fn() };
+});
 
-  // --- CORRECCIÓN CLAVE ---
-  // Movemos la inicialización de estados aquí, dentro del beforeEach.
+// Se declaran las variables para el estado inicial aquí
+let initialCartState;
+let initialAuthState;
+
+// beforeAll se ejecuta UNA VEZ por archivo, después de que todo está cargado.
+beforeAll(() => {
+  initialCartState = useCartStore.getState();
+  initialAuthState = useAuthStore.getState();
+});
+
+describe('Componente Header', () => {
+  const mockNavigate = vi.fn();
+
   beforeEach(() => {
-    // Reseteamos los stores a su estado original antes de cada prueba.
-    useCartStore.setState(useCartStore.getInitialState(), true);
-    useAuthStore.setState(useAuthStore.getInitialState(), true);
-    useProductStore.setState(useProductStore.getInitialState(), true);
-    vi.clearAllMocks();
+    // beforeEach se ejecuta antes de CADA 'it'.
+    // Reseteamos los stores a su estado original de forma segura.
+    act(() => {
+      useCartStore.setState(initialCartState, true);
+      useAuthStore.setState(initialAuthState, true);
+    });
+    useNavigate.mockReturnValue(mockNavigate);
   });
 
   it('debería renderizar el título de la tienda', () => {
-    render(<Header onSearch={onSearchMock} />, { wrapper: BrowserRouter });
-    expect(screen.getByText(/Pinturerías Mercurio/i)).toBeInTheDocument();
+    render(<Header />, { wrapper: MemoryRouter });
+    expect(screen.getByText('Pinturerías Mercurio')).toBeInTheDocument();
   });
 
   it('no debería mostrar el contador del carrito cuando está vacío', () => {
-    render(<Header onSearch={onSearchMock} />, { wrapper: BrowserRouter });
-    const cartCounter = screen.queryByTestId('cart-counter');
-    expect(cartCounter).not.toBeInTheDocument();
+    render(<Header />, { wrapper: MemoryRouter });
+    expect(screen.queryByTestId('cart-count')).toBeNull();
   });
 
   it('debería mostrar el contador del carrito cuando hay items', () => {
-    useCartStore.setState({ cart: [{ id: 1, quantity: 5 }] });
-    render(<Header onSearch={onSearchMock} />, { wrapper: BrowserRouter });
-    expect(screen.getByText('5')).toBeInTheDocument();
+    act(() => {
+      useCartStore.setState({ items: [{ id: 1 }, { id: 2 }] });
+    });
+    render(<Header />, { wrapper: MemoryRouter });
+    expect(screen.getByTestId('cart-count')).toHaveTextContent('2');
   });
 
   it('debería mostrar "Mi Cuenta" cuando no hay un usuario logueado', () => {
-    render(<Header onSearch={onSearchMock} />, { wrapper: BrowserRouter });
-    expect(screen.getByText(/Mi Cuenta/i)).toBeInTheDocument();
+    render(<Header />, { wrapper: MemoryRouter });
+    expect(screen.getByText('Mi Cuenta')).toBeInTheDocument();
   });
 
   it('debería mostrar el email del usuario cuando está logueado', () => {
-    useAuthStore.setState({
-      isAuthenticated: true,
-      user: { email: 'test@example.com' },
+    act(() => {
+      useAuthStore.setState({ user: { email: 'test@example.com' }, token: '123' });
     });
-    render(<Header onSearch={onSearchMock} />, { wrapper: BrowserRouter });
-    expect(screen.getByText(/test@example.com/i)).toBeInTheDocument();
+    render(<Header />, { wrapper: MemoryRouter });
+    expect(screen.getByText('test@example.com')).toBeInTheDocument();
   });
 
-  it('debería llamar a la función onSearch y al store de productos al enviar el formulario', () => {
-    const setSearchQueryMock = vi.fn();
-    useProductStore.setState({ setSearchQuery: setSearchQueryMock });
+  it('debería llamar a la función de búsqueda y navegar al enviar el formulario', () => {
+    const fetchSpy = vi.spyOn(useProductStore.getState(), 'fetchProducts').mockImplementation(() => Promise.resolve());
+    render(<Header />, { wrapper: MemoryRouter });
 
-    render(<Header onSearch={onSearchMock} />, { wrapper: BrowserRouter });
+    const searchInput = screen.getByPlaceholderText(/Buscar productos/i);
+    const searchButton = screen.getByRole('button', { name: /buscar/i });
+
+    fireEvent.change(searchInput, { target: { value: 'rojo' } });
+    fireEvent.click(searchButton);
     
-    const searchInput = screen.getByPlaceholderText(/Buscar productos, marcas y más.../i);
-    const form = searchInput.closest('form');
-
-    fireEvent.change(searchInput, { target: { value: 'latex' } });
-    fireEvent.submit(form);
-
-    expect(onSearchMock).toHaveBeenCalledWith('latex');
-    expect(setSearchQueryMock).toHaveBeenCalledWith('latex');
+    expect(fetchSpy).toHaveBeenCalledWith('rojo');
+    expect(mockNavigate).toHaveBeenCalledWith('/search?query=rojo');
+    fetchSpy.mockRestore();
   });
 });
