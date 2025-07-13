@@ -28,6 +28,7 @@ const pool = new Pool(process.env.NODE_ENV === 'production' ? connectionConfig :
   port: process.env.DB_PORT,
 });
 
-export default {
-  query: (text, params) => pool.query(text, params),
-};
+// 3. Exportamos el pool completo
+// Esto nos da acceso tanto a pool.query() para consultas simples,
+// como a pool.connect() para manejar transacciones.
+export default pool;

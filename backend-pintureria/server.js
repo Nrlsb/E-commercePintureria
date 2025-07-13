@@ -4,7 +4,7 @@ dotenv.config();
 
 import express from 'express';
 import cors from 'cors';
-import db from './db.js'; 
+import db from './db.js'; // Ahora 'db' es el pool de conexiones
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { sendOrderConfirmationEmail } from './emailService.js';
@@ -19,7 +19,6 @@ const client = new MercadoPagoConfig({ accessToken: process.env.MERCADOPAGO_ACCE
 const payment = new Payment(client);
 
 app.use(cors());
-// Middleware para parsear JSON, con una excepción para el webhook de MercadoPago
 app.use((req, res, next) => {
   if (req.originalUrl.includes('/api/payment-notification')) {
     express.raw({ type: 'application/json' })(req, res, next);
@@ -426,14 +425,15 @@ app.post('/api/create-payment-preference', authenticateToken, async (req, res) =
   }
 });
 
-// --- WEBHOOK ---
+// --- WEBHOOK (CORREGIDO) ---
 app.post('/api/payment-notification', async (req, res) => {
   const { query } = req;
   const topic = query.topic || query.type;
   
   console.log('Notificación recibida:', { topic, id: query.id });
 
-  const client = db.connect(); // Obtenemos un cliente para manejar la transacción
+  // Obtenemos un cliente del pool para la transacción
+  const dbClient = await db.connect();
 
   try {
     if (topic === 'payment') {
@@ -444,23 +444,25 @@ app.post('/api/payment-notification', async (req, res) => {
       const orderId = paymentInfo.external_reference;
       
       if (paymentInfo.status === 'approved') {
-        const orderItemsResult = await db.query('SELECT product_id, quantity FROM order_items WHERE order_id = $1', [orderId]);
+        // Todas las operaciones de la transacción usan el mismo cliente (dbClient)
+        await dbClient.query('BEGIN');
+        
+        const orderItemsResult = await dbClient.query('SELECT product_id, quantity FROM order_items WHERE order_id = $1', [orderId]);
         const orderItems = orderItemsResult.rows;
 
-        await db.query('BEGIN');
         for (const item of orderItems) {
-          await db.query(
+          await dbClient.query(
             'UPDATE products SET stock = stock - $1 WHERE id = $2',
             [item.quantity, item.product_id]
           );
         }
         
-        await db.query(
+        await dbClient.query(
             "UPDATE orders SET status = 'approved', mercadopago_transaction_id = $1 WHERE id = $2", 
             [paymentId, orderId]
         );
 
-        const orderDataResult = await db.query(`
+        const orderDataResult = await dbClient.query(`
           SELECT o.*, u.email
           FROM orders o
           JOIN users u ON o.user_id = u.id
@@ -469,7 +471,7 @@ app.post('/api/payment-notification', async (req, res) => {
         
         if (orderDataResult.rows.length > 0) {
           const order = orderDataResult.rows[0];
-          const itemsForEmailResult = await db.query(`
+          const itemsForEmailResult = await dbClient.query(`
             SELECT p.name, oi.quantity, oi.price 
             FROM order_items oi 
             JOIN products p ON p.id = oi.product_id 
@@ -480,19 +482,19 @@ app.post('/api/payment-notification', async (req, res) => {
           await sendOrderConfirmationEmail(order.email, order);
         }
         
-        await db.query('COMMIT');
+        await dbClient.query('COMMIT');
       }
     }
     res.sendStatus(200);
   } catch (error) {
-    await db.query('ROLLBACK');
+    await dbClient.query('ROLLBACK');
     console.error('Error en el webhook de Mercado Pago:', error);
     res.sendStatus(500);
   } finally {
-    (await client).release(); // Liberamos el cliente de la base de datos
+    // Liberamos el cliente para que vuelva al pool
+    dbClient.release();
   }
 });
-
 
 app.listen(PORT, () => {
   console.log(`Servidor corriendo en el puerto ${PORT}`);
