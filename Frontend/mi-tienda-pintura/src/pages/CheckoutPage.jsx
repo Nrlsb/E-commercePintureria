@@ -2,10 +2,16 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Wallet } from '@mercadopago/sdk-react';
+import { useCartStore } from '../stores/useCartStore'; // 1. Importamos el store del carrito
+import { useAuthStore } from '../stores/useAuthStore'; // 2. Importamos el store de autenticación
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
-const CheckoutPage = ({ cart, token }) => {
+const CheckoutPage = () => {
+  // 3. Obtenemos el estado directamente de los stores
+  const cart = useCartStore(state => state.cart);
+  const token = useAuthStore(state => state.token);
+
   const [preferenceId, setPreferenceId] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -33,9 +39,7 @@ const CheckoutPage = ({ cart, token }) => {
         body: JSON.stringify({ cart }),
       });
       
-      // --- CAMBIO CLAVE: Manejo específico del error 403 Forbidden ---
       if (response.status === 403) {
-        // Si el token es rechazado (probablemente expiró), forzamos al usuario a loguearse de nuevo.
         alert("Tu sesión ha expirado. Por favor, inicia sesión de nuevo para continuar.");
         navigate('/login?redirect=/checkout');
         return;
