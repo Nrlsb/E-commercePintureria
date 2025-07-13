@@ -2,24 +2,29 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import ProductCard from '../components/ProductCard.jsx';
-// Ya no importamos 'mockProducts'
+import { useProductStore } from '../stores/useProductStore.js'; // 1. Importamos el store
 
-const SearchResultsPage = ({ products, query, onAddToCart }) => { // Recibe 'products' como prop
+const SearchResultsPage = () => {
+  // 2. Obtenemos los productos y el término de búsqueda desde el store
+  const products = useProductStore(state => state.products);
+  const query = useProductStore(state => state.searchQuery);
   
-  // Filtra sobre los productos recibidos
+  // 3. Filtramos los productos basados en el query del store
   const filteredProducts = products.filter(product =>
     product.name.toLowerCase().includes(query.toLowerCase()) ||
     product.brand.toLowerCase().includes(query.toLowerCase())
   );
 
-  // ... (el resto del componente es igual)
   return (
     <div>
       <h1 className="text-3xl font-bold text-gray-800 mb-2">Resultados para: <span className="text-blue-600">"{query}"</span></h1>
       <p className="text-gray-600 mb-8">{filteredProducts.length} productos encontrados.</p>
       {filteredProducts.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {filteredProducts.map(product => (<ProductCard key={product.id} product={product} onAddToCart={onAddToCart}/>))}
+          {filteredProducts.map(product => (
+            // 4. Ya no pasamos onAddToCart como prop
+            <ProductCard key={product.id} product={product} />
+          ))}
         </div>
       ) : (
         <div className="text-center p-10 bg-white rounded-lg shadow-md mt-12">

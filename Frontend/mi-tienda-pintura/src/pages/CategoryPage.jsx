@@ -2,23 +2,27 @@
 import React from 'react';
 import { useParams, Link } from 'react-router-dom';
 import ProductCard from '../components/ProductCard.jsx';
-// Ya no importamos 'mockProducts'
+import { useProductStore } from '../stores/useProductStore.js'; // 1. Importamos el store
 
-const CategoryPage = ({ products, onAddToCart }) => { // Recibe 'products' como prop
+const CategoryPage = () => {
   const { categoryName } = useParams();
+  // 2. Obtenemos la lista completa de productos desde el store
+  const products = useProductStore(state => state.products);
 
-  // Filtra sobre los productos recibidos
+  // 3. Filtramos la lista de productos obtenida del store
   const filteredProducts = products.filter(product => 
     product.category.toLowerCase() === categoryName.toLowerCase()
   );
 
-  // ... (el resto del componente es igual)
   return (
     <div>
       <h1 className="text-3xl font-bold text-gray-800 mb-8">Categoría: <span className="text-blue-600">{categoryName}</span></h1>
       {filteredProducts.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {filteredProducts.map(product => (<ProductCard key={product.id} product={product} onAddToCart={onAddToCart}/>))}
+          {filteredProducts.map(product => (
+            // 4. Ya no pasamos onAddToCart como prop
+            <ProductCard key={product.id} product={product} />
+          ))}
         </div>
       ) : (
         <div className="text-center p-10 bg-white rounded-lg shadow-md mt-12">
