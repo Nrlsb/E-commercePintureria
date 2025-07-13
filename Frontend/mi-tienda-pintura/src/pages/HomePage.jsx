@@ -1,12 +1,19 @@
 // src/pages/HomePage.jsx
-import React from 'react';
+import React, { useEffect } from 'react';
 import HeroBanner from '../components/HeroBanner.jsx';
 import ProductCard from '../components/ProductCard.jsx';
 import { useProductStore } from '../stores/useProductStore.js';
 
 const HomePage = () => {
-  // Obtenemos los productos directamente del store
-  const products = useProductStore(state => state.products);
+  // Obtenemos los productos y la acción para buscarlos desde el store
+  const { products, fetchProducts } = useProductStore();
+
+  // Usamos useEffect para asegurarnos de que se carguen todos los productos
+  // cada vez que el usuario visite la página de inicio.
+  useEffect(() => {
+    // Llamamos a fetchProducts sin argumentos para obtener la lista completa.
+    fetchProducts();
+  }, [fetchProducts]); // El array de dependencias asegura que solo se ejecute una vez por carga del componente.
 
   return (
     <>
@@ -18,7 +25,6 @@ const HomePage = () => {
             <ProductCard 
                 key={product.id} 
                 product={product}
-                // onAddToCart ya no se pasa como prop
             />
           ))}
         </div>
