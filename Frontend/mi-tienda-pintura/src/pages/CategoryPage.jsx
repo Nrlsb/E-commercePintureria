@@ -8,21 +8,14 @@ import { useProductStore } from '../stores/useProductStore.js';
 const CategoryPage = () => {
   const { categoryName } = useParams();
   
-  const products = useProductStore(state => state.products);
-  const loading = useProductStore(state => state.loading);
-  const error = useProductStore(state => state.error);
-  const fetchProducts = useProductStore(state => state.fetchProducts);
-  const resetFiltersAndSort = useProductStore(state => state.resetFiltersAndSort);
-
-  // --- CONSOLE LOG PARA DEBUGGING ---
-  console.log(`CategoryPage renderizando para: ${categoryName}`);
+  const { products, loading, error, fetchProducts, resetFiltersAndSort } = useProductStore();
 
   useEffect(() => {
-    // --- CONSOLE LOG PARA DEBUGGING ---
-    console.log(`%c[CategoryPage] useEffect ejecutándose para: ${categoryName}`, 'color: purple; font-weight: bold;');
+    // Cada vez que la categoría cambia, reseteamos los filtros
+    // y buscamos los productos para esa nueva categoría.
     resetFiltersAndSort();
     fetchProducts(categoryName);
-  }, [categoryName]);
+  }, [categoryName]); // Dependemos solo de `categoryName` para que se ejecute al cambiar de categoría.
 
   return (
     <div>

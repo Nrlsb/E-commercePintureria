@@ -1,12 +1,10 @@
 // src/App.jsx
 import React, { useEffect } from 'react';
-import { Routes, Route, useNavigate } from 'react-router-dom';
+import { Routes, Route } from 'react-router-dom';
 import { initMercadoPago } from '@mercadopago/sdk-react';
 
 // Stores de Zustand
 import { useProductStore } from './stores/useProductStore';
-import { useAuthStore } from './stores/useAuthStore';
-import { useCartStore } from './stores/useCartStore';
 import { useNotificationStore } from './stores/useNotificationStore';
 
 // Componentes y Páginas
@@ -39,35 +37,24 @@ if (MERCADOPAGO_PUBLIC_KEY) {
 }
 
 export default function App() {
-  // Obtenemos el estado y las acciones de nuestros stores
-  const { products, loading, error, fetchProducts } = useProductStore();
-  const { user } = useAuthStore();
-  const { cart } = useCartStore();
+  // Obtenemos solo las acciones y estados que App necesita directamente.
+  const fetchProducts = useProductStore(state => state.fetchProducts);
   const { message: notificationMessage, show: showNotification } = useNotificationStore();
-  const navigate = useNavigate();
 
-  // Cargamos los productos al iniciar la aplicación
+  // Cargamos los productos una sola vez al iniciar la aplicación.
+  // Las páginas individuales se encargarán de mostrar sus propios estados de carga.
   useEffect(() => {
     fetchProducts();
   }, [fetchProducts]);
 
-  // Ya no necesitamos los `handle` aquí, están en los stores.
-  // Tampoco necesitamos `useState` para el carrito, usuario, etc.
-
-  if (loading) {
-    return <div className="flex justify-center items-center h-screen text-2xl">Cargando productos...</div>;
-  }
-  if (error) {
-    return <div className="flex justify-center items-center h-screen text-2xl text-red-500">Error: {error}</div>;
-  }
-
+  // **CORRECCIÓN CLAVE**: Se elimina el return condicional para `loading` y `error`.
+  // La estructura principal de la app siempre se renderiza.
   return (
     <div className="bg-gray-50 min-h-screen font-sans flex flex-col relative">
       <Header />
       <Navbar />
       <main className="flex-grow container mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col">
         <Routes>
-          {/* Las props ya no se pasan, los componentes las obtienen del store */}
           <Route path="/" element={<HomePage />} />
           <Route path="/product/:productId" element={<ProductDetailPage />} />
           <Route path="/cart" element={<CartPage />} />

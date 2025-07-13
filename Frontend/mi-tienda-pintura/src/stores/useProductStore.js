@@ -17,9 +17,6 @@ export const useProductStore = create((set, get) => ({
   sortOption: 'default',
 
   fetchProducts: async (category) => {
-    // --- CONSOLE LOG PARA DEBUGGING ---
-    console.log(`%c[STORE] fetchProducts llamado con categoría: ${category || 'ninguna'}`, 'color: blue; font-weight: bold;');
-    
     set({ loading: true, error: null });
     const { filters, sortOption } = get();
     
@@ -40,20 +37,14 @@ export const useProductStore = create((set, get) => ({
       params.append('maxPrice', filters.maxPrice);
     }
 
-    const fetchUrl = `${API_URL}/api/products?${params.toString()}`;
-    // --- CONSOLE LOG PARA DEBUGGING ---
-    console.log(`%c[STORE] Fetching URL: ${fetchUrl}`, 'color: green;');
-
     try {
-      const response = await fetch(fetchUrl);
+      const response = await fetch(`${API_URL}/api/products?${params.toString()}`);
       if (!response.ok) {
         throw new Error('No se pudo conectar con el servidor');
       }
       const data = await response.json();
       set({ products: data, loading: false });
     } catch (err) {
-      // --- CONSOLE LOG PARA DEBUGGING ---
-      console.error('%c[STORE] Error en fetchProducts:', 'color: red;', err);
       set({ error: err.message, loading: false });
     }
   },
@@ -67,8 +58,6 @@ export const useProductStore = create((set, get) => ({
   },
 
   resetFiltersAndSort: () => {
-    // --- CONSOLE LOG PARA DEBUGGING ---
-    console.log('%c[STORE] Reseteando filtros y ordenamiento', 'color: orange;');
     set({
       filters: { brands: [], minPrice: '', maxPrice: '' },
       sortOption: 'default',
