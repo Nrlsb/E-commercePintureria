@@ -1,85 +1,49 @@
-// src/tests/ProductCard.test.jsx
-
-import { describe, it, expect, vi } from 'vitest';
+import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
-import ProductCard from '../components/ProductCard.jsx';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { BrowserRouter } from 'react-router-dom';
+import ProductCard from '../components/ProductCard';
+import useCartStore from '../stores/useCartStore';
 
-// --- Mock de datos de un producto ---
-const mockProduct = {
-  id: 1,
-  name: 'Pintura Látex Interior Blanca',
-  brand: 'ColorMax',
-  price: 18500,
-  imageUrl: 'https://placehold.co/400x400/0F3460/white?text=Pintura',
-  averageRating: 4,
-  reviewCount: 12,
-};
-
-// --- Suite de pruebas para el componente ProductCard ---
 describe('Componente ProductCard', () => {
+  let mockAddToCart; // Declaramos la variable aquí
 
-  // Prueba para verificar que la información principal se renderiza
+  const mockProduct = {
+    id: 1,
+    name: 'Látex Interior Mate',
+    brand: 'Alba',
+    price: 5500,
+    image: 'url-a-la-imagen.jpg',
+    average_rating: 4.5,
+  };
+
+  beforeEach(() => {
+    // Reseteamos el store a su estado inicial
+    useCartStore.setState(useCartStore.getInitialState(), true);
+    // Creamos el "espía" sobre la función del store ya inicializado
+    mockAddToCart = vi.spyOn(useCartStore.getState(), 'addToCart');
+  });
+
   it('debería renderizar el nombre, marca y precio del producto', () => {
-    render(
-      <MemoryRouter>
-        <ProductCard product={mockProduct} onAddToCart={() => {}} />
-      </MemoryRouter>
-    );
-
-    // Verificamos que el nombre, la marca y el precio estén en el documento
-    expect(screen.getByText('Pintura Látex Interior Blanca')).toBeInTheDocument();
-    expect(screen.getByText('ColorMax')).toBeInTheDocument();
-    // El precio se formatea, por lo que buscamos el número con separadores
-    expect(screen.getByText('$18.500')).toBeInTheDocument();
+    render(<ProductCard product={mockProduct} />, { wrapper: BrowserRouter });
+    expect(screen.getByText('Látex Interior Mate')).toBeInTheDocument();
+    expect(screen.getByText('Alba')).toBeInTheDocument();
+    expect(screen.getByText('$5,500.00')).toBeInTheDocument();
   });
 
-  // Prueba para verificar que la calificación por estrellas se muestra
-  it('debería renderizar el componente de calificación por estrellas', () => {
-    render(
-      <MemoryRouter>
-        <ProductCard product={mockProduct} onAddToCart={() => {}} />
-      </MemoryRouter>
-    );
-
-    // Verificamos que el contador de reseñas sea visible
-    expect(screen.getByText('(12)')).toBeInTheDocument();
+  it('debería tener un enlace a la página de detalle del producto', () => {
+    render(<ProductCard product={mockProduct} />, { wrapper: BrowserRouter });
+    const productLink = screen.getByRole('link', { name: /látex interior mate/i });
+    expect(productLink).toHaveAttribute('href', `/product/${mockProduct.id}`);
   });
 
-  // Prueba para simular el clic en el botón "Agregar al Carrito"
-  it('debería llamar a la función onAddToCart cuando se hace clic en el botón', () => {
-    const handleAddToCartMock = vi.fn(); // Creamos una función espía
-
-    render(
-      <MemoryRouter>
-        <ProductCard product={mockProduct} onAddToCart={handleAddToCartMock} />
-      </MemoryRouter>
-    );
-
-    // Buscamos el botón por su texto
-    const addButton = screen.getByRole('button', { name: /Agregar al Carrito/i });
+  it('debería llamar a la función addToCart del store cuando se hace clic en el botón', () => {
+    render(<ProductCard product={mockProduct} />, { wrapper: BrowserRouter });
     
-    // Simulamos un clic en el botón
+    const addButton = screen.getByRole('button', { name: /agregar al carrito/i });
     fireEvent.click(addButton);
 
-    // Verificamos que nuestra función mock fue llamada una vez
-    expect(handleAddToCartMock).toHaveBeenCalledTimes(1);
-    // Verificamos que fue llamada con el producto correcto como argumento
-    expect(handleAddToCartMock).toHaveBeenCalledWith(mockProduct);
-  });
-
-  // Prueba para verificar que la imagen del producto tiene el enlace correcto
-  it('debería tener un enlace a la página de detalle del producto', () => {
-    render(
-      <MemoryRouter>
-        <ProductCard product={mockProduct} onAddToCart={() => {}} />
-      </MemoryRouter>
-    );
-
-    // La imagen está dentro de un enlace (<a>), lo buscamos por su rol y href
-    const link = screen.getByRole('link', { name: /Imagen de Pintura Látex Interior Blanca/i });
-    
-    // Verificamos que el enlace apunte a la URL correcta
-    expect(link).toHaveAttribute('href', '/product/1');
+    expect(mockAddToCart).toHaveBeenCalledTimes(1);
+    expect(mockAddToCart).toHaveBeenCalledWith(mockProduct);
   });
 });

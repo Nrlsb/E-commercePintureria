@@ -1,12 +1,38 @@
-// src/tests/setup.js
+import { afterEach, vi } from 'vitest';
+import { cleanup } from '@testing-library/react';
+import '@testing-library/jest-dom/vitest';
 
-// Este archivo se ejecuta antes de cada suite de pruebas.
-// Es el lugar ideal para configurar el entorno de pruebas o extender funcionalidades.
+// --- LA SOLUCIÓN DEFINITIVA ---
+// 1. Creamos un objeto que simula ser el localStorage.
+//    Guardará los datos en memoria solo mientras duren las pruebas.
+const createLocalStorage = () => {
+  let store = {};
+  return {
+    getItem: (key) => store[key] || null,
+    setItem: (key, value) => {
+      store[key] = String(value);
+    },
+    removeItem: (key) => {
+      delete store[key];
+    },
+    clear: () => {
+      store = {};
+    }
+  };
+};
 
-import { expect } from 'vitest';
-import * as matchers from '@testing-library/jest-dom/matchers';
+// 2. Mockeamos la función `createJSONStorage` que el middleware `persist` usa internamente.
+//    Le decimos que, en lugar de buscar el localStorage real del navegador,
+//    use nuestro objeto falso que acabamos de crear.
+vi.mock('zustand/middleware', async () => {
+  const actual = await vi.importActual('zustand/middleware');
+  return {
+    ...actual,
+    createJSONStorage: () => createLocalStorage(),
+  };
+});
 
-// Añade los matchers de jest-dom (como .toBeInTheDocument(), .toHaveClass(), etc.)
-// a la función `expect` de Vitest. Esto nos da más herramientas para verificar
-// el estado de nuestros componentes en el DOM virtual.
-expect.extend(matchers);
+// 3. Limpieza estándar después de cada prueba.
+afterEach(() => {
+  cleanup();
+});

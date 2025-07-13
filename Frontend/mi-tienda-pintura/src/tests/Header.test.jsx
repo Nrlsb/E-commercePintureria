@@ -1,86 +1,69 @@
-// src/tests/Header.test.jsx
-
-import { describe, it, expect, vi } from 'vitest';
+import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
-import Header from '../components/Header.jsx';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { BrowserRouter } from 'react-router-dom';
+import Header from '../components/Header';
+import useCartStore from '../stores/useCartStore';
+import useAuthStore from '../stores/useAuthStore';
+import useProductStore from '../stores/useProductStore';
 
 describe('Componente Header', () => {
+  const onSearchMock = vi.fn();
 
-  it('debería renderizar el título de la tienda', () => {
-    render(
-      <MemoryRouter>
-        <Header cartItemCount={0} />
-      </MemoryRouter>
-    );
-    const titleElement = screen.getByText(/Pinturerías Mercurio/i);
-    expect(titleElement).toBeInTheDocument();
+  // --- CORRECCIÓN CLAVE ---
+  // Movemos la inicialización de estados aquí, dentro del beforeEach.
+  beforeEach(() => {
+    // Reseteamos los stores a su estado original antes de cada prueba.
+    useCartStore.setState(useCartStore.getInitialState(), true);
+    useAuthStore.setState(useAuthStore.getInitialState(), true);
+    useProductStore.setState(useProductStore.getInitialState(), true);
+    vi.clearAllMocks();
   });
 
-  // --- PRUEBA CORREGIDA ---
-  it('debería mostrar el contador del carrito cuando hay items', () => {
-    render(
-      <MemoryRouter>
-        <Header cartItemCount={5} />
-      </MemoryRouter>
-    );
-    
-    // **CORRECCIÓN:** Usamos `getAllByText` para obtener todos los elementos que coincidan.
-    // Esto devuelve un array de elementos.
-    const cartCounters = screen.getAllByText('5');
-
-    // Verificamos que el array no esté vacío, lo que significa que se encontró al menos un contador.
-    expect(cartCounters.length).toBeGreaterThan(0);
-    
-    // Opcionalmente, podemos verificar el estilo en el primer elemento encontrado.
-    expect(cartCounters[0]).toHaveClass('bg-[#E9D502]');
+  it('debería renderizar el título de la tienda', () => {
+    render(<Header onSearch={onSearchMock} />, { wrapper: BrowserRouter });
+    expect(screen.getByText(/Pinturerías Mercurio/i)).toBeInTheDocument();
   });
 
   it('no debería mostrar el contador del carrito cuando está vacío', () => {
-    render(
-      <MemoryRouter>
-        <Header cartItemCount={0} />
-      </MemoryRouter>
-    );
-    const cartCount = screen.queryByText(/(\d+)/);
-    expect(cartCount).not.toBeInTheDocument();
+    render(<Header onSearch={onSearchMock} />, { wrapper: BrowserRouter });
+    const cartCounter = screen.queryByTestId('cart-counter');
+    expect(cartCounter).not.toBeInTheDocument();
   });
 
-  it('debería llamar a la función onSearch al enviar el formulario', () => {
-    const handleSearchMock = vi.fn();
-
-    render(
-      <MemoryRouter>
-        <Header onSearch={handleSearchMock} />
-      </MemoryRouter>
-    );
-
-    const searchInput = screen.getByPlaceholderText(/Buscar productos/i);
-    const form = searchInput.closest('form');
-
-    fireEvent.change(searchInput, { target: { value: 'latex interior' } });
-    fireEvent.submit(form);
-
-    expect(handleSearchMock).toHaveBeenCalledTimes(1);
-    expect(handleSearchMock).toHaveBeenCalledWith('latex interior');
+  it('debería mostrar el contador del carrito cuando hay items', () => {
+    useCartStore.setState({ cart: [{ id: 1, quantity: 5 }] });
+    render(<Header onSearch={onSearchMock} />, { wrapper: BrowserRouter });
+    expect(screen.getByText('5')).toBeInTheDocument();
   });
 
   it('debería mostrar "Mi Cuenta" cuando no hay un usuario logueado', () => {
-    render(
-      <MemoryRouter>
-        <Header user={null} />
-      </MemoryRouter>
-    );
+    render(<Header onSearch={onSearchMock} />, { wrapper: BrowserRouter });
     expect(screen.getByText(/Mi Cuenta/i)).toBeInTheDocument();
   });
 
   it('debería mostrar el email del usuario cuando está logueado', () => {
-    const mockUser = { email: 'test@example.com', role: 'user' };
-    render(
-      <MemoryRouter>
-        <Header user={mockUser} />
-      </MemoryRouter>
-    );
-    expect(screen.getByText(/Hola, test/i)).toBeInTheDocument();
+    useAuthStore.setState({
+      isAuthenticated: true,
+      user: { email: 'test@example.com' },
+    });
+    render(<Header onSearch={onSearchMock} />, { wrapper: BrowserRouter });
+    expect(screen.getByText(/test@example.com/i)).toBeInTheDocument();
+  });
+
+  it('debería llamar a la función onSearch y al store de productos al enviar el formulario', () => {
+    const setSearchQueryMock = vi.fn();
+    useProductStore.setState({ setSearchQuery: setSearchQueryMock });
+
+    render(<Header onSearch={onSearchMock} />, { wrapper: BrowserRouter });
+    
+    const searchInput = screen.getByPlaceholderText(/Buscar productos, marcas y más.../i);
+    const form = searchInput.closest('form');
+
+    fireEvent.change(searchInput, { target: { value: 'latex' } });
+    fireEvent.submit(form);
+
+    expect(onSearchMock).toHaveBeenCalledWith('latex');
+    expect(setSearchQueryMock).toHaveBeenCalledWith('latex');
   });
 });
