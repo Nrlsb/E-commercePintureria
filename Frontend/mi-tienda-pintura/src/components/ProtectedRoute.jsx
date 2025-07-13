@@ -1,15 +1,16 @@
 // src/components/ProtectedRoute.jsx
 import React from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
+import { useAuthStore } from '../stores/useAuthStore';
 
-// Este componente protege rutas que solo deben ser accesibles para usuarios logueados.
-const ProtectedRoute = ({ user }) => {
-  // Si no hay un usuario logueado, redirige a la página de login.
+const ProtectedRoute = () => {
+  // Obtenemos el usuario directamente del store
+  const user = useAuthStore(state => state.user);
+
   if (!user) {
     return <Navigate to="/login" replace />;
   }
 
-  // Si el usuario está logueado, renderiza el contenido de la ruta anidada.
   return <Outlet />;
 };
 

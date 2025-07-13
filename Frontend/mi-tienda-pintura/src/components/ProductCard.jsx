@@ -3,9 +3,13 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import Icon from './Icon.jsx';
 import { ICONS } from '../data/icons.js';
-import StarRating from './StarRating.jsx'; // Importar el nuevo componente
+import StarRating from './StarRating.jsx';
+import { useCartStore } from '../stores/useCartStore.js'; // Importamos el store del carrito
 
-const ProductCard = ({ product, onAddToCart }) => {
+const ProductCard = ({ product }) => {
+  // Obtenemos la acción addToCart directamente del store
+  const addToCart = useCartStore(state => state.addToCart);
+
   return (
     <div className="bg-white border border-gray-200 rounded-xl shadow-md hover:shadow-xl flex flex-col overflow-hidden transition-all duration-300 ease-in-out transform hover:-translate-y-1 group">
       <Link to={`/product/${product.id}`} className="relative w-full h-56 cursor-pointer block">
@@ -19,7 +23,6 @@ const ProductCard = ({ product, onAddToCart }) => {
             </h2>
         </Link>
         
-        {/* CAMBIO: Añadir el componente de calificación por estrellas */}
         <div className="mb-4">
           <StarRating rating={product.averageRating} reviewCount={product.reviewCount} />
         </div>
@@ -32,7 +35,7 @@ const ProductCard = ({ product, onAddToCart }) => {
             )}
           </div>
           <button 
-              onClick={() => onAddToCart(product)}
+              onClick={() => addToCart(product)} // Llamamos a la acción del store
               className="w-full flex items-center justify-center bg-[#0F3460] text-white py-2.5 px-4 rounded-lg font-semibold hover:bg-[#1a4a8a] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#0F3460] transition-colors duration-300"
           >
               <Icon path={ICONS.shoppingCart} className="w-5 h-5 mr-2" />

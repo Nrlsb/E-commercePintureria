@@ -1,15 +1,18 @@
 // src/components/Header.jsx
 import React, { useState, useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import Icon from './Icon.jsx';
 import { ICONS } from '../data/icons.js';
+import { useAuthStore } from '../stores/useAuthStore';
+import { useCartStore } from '../stores/useCartStore';
+import { useProductStore } from '../stores/useProductStore';
 
-// --- Nuevo Sub-componente: UserMenu ---
-const UserMenu = ({ user, onLogout, closeParentMenu }) => {
+const UserMenu = ({ closeParentMenu }) => {
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef(null);
+  const { user, logout } = useAuthStore();
+  const navigate = useNavigate();
 
-  // Cierra el menú si se hace clic fuera de él
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (menuRef.current && !menuRef.current.contains(event.target)) {
@@ -23,6 +26,12 @@ const UserMenu = ({ user, onLogout, closeParentMenu }) => {
   const handleLinkClick = () => {
     setIsOpen(false);
     if (closeParentMenu) closeParentMenu();
+  };
+  
+  const handleLogout = () => {
+    logout();
+    handleLinkClick();
+    navigate('/');
   };
 
   return (
@@ -43,7 +52,7 @@ const UserMenu = ({ user, onLogout, closeParentMenu }) => {
           <Link to="/my-orders" onClick={handleLinkClick} className="block px-4 py-2 text-sm hover:bg-gray-100">
             Mis Compras
           </Link>
-          <button onClick={() => { onLogout(); handleLinkClick(); }} className="w-full text-left block px-4 py-2 text-sm hover:bg-gray-100">
+          <button onClick={handleLogout} className="w-full text-left block px-4 py-2 text-sm hover:bg-gray-100">
             Salir
           </button>
         </div>
@@ -52,16 +61,22 @@ const UserMenu = ({ user, onLogout, closeParentMenu }) => {
   );
 };
 
-
-// --- Componente Header Principal ---
-const Header = ({ cartItemCount, onSearch, user, onLogout }) => {
+const Header = () => {
   const [query, setQuery] = useState('');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const navigate = useNavigate();
+
+  // Obtenemos datos y acciones de los stores
+  const { user } = useAuthStore();
+  const cart = useCartStore(state => state.cart);
+  const setSearchQuery = useProductStore(state => state.setSearchQuery);
+  const cartItemCount = cart.reduce((total, item) => total + item.quantity, 0);
 
   const handleSubmit = (e) => {
     e.preventDefault();
     if (query.trim()) {
-      onSearch(query.trim());
+      setSearchQuery(query.trim());
+      navigate('/search');
       setQuery('');
       setIsMenuOpen(false);
     }
@@ -75,12 +90,10 @@ const Header = ({ cartItemCount, onSearch, user, onLogout }) => {
     <header className="bg-[#0F3460] text-white shadow-lg sticky top-0 z-40">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-20">
-          {/* Logo */}
           <Link to="/" className="text-2xl font-bold text-white" onClick={() => setIsMenuOpen(false)}>
             Pinturerías Mercurio
           </Link>
 
-          {/* Barra de Búsqueda para Escritorio */}
           <form onSubmit={handleSubmit} className="hidden md:flex flex-1 justify-center px-8">
             <div className="relative w-full max-w-lg">
               <input 
@@ -96,10 +109,9 @@ const Header = ({ cartItemCount, onSearch, user, onLogout }) => {
             </div>
           </form>
 
-          {/* Iconos de Escritorio */}
           <div className="hidden md:flex items-center space-x-4">
             {user ? (
-              <UserMenu user={user} onLogout={onLogout} />
+              <UserMenu />
             ) : (
               <Link to="/login" className="flex items-center text-gray-300 hover:text-white transition-colors">
                 <Icon path={ICONS.user} />
@@ -118,7 +130,6 @@ const Header = ({ cartItemCount, onSearch, user, onLogout }) => {
             </Link>
           </div>
 
-          {/* Iconos para la vista Móvil */}
           <div className="md:hidden flex items-center space-x-4">
             <Link to="/cart" className="text-white relative">
               <Icon path={ICONS.shoppingCart} className="w-6 h-6" />
@@ -135,7 +146,6 @@ const Header = ({ cartItemCount, onSearch, user, onLogout }) => {
         </div>
       </div>
 
-      {/* Menú Lateral Deslizable (Overlay) */}
       {isMenuOpen && (
         <div className={`fixed top-0 left-0 w-full h-full bg-black bg-opacity-50 z-40 transition-opacity duration-300`} onClick={() => setIsMenuOpen(false)}>
           <div className={`fixed top-0 right-0 w-4/5 max-w-sm h-full bg-[#0F3460] shadow-xl z-50 transform transition-transform duration-300 ease-in-out ${isMenuOpen ? 'translate-x-0' : 'translate-x-full'}`} onClick={(e) => e.stopPropagation()}>
@@ -150,7 +160,7 @@ const Header = ({ cartItemCount, onSearch, user, onLogout }) => {
 
               <nav className="flex flex-col space-y-4 text-lg">
                 {user ? (
-                   <UserMenu user={user} onLogout={onLogout} closeParentMenu={() => setIsMenuOpen(false)} />
+                   <UserMenu closeParentMenu={() => setIsMenuOpen(false)} />
                 ) : (
                   <Link to="/login" onClick={() => setIsMenuOpen(false)} className="hover:text-[#E9D502]">Mi Cuenta</Link>
                 )}

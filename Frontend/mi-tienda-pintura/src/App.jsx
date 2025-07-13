@@ -1,7 +1,13 @@
 // src/App.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { Routes, Route, useNavigate } from 'react-router-dom';
 import { initMercadoPago } from '@mercadopago/sdk-react';
+
+// Stores de Zustand
+import { useProductStore } from './stores/useProductStore';
+import { useAuthStore } from './stores/useAuthStore';
+import { useCartStore } from './stores/useCartStore';
+import { useNotificationStore } from './stores/useNotificationStore';
 
 // Componentes y Páginas
 import Header from './components/Header.jsx';
@@ -24,7 +30,6 @@ import ProductFormPage from './pages/ProductFormPage.jsx';
 import OrderHistoryPage from './pages/OrderHistoryPage.jsx';
 import AdminOrdersPage from './pages/AdminOrdersPage.jsx';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 const MERCADOPAGO_PUBLIC_KEY = import.meta.env.VITE_MERCADOPAGO_PUBLIC_KEY;
 
 if (MERCADOPAGO_PUBLIC_KEY) {
@@ -33,114 +38,21 @@ if (MERCADOPAGO_PUBLIC_KEY) {
   console.error("Error: La Public Key de Mercado Pago no está configurada.");
 }
 
-const parseJwt = (token) => {
-  try {
-    return JSON.parse(atob(token.split('.')[1]));
-  } catch (e) {
-    return null;
-  }
-};
-
 export default function App() {
-  const [cart, setCart] = useState([]);
+  // Obtenemos el estado y las acciones de nuestros stores
+  const { products, loading, error, fetchProducts } = useProductStore();
+  const { user } = useAuthStore();
+  const { cart } = useCartStore();
+  const { message: notificationMessage, show: showNotification } = useNotificationStore();
   const navigate = useNavigate();
-  const [notification, setNotification] = useState({ message: '', show: false });
-  const [searchQuery, setSearchQuery] = useState('');
-  const [products, setProducts] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [user, setUser] = useState(() => {
-    const token = localStorage.getItem('token');
-    return token ? parseJwt(token) : null;
-  });
-  const [token, setToken] = useState(localStorage.getItem('token'));
 
+  // Cargamos los productos al iniciar la aplicación
   useEffect(() => {
-    const fetchProducts = async () => {
-      try {
-        const response = await fetch(`${API_URL}/api/products`);
-        if (!response.ok) {
-          throw new Error('No se pudo conectar con el servidor');
-        }
-        const data = await response.json();
-        setProducts(data);
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchProducts();
-  }, []);
+  }, [fetchProducts]);
 
-  const handleLoginSuccess = (newToken) => {
-    localStorage.setItem('token', newToken);
-    setToken(newToken);
-    setUser(parseJwt(newToken));
-  };
-
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    setToken(null);
-    setUser(null);
-    navigate('/');
-  };
-
-  const handleAddToCart = (product, quantity = 1) => {
-    const itemInCart = cart.find(item => item.id === product.id);
-    const currentQuantityInCart = itemInCart ? itemInCart.quantity : 0;
-
-    if (currentQuantityInCart + quantity > product.stock) {
-      setNotification({ message: `No puedes añadir más. Stock máximo: ${product.stock}`, show: true });
-      return;
-    }
-
-    setCart(prevCart => {
-      const existingProduct = prevCart.find(item => item.id === product.id);
-      if (existingProduct) {
-        return prevCart.map(item =>
-          item.id === product.id ? { ...item, quantity: item.quantity + quantity } : item
-        );
-      } else {
-        return [...prevCart, { ...product, quantity }];
-      }
-    });
-    setNotification({ message: `¡Añadido al carrito!`, show: true });
-  };
-
-  const handleUpdateQuantity = (productId, newQuantity) => {
-    if (newQuantity <= 0) {
-      handleRemoveItem(productId);
-      return;
-    }
-    setCart(prevCart => prevCart.map(item =>
-      item.id === productId ? { ...item, quantity: newQuantity } : item
-    ));
-  };
-
-  const handleRemoveItem = (productId) => {
-    setCart(prevCart => prevCart.filter(item => item.id !== productId));
-  };
-
-  const handleClearCart = () => {
-    setCart([]);
-  };
-
-  const handleSearch = (query) => {
-    setSearchQuery(query);
-    navigate('/search');
-  };
-
-  useEffect(() => {
-    if (notification.show) {
-      const timer = setTimeout(() => {
-        setNotification({ ...notification, show: false });
-      }, 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [notification]);
-
-  const cartItemCount = cart.reduce((total, item) => total + item.quantity, 0);
+  // Ya no necesitamos los `handle` aquí, están en los stores.
+  // Tampoco necesitamos `useState` para el carrito, usuario, etc.
 
   if (loading) {
     return <div className="flex justify-center items-center h-screen text-2xl">Cargando productos...</div>;
@@ -151,25 +63,26 @@ export default function App() {
 
   return (
     <div className="bg-gray-50 min-h-screen font-sans flex flex-col relative">
-      <Header cartItemCount={cartItemCount} onSearch={handleSearch} user={user} onLogout={handleLogout} />
+      <Header />
       <Navbar />
       <main className="flex-grow container mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col">
         <Routes>
-          <Route path="/" element={<HomePage products={products} onAddToCart={handleAddToCart} />} />
-          <Route path="/product/:productId" element={<ProductDetailPage products={products} onAddToCart={handleAddToCart} user={user} token={token} />} />
-          <Route path="/cart" element={<CartPage cart={cart} onUpdateQuantity={handleUpdateQuantity} onRemoveItem={handleRemoveItem} />} />
-          <Route path="/success" element={<OrderSuccessPage onClearCart={handleClearCart} />} />
-          <Route path="/search" element={<SearchResultsPage products={products} query={searchQuery} onAddToCart={handleAddToCart} />} />
-          <Route path="/category/:categoryName" element={<CategoryPage products={products} onAddToCart={handleAddToCart} />} />
-          <Route path="/login" element={<LoginPage onLoginSuccess={handleLoginSuccess} />} />
+          {/* Las props ya no se pasan, los componentes las obtienen del store */}
+          <Route path="/" element={<HomePage />} />
+          <Route path="/product/:productId" element={<ProductDetailPage />} />
+          <Route path="/cart" element={<CartPage />} />
+          <Route path="/success" element={<OrderSuccessPage />} />
+          <Route path="/search" element={<SearchResultsPage />} />
+          <Route path="/category/:categoryName" element={<CategoryPage />} />
+          <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
 
-          <Route element={<ProtectedRoute user={user} />}>
-            <Route path="/checkout" element={<CheckoutPage cart={cart} token={token} />} />
-            <Route path="/my-orders" element={<OrderHistoryPage token={token} />} />
+          <Route element={<ProtectedRoute />}>
+            <Route path="/checkout" element={<CheckoutPage />} />
+            <Route path="/my-orders" element={<OrderHistoryPage />} />
           </Route>
 
-          <Route element={<AdminRoute user={user} />}>
+          <Route element={<AdminRoute />}>
             <Route path="/admin" element={<AdminDashboardPage />} />
             <Route path="/admin/orders" element={<AdminOrdersPage />} />
             <Route path="/admin/product/new" element={<ProductFormPage />} />
@@ -178,7 +91,7 @@ export default function App() {
         </Routes>
       </main>
       <Footer />
-      <Notification message={notification.message} show={notification.show} />
+      <Notification message={notificationMessage} show={showNotification} />
     </div>
   );
 }
