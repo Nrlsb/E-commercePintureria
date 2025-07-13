@@ -18,17 +18,13 @@ const JWT_SECRET = process.env.JWT_SECRET;
 const client = new MercadoPagoConfig({ accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN });
 const payment = new Payment(client);
 
-// --- **CONFIGURACIÓN DE CORS CORREGIDA** ---
-// Lista de dominios autorizados para hacer solicitudes a tu API.
 const whitelist = [
-  'http://localhost:5173', // Para desarrollo local
-  'https://e-commerce-pintureria.vercel.app' // Tu URL de producción en Vercel
+  'http://localhost:5173',
+  'https://e-commerce-pintureria.vercel.app'
 ];
 
 const corsOptions = {
   origin: function (origin, callback) {
-    // Permite solicitudes sin 'origin' (como las de Postman o apps móviles)
-    // o si el origen está en nuestra lista blanca.
     if (whitelist.indexOf(origin) !== -1 || !origin) {
       callback(null, true);
     } else {
@@ -37,11 +33,7 @@ const corsOptions = {
   }
 };
 
-// Usamos la configuración de CORS
 app.use(cors(corsOptions));
-// --- Fin de la corrección de CORS ---
-
-
 app.use((req, res, next) => {
   if (req.originalUrl.includes('/api/payment-notification')) {
     express.raw({ type: 'application/json' })(req, res, next);
@@ -68,7 +60,7 @@ const isAdmin = (req, res, next) => {
   next();
 };
 
-// --- RUTA DE PRODUCTOS ---
+// --- RUTAS DE PRODUCTOS ---
 app.get('/api/products', async (req, res) => {
   try {
     const { category, sortBy, brands, minPrice, maxPrice } = req.query;
@@ -141,6 +133,17 @@ app.get('/api/products', async (req, res) => {
     res.json(products);
   } catch (err) {
     console.error('Error al obtener productos:', err);
+    res.status(500).json({ message: 'Error interno del servidor' });
+  }
+});
+
+app.get('/api/products/brands', async (req, res) => {
+  try {
+    const result = await db.query('SELECT DISTINCT brand FROM products ORDER BY brand ASC');
+    const brands = result.rows.map(row => row.brand);
+    res.json(brands);
+  } catch (err) {
+    console.error('Error al obtener las marcas:', err);
     res.status(500).json({ message: 'Error interno del servidor' });
   }
 });

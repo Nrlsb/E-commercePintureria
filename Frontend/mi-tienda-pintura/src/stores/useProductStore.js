@@ -5,6 +5,7 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
 export const useProductStore = create((set, get) => ({
   products: [],
+  availableBrands: [], // Nuevo estado para las marcas
   loading: true,
   error: null,
   searchQuery: '',
@@ -15,6 +16,20 @@ export const useProductStore = create((set, get) => ({
     maxPrice: '',
   },
   sortOption: 'default',
+
+  // Nueva acción para obtener las marcas
+  fetchAvailableBrands: async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/products/brands`);
+      if (!response.ok) {
+        throw new Error('No se pudieron cargar las marcas');
+      }
+      const data = await response.json();
+      set({ availableBrands: data });
+    } catch (err) {
+      console.error("Error fetching brands:", err);
+    }
+  },
 
   fetchProducts: async (category) => {
     set({ loading: true, error: null });

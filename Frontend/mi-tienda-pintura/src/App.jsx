@@ -3,11 +3,9 @@ import React, { useEffect } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import { initMercadoPago } from '@mercadopago/sdk-react';
 
-// Stores de Zustand
 import { useProductStore } from './stores/useProductStore';
 import { useNotificationStore } from './stores/useNotificationStore';
 
-// Componentes y Páginas
 import Header from './components/Header.jsx';
 import Navbar from './components/Navbar.jsx';
 import Footer from './components/Footer.jsx';
@@ -37,18 +35,16 @@ if (MERCADOPAGO_PUBLIC_KEY) {
 }
 
 export default function App() {
-  // Obtenemos solo las acciones y estados que App necesita directamente.
   const fetchProducts = useProductStore(state => state.fetchProducts);
+  const fetchAvailableBrands = useProductStore(state => state.fetchAvailableBrands); // Obtenemos la nueva acción
   const { message: notificationMessage, show: showNotification } = useNotificationStore();
 
-  // Cargamos los productos una sola vez al iniciar la aplicación.
-  // Las páginas individuales se encargarán de mostrar sus propios estados de carga.
   useEffect(() => {
+    // Al iniciar la app, cargamos tanto los productos iniciales como las marcas.
     fetchProducts();
-  }, [fetchProducts]);
+    fetchAvailableBrands();
+  }, [fetchProducts, fetchAvailableBrands]);
 
-  // **CORRECCIÓN CLAVE**: Se elimina el return condicional para `loading` y `error`.
-  // La estructura principal de la app siempre se renderiza.
   return (
     <div className="bg-gray-50 min-h-screen font-sans flex flex-col relative">
       <Header />
