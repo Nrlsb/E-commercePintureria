@@ -347,31 +347,42 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 // --- RUTAS DE ÓRDENES ---
+// --- CAMBIO: Ruta de órdenes optimizada ---
 app.get('/api/orders', authenticateToken, async (req, res) => {
   const userId = req.user.userId;
   try {
-    const ordersResult = await db.query(
-      'SELECT * FROM orders WHERE user_id = $1 ORDER BY created_at DESC',
-      [userId]
-    );
-    const orders = ordersResult.rows;
-
-    for (const order of orders) {
-      const itemsResult = await db.query(`
-        SELECT oi.quantity, oi.price, p.name, p.image_url
-        FROM order_items oi
-        JOIN products p ON oi.product_id = p.id
-        WHERE oi.order_id = $1
-      `, [order.id]);
-      order.items = itemsResult.rows.map(item => ({...item, imageUrl: item.image_url}));
-    }
-
-    res.json(orders);
+    // Esta única consulta obtiene las órdenes y anida sus items como un array JSON.
+    const query = `
+      SELECT
+        o.*,
+        COALESCE(
+          (
+            SELECT json_agg(items)
+            FROM (
+              SELECT
+                oi.quantity,
+                oi.price,
+                p.name,
+                p.image_url as "imageUrl"
+              FROM order_items oi
+              JOIN products p ON oi.product_id = p.id
+              WHERE oi.order_id = o.id
+            ) AS items
+          ),
+          '[]'::json
+        ) AS items
+      FROM orders o
+      WHERE o.user_id = $1
+      ORDER BY o.created_at DESC;
+    `;
+    const ordersResult = await db.query(query, [userId]);
+    res.json(ordersResult.rows);
   } catch (error) {
     console.error('Error al obtener el historial de órdenes:', error);
     res.status(500).json({ message: 'Error interno del servidor.' });
   }
 });
+
 
 app.get('/api/admin/orders', [authenticateToken, isAdmin], async (req, res) => {
     try {
