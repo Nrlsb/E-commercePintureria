@@ -1,6 +1,7 @@
 // src/pages/AdminOrdersPage.jsx
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useAuthStore } from '../stores/useAuthStore'; // Importamos el store
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
@@ -9,13 +10,11 @@ const AdminOrdersPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const navigate = useNavigate();
-  const token = localStorage.getItem('token');
+  const token = useAuthStore(state => state.token); // Obtenemos el token del store
 
   useEffect(() => {
     const fetchOrders = async () => {
       try {
-        // --- CAMBIO CLAVE: Se corrigió la URL del endpoint ---
-        // La ruta correcta para obtener las órdenes de admin es '/api/orders/admin'
         const response = await fetch(`${API_URL}/api/orders/admin`, {
           headers: { 'Authorization': `Bearer ${token}` },
         });
@@ -37,7 +36,9 @@ const AdminOrdersPage = () => {
       }
     };
     
-    fetchOrders();
+    if (token) {
+        fetchOrders();
+    }
   }, [token, navigate]);
 
   const handleCancelOrder = async (orderId) => {

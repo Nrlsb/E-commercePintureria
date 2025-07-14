@@ -1,13 +1,14 @@
 // src/pages/ProductFormPage.jsx
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useAuthStore } from '../stores/useAuthStore'; // Importamos el store
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
 const ProductFormPage = () => {
   const { productId } = useParams();
   const navigate = useNavigate();
-  const token = localStorage.getItem('token');
+  const token = useAuthStore(state => state.token); // Obtenemos el token del store
   
   const [product, setProduct] = useState({
     name: '',
