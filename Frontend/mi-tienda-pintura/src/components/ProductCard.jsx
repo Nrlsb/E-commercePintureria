@@ -4,16 +4,23 @@ import { Link } from 'react-router-dom';
 import Icon from './Icon.jsx';
 import { ICONS } from '../data/icons.js';
 import StarRating from './StarRating.jsx';
-import { useCartStore } from '../stores/useCartStore.js'; // Importamos el store del carrito
+import { useCartStore } from '../stores/useCartStore.js';
 
 const ProductCard = ({ product }) => {
-  // Obtenemos la acción addToCart directamente del store
   const addToCart = useCartStore(state => state.addToCart);
 
   return (
     <div className="bg-white border border-gray-200 rounded-xl shadow-md hover:shadow-xl flex flex-col overflow-hidden transition-all duration-300 ease-in-out transform hover:-translate-y-1 group">
       <Link to={`/product/${product.id}`} className="relative w-full h-56 cursor-pointer block">
-        <img src={product.imageUrl} alt={`Imagen de ${product.name}`} className="w-full h-full object-cover"/>
+        {/* --- CAMBIO CLAVE: Se añade loading="lazy" --- */}
+        <img 
+          src={product.imageUrl} 
+          alt={`Imagen de ${product.name}`} 
+          className="w-full h-full object-cover"
+          loading="lazy"
+          width="300" /* Atributos de tamaño para evitar CLS */
+          height="224"
+        />
       </Link>
       <div className="p-4 flex flex-col flex-grow">
         <h3 className="text-gray-500 text-xs uppercase tracking-widest mb-1">{product.brand}</h3>
@@ -35,7 +42,7 @@ const ProductCard = ({ product }) => {
             )}
           </div>
           <button 
-              onClick={() => addToCart(product)} // Llamamos a la acción del store
+              onClick={() => addToCart(product)}
               className="w-full flex items-center justify-center bg-[#0F3460] text-white py-2.5 px-4 rounded-lg font-semibold hover:bg-[#1a4a8a] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#0F3460] transition-colors duration-300"
           >
               <Icon path={ICONS.shoppingCart} className="w-5 h-5 mr-2" />

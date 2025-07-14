@@ -6,7 +6,6 @@ import StarRating from '../components/StarRating.jsx';
 import ReviewList from '../components/ReviewList.jsx';
 import ReviewForm from '../components/ReviewForm.jsx';
 
-// 1. Importamos los stores que necesitamos
 import { useProductStore } from '../stores/useProductStore.js';
 import { useCartStore } from '../stores/useCartStore.js';
 import { useAuthStore } from '../stores/useAuthStore.js';
@@ -16,7 +15,6 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 const ProductDetailPage = () => {
   const { productId } = useParams();
   
-  // 2. Obtenemos el estado y las acciones de los stores
   const { products } = useProductStore();
   const { addToCart } = useCartStore();
   const { user, token } = useAuthStore();
@@ -65,7 +63,7 @@ const ProductDetailPage = () => {
   };
 
   const handleAddToCartClick = () => {
-    addToCart(product, quantity); // Usamos la acción del store
+    addToCart(product, quantity);
   };
 
   const handleDeleteReview = async (reviewId) => {
@@ -91,7 +89,6 @@ const ProductDetailPage = () => {
     }
   };
 
-  // 3. Ahora 'products' viene del store y siempre estará definido
   const relatedProducts = product 
     ? products.filter(p => p.category === product.category && p.id !== product.id).slice(0, 4)
     : [];
@@ -112,7 +109,15 @@ const ProductDetailPage = () => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
         <div className="bg-white p-4 rounded-lg shadow-md flex items-center justify-center">
-          <img src={product.imageUrl} alt={`Imagen de ${product.name}`} className="max-w-full h-auto max-h-[500px] object-contain" />
+          {/* --- CAMBIO CLAVE: Se añade loading="lazy" --- */}
+          <img 
+            src={product.imageUrl} 
+            alt={`Imagen de ${product.name}`} 
+            className="max-w-full h-auto max-h-[500px] object-contain"
+            loading="lazy"
+            width="500"
+            height="500"
+          />
         </div>
         
         <div>
