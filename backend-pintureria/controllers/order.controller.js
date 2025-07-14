@@ -124,7 +124,9 @@ export const createPaymentPreference = async (req, res) => {
     }
     
     const frontendUrl = process.env.VITE_FRONTEND_URL || 'http://localhost:5173';
-    const notification_url = `${process.env.BACKEND_URL}/api/payment-notification`;
+    // --- CAMBIO CLAVE: Se corrigió la URL del webhook ---
+    // La ruta correcta es /api/payment/notification
+    const notification_url = `${process.env.BACKEND_URL}/api/payment/notification`;
 
     const items = cart.map(product => ({
       id: product.id,
