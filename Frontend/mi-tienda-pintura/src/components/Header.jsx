@@ -7,7 +7,8 @@ import { useAuthStore } from '../stores/useAuthStore';
 import { useCartStore } from '../stores/useCartStore';
 import { useProductStore } from '../stores/useProductStore';
 
-const UserMenu = ({ closeParentMenu }) => {
+// --- Componente de Menú de Usuario para Escritorio ---
+const UserMenuDesktop = () => {
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef(null);
   const { user, logout } = useAuthStore();
@@ -23,14 +24,9 @@ const UserMenu = ({ closeParentMenu }) => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [menuRef]);
 
-  const handleLinkClick = () => {
-    setIsOpen(false);
-    if (closeParentMenu) closeParentMenu();
-  };
-  
   const handleLogout = () => {
     logout();
-    handleLinkClick();
+    setIsOpen(false);
     navigate('/');
   };
 
@@ -45,11 +41,11 @@ const UserMenu = ({ closeParentMenu }) => {
       {isOpen && (
         <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50 text-gray-800">
           {user.role === 'admin' && (
-            <Link to="/admin" onClick={handleLinkClick} className="block px-4 py-2 text-sm hover:bg-gray-100">
+            <Link to="/admin" onClick={() => setIsOpen(false)} className="block px-4 py-2 text-sm hover:bg-gray-100">
               Panel Admin
             </Link>
           )}
-          <Link to="/my-orders" onClick={handleLinkClick} className="block px-4 py-2 text-sm hover:bg-gray-100">
+          <Link to="/my-orders" onClick={() => setIsOpen(false)} className="block px-4 py-2 text-sm hover:bg-gray-100">
             Mis Compras
           </Link>
           <button onClick={handleLogout} className="w-full text-left block px-4 py-2 text-sm hover:bg-gray-100">
@@ -61,13 +57,14 @@ const UserMenu = ({ closeParentMenu }) => {
   );
 };
 
+
+// --- Componente Principal del Header ---
 const Header = () => {
   const [query, setQuery] = useState('');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const navigate = useNavigate();
 
-  // Obtenemos datos y acciones de los stores
-  const { user } = useAuthStore();
+  const { user, logout } = useAuthStore();
   const cart = useCartStore(state => state.cart);
   const setSearchQuery = useProductStore(state => state.setSearchQuery);
   const cartItemCount = cart.reduce((total, item) => total + item.quantity, 0);
@@ -78,8 +75,18 @@ const Header = () => {
       setSearchQuery(query.trim());
       navigate('/search');
       setQuery('');
-      setIsMenuOpen(false);
+      if (isMenuOpen) setIsMenuOpen(false);
     }
+  };
+
+  const handleMobileLinkClick = () => {
+    setIsMenuOpen(false);
+  };
+
+  const handleMobileLogout = () => {
+    logout();
+    handleMobileLinkClick();
+    navigate('/');
   };
 
   useEffect(() => {
@@ -90,7 +97,7 @@ const Header = () => {
     <header className="bg-[#0F3460] text-white shadow-lg sticky top-0 z-40">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-20">
-          <Link to="/" className="text-2xl font-bold text-white" onClick={() => setIsMenuOpen(false)}>
+          <Link to="/" className="text-2xl font-bold text-white" onClick={handleMobileLinkClick}>
             Pinturerías Mercurio
           </Link>
 
@@ -109,9 +116,10 @@ const Header = () => {
             </div>
           </form>
 
+          {/* --- Menú para Escritorio --- */}
           <div className="hidden md:flex items-center space-x-4">
             {user ? (
-              <UserMenu />
+              <UserMenuDesktop />
             ) : (
               <Link to="/login" className="flex items-center text-gray-300 hover:text-white transition-colors">
                 <Icon path={ICONS.user} />
@@ -130,6 +138,7 @@ const Header = () => {
             </Link>
           </div>
 
+          {/* --- Botones para Móvil --- */}
           <div className="md:hidden flex items-center space-x-4">
             <Link to="/cart" className="text-white relative">
               <Icon path={ICONS.shoppingCart} className="w-6 h-6" />
@@ -146,6 +155,7 @@ const Header = () => {
         </div>
       </div>
 
+      {/* --- Panel Lateral para Móvil (Rediseñado) --- */}
       {isMenuOpen && (
         <div className={`fixed top-0 left-0 w-full h-full bg-black bg-opacity-50 z-40 transition-opacity duration-300`} onClick={() => setIsMenuOpen(false)}>
           <div className={`fixed top-0 right-0 w-4/5 max-w-sm h-full bg-[#0F3460] shadow-xl z-50 transform transition-transform duration-300 ease-in-out ${isMenuOpen ? 'translate-x-0' : 'translate-x-full'}`} onClick={(e) => e.stopPropagation()}>
@@ -158,13 +168,23 @@ const Header = () => {
                 <input type="search" placeholder="Buscar..." value={query} onChange={(e) => setQuery(e.target.value)} className="w-full py-2 px-4 text-gray-900 bg-gray-100 rounded-full focus:outline-none focus:ring-2 focus:ring-[#E9D502]"/>
               </form>
 
-              <nav className="flex flex-col space-y-4 text-lg">
+              {/* --- CAMBIO CLAVE: Enlaces de navegación directos --- */}
+              <nav className="flex flex-col space-y-4 text-lg text-gray-200">
                 {user ? (
-                   <UserMenu closeParentMenu={() => setIsMenuOpen(false)} />
+                  <>
+                    <div className="px-4 py-2 text-white font-semibold">Hola, {user.email.split('@')[0]}</div>
+                    <hr className="border-gray-500"/>
+                    {user.role === 'admin' && (
+                      <Link to="/admin" onClick={handleMobileLinkClick} className="px-4 py-2 hover:bg-[#1a4a8a] rounded-md">Panel Admin</Link>
+                    )}
+                    <Link to="/my-orders" onClick={handleMobileLinkClick} className="px-4 py-2 hover:bg-[#1a4a8a] rounded-md">Mis Compras</Link>
+                    <button onClick={handleMobileLogout} className="w-full text-left px-4 py-2 hover:bg-[#1a4a8a] rounded-md">Salir</button>
+                  </>
                 ) : (
-                  <Link to="/login" onClick={() => setIsMenuOpen(false)} className="hover:text-[#E9D502]">Mi Cuenta</Link>
+                  <Link to="/login" onClick={handleMobileLinkClick} className="px-4 py-2 hover:bg-[#1a4a8a] rounded-md">Mi Cuenta</Link>
                 )}
               </nav>
+
               <div className="mt-auto text-center text-gray-400 text-sm">
                 Pinturerías Mercurio &copy; 2024
               </div>
