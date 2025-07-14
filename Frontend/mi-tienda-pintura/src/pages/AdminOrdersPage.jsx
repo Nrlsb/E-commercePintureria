@@ -14,11 +14,12 @@ const AdminOrdersPage = () => {
   useEffect(() => {
     const fetchOrders = async () => {
       try {
-        const response = await fetch(`${API_URL}/api/admin/orders`, {
+        // --- CAMBIO CLAVE: Se corrigió la URL del endpoint ---
+        // La ruta correcta para obtener las órdenes de admin es '/api/orders/admin'
+        const response = await fetch(`${API_URL}/api/orders/admin`, {
           headers: { 'Authorization': `Bearer ${token}` },
         });
 
-        // --- CAMBIO CLAVE: Manejo de error 403 ---
         if (response.status === 403) {
           alert("Acceso denegado. Por favor, inicia sesión con una cuenta de administrador.");
           navigate('/login');
@@ -50,7 +51,6 @@ const AdminOrdersPage = () => {
         if (!response.ok) throw new Error(data.message || 'Error al cancelar la orden.');
         
         alert('Orden cancelada con éxito.');
-        // Para no volver a llamar a la API, actualizamos el estado localmente
         setOrders(prevOrders => 
             prevOrders.map(order => 
                 order.id === orderId ? { ...order, status: 'cancelled' } : order
