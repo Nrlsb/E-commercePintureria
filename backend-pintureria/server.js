@@ -13,45 +13,36 @@ import paymentRoutes from './routes/payment.routes.js';
 const app = express();
 const PORT = process.env.PORT || 5001;
 
-// --- Configuración de CORS ---
+// --- CAMBIO CLAVE: Configuración de CORS Simplificada y Robusta ---
+// Lista de orígenes permitidos. Incluye la URL local, la de producción,
+// y una expresión regular para todas las URLs de vista previa de Vercel.
 const whitelist = [
   'http://localhost:5173',
-  'https://e-commerce-pintureria.vercel.app'
+  'https://e-commerce-pintureria.vercel.app',
+  // Esta expresión regular permite cualquier subdominio de vista previa de Vercel para tu proyecto.
+  // Por ejemplo: https://e-commerce-pintureria-git-main-mi-equipo.vercel.app
+  /^https:\/\/e-commerce-pintureria-.*\.vercel\.app$/
 ];
 
 const corsOptions = {
-  origin: function (origin, callback) {
-    // Permite solicitudes sin 'origin' (como las de Postman o apps móviles)
+  origin: (origin, callback) => {
+    // Permite solicitudes sin 'origin' (como Postman, apps móviles, etc.)
     if (!origin) {
       return callback(null, true);
     }
-
-    // Permite si el origen está en la lista blanca principal
-    if (whitelist.includes(origin)) {
-      return callback(null, true);
+    // Comprueba si el origen de la solicitud coincide con nuestra lista blanca
+    if (whitelist.some(allowedOrigin => 
+        typeof allowedOrigin === 'string' 
+          ? allowedOrigin === origin 
+          : allowedOrigin.test(origin)
+    )) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
     }
-
-    // --- CAMBIO CLAVE: Solución flexible para Vercel ---
-    // Permite cualquier subdominio de vercel.app que pertenezca a tu proyecto.
-    // Esto es muy útil para las "Preview Deployments" de Vercel.
-    // Por ejemplo: 'https://mi-rama-e-commerce-pintureria.vercel.app' será permitido.
-    try {
-        const hostname = new URL(origin).hostname;
-        if (hostname.endsWith('vercel.app')) {
-            // Puedes hacer esta regla más estricta si quieres, pero para los proyectos de Vercel es una buena práctica.
-            return callback(null, true);
-        }
-    } catch (e) {
-        // Si la URL de origen no es válida, la rechazamos.
-        console.error(`Error al parsear el origen de CORS: ${origin}`);
-    }
-    
-    // Si el origen no coincide con ninguna regla, se rechaza la solicitud.
-    console.error(`CORS Error: El origen ${origin} no está permitido.`);
-    return callback(new Error('Not allowed by CORS'));
-  }
+  },
+  optionsSuccessStatus: 200 // Para compatibilidad con navegadores antiguos
 };
-
 
 app.use(cors(corsOptions));
 
