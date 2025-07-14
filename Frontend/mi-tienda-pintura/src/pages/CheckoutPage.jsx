@@ -2,13 +2,12 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Wallet } from '@mercadopago/sdk-react';
-import { useCartStore } from '../stores/useCartStore'; // 1. Importamos el store del carrito
-import { useAuthStore } from '../stores/useAuthStore'; // 2. Importamos el store de autenticación
+import { useCartStore } from '../stores/useCartStore';
+import { useAuthStore } from '../stores/useAuthStore';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
 const CheckoutPage = () => {
-  // 3. Obtenemos el estado directamente de los stores
   const cart = useCartStore(state => state.cart);
   const token = useAuthStore(state => state.token);
 
@@ -30,7 +29,9 @@ const CheckoutPage = () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`${API_URL}/api/create-payment-preference`, {
+      // --- CAMBIO CLAVE: Se corrigió la URL del endpoint ---
+      // La ruta ahora incluye '/orders/' como definimos en la modularización del backend.
+      const response = await fetch(`${API_URL}/api/orders/create-payment-preference`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
