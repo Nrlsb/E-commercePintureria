@@ -1,8 +1,8 @@
 // src/pages/CategoryPage.jsx
 import React, { useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import ProductCard from '../components/ProductCard.jsx';
+import { useParams } from 'react-router-dom';
 import ProductFilters from '../components/ProductFilters.jsx';
+import ProductGrid from '../components/ProductGrid.jsx'; // Se importa el nuevo componente
 import { useProductStore } from '../stores/useProductStore.js';
 
 const CategoryPage = () => {
@@ -11,11 +11,10 @@ const CategoryPage = () => {
   const { products, loading, error, fetchProducts, resetFiltersAndSort } = useProductStore();
 
   useEffect(() => {
-    // Cada vez que la categoría cambia, reseteamos los filtros
-    // y buscamos los productos para esa nueva categoría.
     resetFiltersAndSort();
     fetchProducts(categoryName);
-  }, [categoryName]); // Dependemos solo de `categoryName` para que se ejecute al cambiar de categoría.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [categoryName]);
 
   return (
     <div>
@@ -23,23 +22,12 @@ const CategoryPage = () => {
       
       <ProductFilters category={categoryName} />
 
-      {loading && <div className="text-center p-10">Cargando productos...</div>}
-      {error && <div className="text-center p-10 text-red-500">Error: {error}</div>}
-      
-      {!loading && !error && products.length > 0 && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {products.map(product => (
-            <ProductCard key={product.id} product={product} />
-          ))}
-        </div>
-      )}
-
-      {!loading && !error && products.length === 0 && (
-        <div className="text-center p-10 bg-white rounded-lg shadow-md mt-12">
-          <h2 className="text-2xl font-semibold text-gray-700 mb-4">No hay productos que coincidan con tus filtros</h2>
-          <Link to="/" className="bg-blue-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-blue-700">Volver al inicio</Link>
-        </div>
-      )}
+      {/* Se usa el componente ProductGrid para renderizar la lista */}
+      <ProductGrid
+        products={products}
+        loading={loading}
+        error={error}
+      />
     </div>
   );
 };
