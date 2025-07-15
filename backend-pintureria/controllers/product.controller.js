@@ -1,24 +1,18 @@
+// backend-pintureria/controllers/product.controller.js
 import db from '../db.js';
 
 // --- Controladores de Productos ---
 
 export const getProducts = async (req, res) => {
   try {
-    const { category, sortBy, brands, minPrice, maxPrice } = req.query;
+    // 1. Se extraen los parámetros de paginación de la URL, con valores por defecto.
+    const { category, sortBy, brands, minPrice, maxPrice, page = 1, limit = 12 } = req.query;
 
-    let baseQuery = `
-      SELECT 
-        p.*, 
-        COALESCE(AVG(r.rating), 0) as average_rating, 
-        COUNT(r.id) as review_count
-      FROM products p
-      LEFT JOIN reviews r ON p.id = r.product_id
-    `;
-    
-    const whereClauses = [];
     const queryParams = [];
     let paramIndex = 1;
+    let whereClauses = [];
 
+    // Se construye la cláusula WHERE basada en los filtros aplicados.
     if (category) {
       whereClauses.push(`p.category = $${paramIndex++}`);
       queryParams.push(category);
@@ -37,12 +31,27 @@ export const getProducts = async (req, res) => {
       queryParams.push(maxPrice);
     }
 
-    if (whereClauses.length > 0) {
-      baseQuery += ` WHERE ${whereClauses.join(' AND ')}`;
-    }
+    const whereString = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
 
-    baseQuery += ` GROUP BY p.id`;
+    // 2. Se realiza una primera consulta para contar el número total de productos que coinciden con los filtros.
+    const countQuery = `SELECT COUNT(*) FROM products p ${whereString}`;
+    const totalResult = await db.query(countQuery, queryParams);
+    const totalProducts = parseInt(totalResult.rows[0].count, 10);
+    const totalPages = Math.ceil(totalProducts / limit);
 
+    // 3. Se construye la consulta principal para obtener los productos.
+    let baseQuery = `
+      SELECT 
+        p.*, 
+        COALESCE(AVG(r.rating), 0) as average_rating, 
+        COUNT(r.id) as review_count
+      FROM products p
+      LEFT JOIN reviews r ON p.id = r.product_id
+      ${whereString}
+      GROUP BY p.id
+    `;
+    
+    // Se añade la cláusula de ordenamiento.
     let orderByClause = ' ORDER BY p.id ASC';
     switch (sortBy) {
       case 'price_asc':
@@ -57,6 +66,11 @@ export const getProducts = async (req, res) => {
     }
     baseQuery += orderByClause;
 
+    // 4. Se añaden LIMIT y OFFSET a la consulta para obtener solo la página deseada.
+    const offset = (page - 1) * limit;
+    baseQuery += ` LIMIT $${paramIndex++} OFFSET $${paramIndex++}`;
+    queryParams.push(limit, offset);
+
     const result = await db.query(baseQuery, queryParams);
     
     const products = result.rows.map(p => ({ 
@@ -68,13 +82,20 @@ export const getProducts = async (req, res) => {
       stock: parseInt(p.stock, 10)
     }));
     
-    res.json(products);
+    // 5. Se devuelve una respuesta estructurada con los productos y la información de paginación.
+    res.json({
+      products,
+      currentPage: parseInt(page, 10),
+      totalPages,
+    });
+
   } catch (err) {
     console.error('Error al obtener productos:', err);
     res.status(500).json({ message: 'Error interno del servidor' });
   }
 };
 
+// ... resto de los controladores (getProductById, etc.) sin cambios ...
 export const getProductById = async (req, res) => {
   const { productId } = req.params;
   try {

@@ -5,7 +5,11 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
 export const useProductStore = create((set, get) => ({
   products: [],
-  availableBrands: [], // Nuevo estado para las marcas
+  // --- NUEVOS ESTADOS PARA PAGINACIÓN ---
+  currentPage: 1,
+  totalPages: 1,
+  // ---
+  availableBrands: [],
   loading: true,
   error: null,
   searchQuery: '',
@@ -17,7 +21,6 @@ export const useProductStore = create((set, get) => ({
   },
   sortOption: 'default',
 
-  // Nueva acción para obtener las marcas
   fetchAvailableBrands: async () => {
     try {
       const response = await fetch(`${API_URL}/api/products/brands`);
@@ -31,7 +34,8 @@ export const useProductStore = create((set, get) => ({
     }
   },
 
-  fetchProducts: async (category) => {
+  // --- fetchProducts AHORA ACEPTA UN PARÁMETRO DE PÁGINA ---
+  fetchProducts: async (category, page = 1) => {
     set({ loading: true, error: null });
     const { filters, sortOption } = get();
     
@@ -51,6 +55,8 @@ export const useProductStore = create((set, get) => ({
     if (filters.maxPrice) {
       params.append('maxPrice', filters.maxPrice);
     }
+    // Se añade el número de página a los parámetros de la petición
+    params.append('page', page);
 
     try {
       const response = await fetch(`${API_URL}/api/products?${params.toString()}`);
@@ -58,7 +64,13 @@ export const useProductStore = create((set, get) => ({
         throw new Error('No se pudo conectar con el servidor');
       }
       const data = await response.json();
-      set({ products: data, loading: false });
+      // Se actualiza el estado con los productos y la información de paginación
+      set({ 
+        products: data.products, 
+        currentPage: data.currentPage,
+        totalPages: data.totalPages,
+        loading: false 
+      });
     } catch (err) {
       set({ error: err.message, loading: false });
     }
@@ -76,6 +88,7 @@ export const useProductStore = create((set, get) => ({
     set({
       filters: { brands: [], minPrice: '', maxPrice: '' },
       sortOption: 'default',
+      currentPage: 1, // También se resetea la página actual
     });
   },
 
