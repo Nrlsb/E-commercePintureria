@@ -9,7 +9,6 @@ import {
   deleteProduct,
   getProductReviews,
   createProductReview,
-  deleteReview, // Se mantiene la importación del controlador
 } from '../controllers/product.controller.js';
 import { authenticateToken, isAdmin } from '../middlewares/auth.middleware.js';
 
@@ -27,11 +26,6 @@ router.delete('/:id', [authenticateToken, isAdmin], deleteProduct);
 router.get('/:productId/reviews', getProductReviews);
 router.post('/:productId/reviews', authenticateToken, createProductReview);
 
-// --- CORRECCIÓN: Ruta de eliminación de reseña ---
-// Se mueve a una ruta raíz /api/reviews/:reviewId para que sea más simple y directa.
-// Esta ruta ahora se manejará en un nuevo archivo de rutas (ver server.js).
-// Por simplicidad en este cambio, la dejamos aquí pero con la ruta corregida.
-// En una refactorización mayor, esto iría en `review.routes.js`.
-router.delete('/reviews/:reviewId', authenticateToken, deleteReview);
+// La ruta para eliminar reseñas se ha movido a review.routes.js
 
 export default router;
