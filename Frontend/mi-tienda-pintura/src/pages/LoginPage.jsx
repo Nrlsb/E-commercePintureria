@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/useAuthStore';
-import Spinner from '../components/Spinner.jsx'; // 1. Importar el Spinner
+import Spinner from '../components/Spinner.jsx';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
@@ -10,7 +10,7 @@ const LoginPage = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false); // 2. Añadir estado de carga
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   
   const login = useAuthStore(state => state.login);
@@ -18,7 +18,7 @@ const LoginPage = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    setLoading(true); // 3. Activar la carga
+    setLoading(true);
     try {
       const response = await fetch(`${API_URL}/api/auth/login`, {
         method: 'POST',
@@ -36,7 +36,7 @@ const LoginPage = () => {
     } catch (err) {
       setError(err.message);
     } finally {
-      setLoading(false); // 4. Desactivar la carga
+      setLoading(false);
     }
   };
 
@@ -46,7 +46,16 @@ const LoginPage = () => {
         <div className="bg-white p-8 rounded-lg shadow-md">
           <h1 className="text-2xl font-bold text-gray-800 mb-6 border-b pb-4">Iniciar sesión</h1>
           <form onSubmit={handleSubmit} className="space-y-6">
-            {/* ... campos del formulario ... */}
+            {/* --- CAMBIO CLAVE: Se restauraron los campos del formulario --- */}
+            <div>
+              <label className="block mb-1 font-medium text-gray-600">Su E-Mail: <span className="text-red-500">*</span></label>
+              <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#0F3460]" required />
+            </div>
+            <div>
+              <label className="block mb-1 font-medium text-gray-600">Su Clave: <span className="text-red-500">*</span></label>
+              <input type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#0F3460]" required />
+            </div>
+            
             <div className="flex items-center justify-between text-sm">
                 <label className="flex items-center">
                     <input type="checkbox" className="h-4 w-4 text-[#0F3460] focus:ring-[#0F3460] border-gray-300 rounded" />
@@ -60,7 +69,6 @@ const LoginPage = () => {
             {error && <p className="text-red-500 text-sm text-center">{error}</p>}
             
             <div className="flex justify-end">
-                {/* 5. Renderizado condicional del botón */}
                 <button 
                   type="submit" 
                   disabled={loading}
@@ -72,7 +80,11 @@ const LoginPage = () => {
           </form>
         </div>
         <div className="bg-white p-8 rounded-lg shadow-md">
-            {/* ... sección de registro ... */}
+            <h2 className="text-2xl font-bold text-gray-800 mb-4">Registrarse</h2>
+            <p className="text-gray-600 mb-6">Creando una cuenta usted puede comprar productos y tener una lista de deseos.</p>
+            <Link to="/register" className="inline-block w-full text-center px-8 py-3 bg-gray-200 text-gray-800 font-semibold rounded-lg hover:bg-gray-300 transition-colors">
+                Registrarme
+            </Link>
         </div>
       </div>
     </div>
