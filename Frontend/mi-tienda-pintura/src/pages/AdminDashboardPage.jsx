@@ -2,7 +2,9 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuthStore } from '../stores/useAuthStore';
-import Icon from '../components/Icon'; // Reutilizamos el componente de íconos
+import { useNotificationStore } from '../stores/useNotificationStore';
+import Icon from '../components/Icon';
+import Spinner from '../components/Spinner';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
@@ -34,13 +36,16 @@ const AdminDashboardPage = () => {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
   const token = useAuthStore(state => state.token);
+  const showNotification = useNotificationStore(state => state.showNotification);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         const [productsResponse, ordersResponse] = await Promise.all([
-          fetch(`${API_URL}/api/products`),
+          // Se pide la primera página de productos para la vista general del dashboard
+          fetch(`${API_URL}/api/products?page=1&limit=100`), // Pedimos hasta 100 productos
           fetch(`${API_URL}/api/orders/admin`, { headers: { 'Authorization': `Bearer ${token}` } })
         ]);
 
@@ -50,7 +55,9 @@ const AdminDashboardPage = () => {
         const productsData = await productsResponse.json();
         const ordersData = await ordersResponse.json();
         
-        setProducts(productsData);
+        // --- CORRECCIÓN CLAVE ---
+        // Se extrae el array 'products' del objeto de respuesta.
+        setProducts(productsData.products);
         setOrders(ordersData);
 
       } catch (err) {
@@ -64,16 +71,22 @@ const AdminDashboardPage = () => {
 
   const handleDelete = async (productId) => {
     if (window.confirm('¿Estás seguro de que quieres eliminar este producto?')) {
+      setDeletingId(productId);
       try {
         const response = await fetch(`${API_URL}/api/products/${productId}`, {
           method: 'DELETE',
           headers: { 'Authorization': `Bearer ${token}` },
         });
-        if (!response.ok) throw new Error('Error al eliminar el producto');
+        if (!response.ok) {
+            const data = await response.json();
+            throw new Error(data.message || 'Error al eliminar el producto');
+        }
         setProducts(products.filter(p => p.id !== productId));
-        alert('Producto eliminado con éxito');
+        showNotification('Producto eliminado con éxito.', 'success');
       } catch (err) {
-        alert(`Error: ${err.message}`);
+        showNotification(err.message, 'error');
+      } finally {
+        setDeletingId(null);
       }
     }
   };
@@ -83,7 +96,6 @@ const AdminDashboardPage = () => {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      {/* --- CONTENEDOR DE CABECERA CORREGIDO --- */}
       <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-8 gap-4">
         <h1 className="text-3xl font-bold text-gray-800">Panel de Administración</h1>
         <div className="flex flex-col sm:flex-row gap-2 sm:gap-4">
@@ -128,8 +140,12 @@ const AdminDashboardPage = () => {
                   <Link to={`/admin/product/edit/${product.id}`} className="p-2 text-blue-600 hover:bg-blue-100 rounded-full transition-colors">
                     <Icon path={ICONS.edit} className="w-5 h-5" />
                   </Link>
-                  <button onClick={() => handleDelete(product.id)} className="p-2 text-red-600 hover:bg-red-100 rounded-full transition-colors">
-                    <Icon path={ICONS.delete} className="w-5 h-5" />
+                  <button onClick={() => handleDelete(product.id)} disabled={deletingId === product.id} className="p-2 text-red-600 hover:bg-red-100 rounded-full transition-colors disabled:opacity-50 disabled:cursor-wait">
+                    {deletingId === product.id ? (
+                      <Spinner className="w-5 h-5 text-red-500" />
+                    ) : (
+                      <Icon path={ICONS.delete} className="w-5 h-5" />
+                    )}
                   </button>
                 </td>
               </tr>
