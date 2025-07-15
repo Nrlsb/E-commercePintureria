@@ -1,10 +1,12 @@
 // backend-pintureria/controllers/product.controller.js
 import db from '../db.js';
 
-// --- Controladores de Productos (sin cambios) ---
+// --- Controladores de Productos ---
+
 export const getProducts = async (req, res) => {
   try {
     const { category, sortBy, brands, minPrice, maxPrice, page = 1, limit = 12 } = req.query;
+
     const queryParams = [];
     let paramIndex = 1;
     let whereClauses = [];
@@ -119,7 +121,63 @@ export const getProductById = async (req, res) => {
   }
 };
 
-// ... otros controladores de productos ...
+export const getProductBrands = async (req, res) => {
+  try {
+    const result = await db.query('SELECT DISTINCT brand FROM products ORDER BY brand ASC');
+    const brands = result.rows.map(row => row.brand);
+    res.json(brands);
+  } catch (err) {
+    console.error('Error al obtener las marcas:', err);
+    res.status(500).json({ message: 'Error interno del servidor' });
+  }
+};
+
+export const createProduct = async (req, res) => {
+  const { name, brand, category, price, old_price, image_url, description, stock } = req.body;
+  try {
+    const result = await db.query(
+      'INSERT INTO products (name, brand, category, price, old_price, image_url, description, stock) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *',
+      [name, brand, category, price, old_price, image_url, description, stock]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Error al crear el producto' });
+  }
+};
+
+export const updateProduct = async (req, res) => {
+  const { id } = req.params;
+  const { name, brand, category, price, old_price, image_url, description, stock } = req.body;
+  try {
+    const result = await db.query(
+      'UPDATE products SET name = $1, brand = $2, category = $3, price = $4, old_price = $5, image_url = $6, description = $7, stock = $8 WHERE id = $9 RETURNING *',
+      [name, brand, category, price, old_price, image_url, description, stock, id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: 'Producto no encontrado' });
+    }
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Error al actualizar el producto' });
+  }
+};
+
+export const deleteProduct = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await db.query('DELETE FROM products WHERE id = $1 RETURNING *', [id]);
+    if (result.rowCount === 0) {
+      return res.status(404).json({ message: 'Producto no encontrado' });
+    }
+    res.status(200).json({ message: 'Producto eliminado con éxito' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Error al eliminar el producto' });
+  }
+};
+
 
 // --- Controladores de Reseñas ---
 
@@ -163,7 +221,6 @@ export const createProductReview = async (req, res) => {
   }
 };
 
-// --- CORRECCIÓN EN deleteReview ---
 export const deleteReview = async (req, res) => {
   const { reviewId } = req.params;
   const { userId, role } = req.user;
@@ -183,13 +240,10 @@ export const deleteReview = async (req, res) => {
 
     await db.query('DELETE FROM reviews WHERE id = $1', [reviewId]);
     
-    // Se asegura de enviar una respuesta JSON vacía con status 204 (No Content)
-    // que es el estándar para una eliminación exitosa sin contenido de respuesta.
     res.status(204).send();
 
   } catch (err) {
     console.error('Error al eliminar la reseña:', err);
-    // Se asegura de que la respuesta de error también sea un JSON.
     res.status(500).json({ message: 'Error interno del servidor al eliminar la reseña.' });
   }
 };
