@@ -3,11 +3,16 @@ import { create } from 'zustand';
 
 export const useNotificationStore = create((set) => ({
   message: '',
+  type: 'success', // Nuevo estado para el tipo: 'success' o 'error'
   show: false,
   
-  // Acción para mostrar una notificación
-  showNotification: (message) => {
-    set({ message, show: true });
+  /**
+   * Muestra una notificación con un mensaje y un tipo específico.
+   * @param {string} message - El mensaje a mostrar.
+   * @param {string} [type='success'] - El tipo de notificación ('success' o 'error').
+   */
+  showNotification: (message, type = 'success') => {
+    set({ message, type, show: true });
     // Oculta la notificación después de 3 segundos
     setTimeout(() => {
       set({ show: false });
