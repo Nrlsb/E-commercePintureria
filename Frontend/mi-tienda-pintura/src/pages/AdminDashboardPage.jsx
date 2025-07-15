@@ -6,7 +6,7 @@ import Icon from '../components/Icon'; // Reutilizamos el componente de íconos
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
-// --- NUEVO: Componente para las tarjetas de estadísticas ---
+// --- Componente para las tarjetas de estadísticas ---
 const StatCard = ({ title, value, icon, color }) => (
   <div className="bg-white p-6 rounded-lg shadow-md flex items-center space-x-4">
     <div className={`rounded-full p-3 ${color}`}>
@@ -19,7 +19,7 @@ const StatCard = ({ title, value, icon, color }) => (
   </div>
 );
 
-// --- NUEVO: Definición de íconos para la página ---
+// --- Definición de íconos para la página ---
 const ICONS = {
     box: "M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16zM12 12.78l-7-4V10l7 4.22V18l-7-4v-1.54l7 4zM13 18v-4.22l7-4V10l-7 4zM12 2.22L18.09 6 12 9.78 5.91 6 12 2.22z",
     clipboardList: "M19 3h-4.18C14.4 1.84 13.3 1 12 1s-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm2 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z",
@@ -31,7 +31,7 @@ const ICONS = {
 
 const AdminDashboardPage = () => {
   const [products, setProducts] = useState([]);
-  const [orders, setOrders] = useState([]); // Estado para las órdenes
+  const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const token = useAuthStore(state => state.token);
@@ -39,7 +39,6 @@ const AdminDashboardPage = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Hacemos ambas peticiones en paralelo para mayor eficiencia
         const [productsResponse, ordersResponse] = await Promise.all([
           fetch(`${API_URL}/api/products`),
           fetch(`${API_URL}/api/orders/admin`, { headers: { 'Authorization': `Bearer ${token}` } })
@@ -64,9 +63,7 @@ const AdminDashboardPage = () => {
   }, [token]);
 
   const handleDelete = async (productId) => {
-    // Usamos un modal de confirmación más moderno en lugar de window.confirm
-    const modalConfirm = window.confirm('¿Estás seguro de que quieres eliminar este producto?');
-    if (modalConfirm) {
+    if (window.confirm('¿Estás seguro de que quieres eliminar este producto?')) {
       try {
         const response = await fetch(`${API_URL}/api/products/${productId}`, {
           method: 'DELETE',
@@ -74,7 +71,6 @@ const AdminDashboardPage = () => {
         });
         if (!response.ok) throw new Error('Error al eliminar el producto');
         setProducts(products.filter(p => p.id !== productId));
-        // Aquí podrías usar tu store de notificaciones
         alert('Producto eliminado con éxito');
       } catch (err) {
         alert(`Error: ${err.message}`);
@@ -87,25 +83,24 @@ const AdminDashboardPage = () => {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <div className="flex justify-between items-center mb-8">
+      {/* --- CONTENEDOR DE CABECERA CORREGIDO --- */}
+      <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-8 gap-4">
         <h1 className="text-3xl font-bold text-gray-800">Panel de Administración</h1>
-        <div className="flex space-x-4">
-            <Link to="/admin/orders" className="bg-blue-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-600 transition-colors flex items-center space-x-2">
+        <div className="flex flex-col sm:flex-row gap-2 sm:gap-4">
+            <Link to="/admin/orders" className="bg-blue-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center space-x-2">
                 <Icon path={ICONS.orders} className="w-5 h-5" />
                 <span>Gestionar Órdenes</span>
             </Link>
-            <Link to="/admin/product/new" className="bg-green-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-600 transition-colors flex items-center space-x-2">
+            <Link to="/admin/product/new" className="bg-green-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-600 transition-colors flex items-center justify-center space-x-2">
                 <Icon path={ICONS.add} className="w-5 h-5" />
                 <span>Crear Producto</span>
             </Link>
         </div>
       </div>
 
-      {/* --- NUEVA SECCIÓN: Tarjetas de Estadísticas --- */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <StatCard title="Total de Productos" value={products.length} icon={ICONS.box} color="bg-blue-500" />
         <StatCard title="Total de Órdenes" value={orders.length} icon={ICONS.clipboardList} color="bg-green-500" />
-        {/* Puedes añadir más tarjetas aquí (ej. Ingresos, Usuarios) */}
       </div>
       
       <div className="bg-white p-6 rounded-lg shadow-md overflow-x-auto">
