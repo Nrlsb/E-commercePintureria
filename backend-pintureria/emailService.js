@@ -45,10 +45,6 @@ export const sendOrderConfirmationEmail = async (userEmail, order) => {
     </div>
   `;
 
-  // --- CAMBIO CLAVE ---
-  // Resend requiere que el email del remitente sea del tipo 'onboarding@resend.dev'
-  // o una dirección de un dominio que hayas verificado.
-  // Usamos el nombre que queramos, pero la dirección de email debe ser la permitida.
   const mailOptions = {
     from: `"Pinturerías Mercurio" <onboarding@resend.dev>`,
     to: userEmail,
@@ -61,5 +57,45 @@ export const sendOrderConfirmationEmail = async (userEmail, order) => {
     console.log(`Email de confirmación enviado a ${userEmail} para la orden ${order.id}`);
   } catch (error) {
     console.error(`Error al enviar email para la orden ${order.id}:`, error);
+  }
+};
+
+/**
+ * --- NUEVA FUNCIÓN ---
+ * Envía un correo electrónico con el enlace para restablecer la contraseña.
+ * @param {string} userEmail - El email del destinatario.
+ * @param {string} token - El token único de reseteo.
+ */
+export const sendPasswordResetEmail = async (userEmail, token) => {
+  const resetUrl = `${process.env.VITE_FRONTEND_URL}/reset-password/${token}`;
+  
+  const emailHtml = `
+    <div style="font-family: Arial, sans-serif; color: #333;">
+      <h1 style="color: #0F3460;">Restablecer tu Contraseña</h1>
+      <p>Has solicitado restablecer tu contraseña. Haz clic en el siguiente enlace para continuar:</p>
+      <p style="text-align: center;">
+        <a href="${resetUrl}" style="background-color: #0F3460; color: white; padding: 12px 20px; text-decoration: none; border-radius: 5px; font-weight: bold;">
+          Restablecer Contraseña
+        </a>
+      </p>
+      <p>Si no solicitaste esto, por favor ignora este correo.</p>
+      <p>Este enlace expirará en 1 hora.</p>
+    </div>
+  `;
+
+  const mailOptions = {
+    from: `"Pinturerías Mercurio" <onboarding@resend.dev>`,
+    to: userEmail,
+    subject: 'Restablecimiento de Contraseña',
+    html: emailHtml,
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    console.log(`Email de reseteo de contraseña enviado a ${userEmail}`);
+  } catch (error) {
+    console.error(`Error al enviar email de reseteo a ${userEmail}:`, error);
+    // Es importante manejar este error para que la aplicación no se caiga.
+    throw new Error('No se pudo enviar el correo de restablecimiento.');
   }
 };

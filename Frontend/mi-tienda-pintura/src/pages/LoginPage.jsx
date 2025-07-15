@@ -1,7 +1,7 @@
 // src/pages/LoginPage.jsx
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useAuthStore } from '../stores/useAuthStore'; // 1. Importamos el store de autenticación
+import { useAuthStore } from '../stores/useAuthStore';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
@@ -11,7 +11,6 @@ const LoginPage = () => {
   const [error, setError] = useState('');
   const navigate = useNavigate();
   
-  // 2. Obtenemos la acción `login` de nuestro store
   const login = useAuthStore(state => state.login);
 
   const handleSubmit = async (e) => {
@@ -28,10 +27,9 @@ const LoginPage = () => {
         throw new Error(data.message || 'Error al iniciar sesión');
       }
       
-      // 3. Llamamos a la acción `login` del store con el token recibido
       login(data.token);
       
-      navigate('/'); // Redirigimos al usuario a la página de inicio
+      navigate('/');
     } catch (err) {
       setError(err.message);
     }
@@ -58,7 +56,10 @@ const LoginPage = () => {
                     <input type="checkbox" className="h-4 w-4 text-[#0F3460] focus:ring-[#0F3460] border-gray-300 rounded" />
                     <span className="ml-2 text-gray-600">Mantener iniciada</span>
                 </label>
-                <a href="#" className="font-medium text-[#0F3460] hover:underline">Olvidé mi contraseña</a>
+                {/* --- CAMBIO CLAVE: Enlace a la página de recuperación --- */}
+                <Link to="/forgot-password" className="font-medium text-[#0F3460] hover:underline">
+                  Olvidé mi contraseña
+                </Link>
             </div>
 
             {error && <p className="text-red-500 text-sm text-center">{error}</p>}

@@ -25,6 +25,10 @@ import AdminDashboardPage from './pages/AdminDashboardPage.jsx';
 import ProductFormPage from './pages/ProductFormPage.jsx';
 import OrderHistoryPage from './pages/OrderHistoryPage.jsx';
 import AdminOrdersPage from './pages/AdminOrdersPage.jsx';
+// --- NUEVOS IMPORTS ---
+import ForgotPasswordPage from './pages/ForgotPasswordPage.jsx';
+import ResetPasswordPage from './pages/ResetPasswordPage.jsx';
+
 
 const MERCADOPAGO_PUBLIC_KEY = import.meta.env.VITE_MERCADOPAGO_PUBLIC_KEY;
 
@@ -36,11 +40,10 @@ if (MERCADOPAGO_PUBLIC_KEY) {
 
 export default function App() {
   const fetchProducts = useProductStore(state => state.fetchProducts);
-  const fetchAvailableBrands = useProductStore(state => state.fetchAvailableBrands); // Obtenemos la nueva acción
+  const fetchAvailableBrands = useProductStore(state => state.fetchAvailableBrands);
   const { message: notificationMessage, show: showNotification } = useNotificationStore();
 
   useEffect(() => {
-    // Al iniciar la app, cargamos tanto los productos iniciales como las marcas.
     fetchProducts();
     fetchAvailableBrands();
   }, [fetchProducts, fetchAvailableBrands]);
@@ -51,6 +54,7 @@ export default function App() {
       <Navbar />
       <main className="flex-grow container mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col">
         <Routes>
+          {/* Rutas existentes */}
           <Route path="/" element={<HomePage />} />
           <Route path="/product/:productId" element={<ProductDetailPage />} />
           <Route path="/cart" element={<CartPage />} />
@@ -59,6 +63,10 @@ export default function App() {
           <Route path="/category/:categoryName" element={<CategoryPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
+
+          {/* --- NUEVAS RUTAS --- */}
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
 
           <Route element={<ProtectedRoute />}>
             <Route path="/checkout" element={<CheckoutPage />} />
