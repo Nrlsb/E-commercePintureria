@@ -1,33 +1,38 @@
 // src/App.jsx
-import React, { useEffect } from 'react';
+import React, { Suspense, lazy, useEffect } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import { initMercadoPago } from '@mercadopago/sdk-react';
 
 import { useProductStore } from './stores/useProductStore';
 import { useNotificationStore } from './stores/useNotificationStore';
 
+// Componentes principales que se cargan de inmediato
 import Header from './components/Header.jsx';
 import Navbar from './components/Navbar.jsx';
 import Footer from './components/Footer.jsx';
 import Notification from './components/Notification.jsx';
+import Spinner from './components/Spinner.jsx'; // Importamos el spinner para el fallback
 import AdminRoute from './components/AdminRoute.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
-import HomePage from './pages/HomePage.jsx';
-import ProductDetailPage from './pages/ProductDetailPage.jsx';
-import CartPage from './pages/CartPage.jsx';
-import CheckoutPage from './pages/CheckoutPage.jsx';
-import OrderSuccessPage from './pages/OrderSuccessPage.jsx';
-import SearchResultsPage from './pages/SearchResultsPage.jsx';
-import CategoryPage from './pages/CategoryPage.jsx';
-import LoginPage from './pages/LoginPage.jsx';
-import RegisterPage from './pages/RegisterPage.jsx';
-import AdminDashboardPage from './pages/AdminDashboardPage.jsx';
-import ProductFormPage from './pages/ProductFormPage.jsx';
-import OrderHistoryPage from './pages/OrderHistoryPage.jsx';
-import AdminOrdersPage from './pages/AdminOrdersPage.jsx';
-// --- NUEVOS IMPORTS ---
-import ForgotPasswordPage from './pages/ForgotPasswordPage.jsx';
-import ResetPasswordPage from './pages/ResetPasswordPage.jsx';
+
+// --- IMPLEMENTACIÓN DE LAZY LOADING ---
+// Se utiliza React.lazy para importar los componentes de las páginas de forma dinámica.
+// Esto significa que el código de cada página solo se descargará cuando sea necesario.
+const HomePage = lazy(() => import('./pages/HomePage.jsx'));
+const ProductDetailPage = lazy(() => import('./pages/ProductDetailPage.jsx'));
+const CartPage = lazy(() => import('./pages/CartPage.jsx'));
+const CheckoutPage = lazy(() => import('./pages/CheckoutPage.jsx'));
+const OrderSuccessPage = lazy(() => import('./pages/OrderSuccessPage.jsx'));
+const SearchResultsPage = lazy(() => import('./pages/SearchResultsPage.jsx'));
+const CategoryPage = lazy(() => import('./pages/CategoryPage.jsx'));
+const LoginPage = lazy(() => import('./pages/LoginPage.jsx'));
+const RegisterPage = lazy(() => import('./pages/RegisterPage.jsx'));
+const AdminDashboardPage = lazy(() => import('./pages/AdminDashboardPage.jsx'));
+const ProductFormPage = lazy(() => import('./pages/ProductFormPage.jsx'));
+const OrderHistoryPage = lazy(() => import('./pages/OrderHistoryPage.jsx'));
+const AdminOrdersPage = lazy(() => import('./pages/AdminOrdersPage.jsx'));
+const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage.jsx'));
+const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage.jsx'));
 
 
 const MERCADOPAGO_PUBLIC_KEY = import.meta.env.VITE_MERCADOPAGO_PUBLIC_KEY;
@@ -53,33 +58,39 @@ export default function App() {
       <Header />
       <Navbar />
       <main className="flex-grow container mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col">
-        <Routes>
-          {/* Rutas existentes */}
-          <Route path="/" element={<HomePage />} />
-          <Route path="/product/:productId" element={<ProductDetailPage />} />
-          <Route path="/cart" element={<CartPage />} />
-          <Route path="/success" element={<OrderSuccessPage />} />
-          <Route path="/search" element={<SearchResultsPage />} />
-          <Route path="/category/:categoryName" element={<CategoryPage />} />
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/register" element={<RegisterPage />} />
+        {/* --- USO DE SUSPENSE --- */}
+        {/* Se envuelven las rutas en el componente Suspense. */}
+        {/* Muestra un 'fallback' (el Spinner) mientras el componente de la ruta se está cargando. */}
+        <Suspense fallback={
+            <div className="flex-grow flex items-center justify-center">
+              <Spinner className="w-12 h-12 text-[#0F3460]" />
+            </div>
+          }>
+          <Routes>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/product/:productId" element={<ProductDetailPage />} />
+            <Route path="/cart" element={<CartPage />} />
+            <Route path="/success" element={<OrderSuccessPage />} />
+            <Route path="/search" element={<SearchResultsPage />} />
+            <Route path="/category/:categoryName" element={<CategoryPage />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/register" element={<RegisterPage />} />
+            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+            <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
 
-          {/* --- NUEVAS RUTAS --- */}
-          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-          <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
+            <Route element={<ProtectedRoute />}>
+              <Route path="/checkout" element={<CheckoutPage />} />
+              <Route path="/my-orders" element={<OrderHistoryPage />} />
+            </Route>
 
-          <Route element={<ProtectedRoute />}>
-            <Route path="/checkout" element={<CheckoutPage />} />
-            <Route path="/my-orders" element={<OrderHistoryPage />} />
-          </Route>
-
-          <Route element={<AdminRoute />}>
-            <Route path="/admin" element={<AdminDashboardPage />} />
-            <Route path="/admin/orders" element={<AdminOrdersPage />} />
-            <Route path="/admin/product/new" element={<ProductFormPage />} />
-            <Route path="/admin/product/edit/:productId" element={<ProductFormPage />} />
-          </Route>
-        </Routes>
+            <Route element={<AdminRoute />}>
+              <Route path="/admin" element={<AdminDashboardPage />} />
+              <Route path="/admin/orders" element={<AdminOrdersPage />} />
+              <Route path="/admin/product/new" element={<ProductFormPage />} />
+              <Route path="/admin/product/edit/:productId" element={<ProductFormPage />} />
+            </Route>
+          </Routes>
+        </Suspense>
       </main>
       <Footer />
       <Notification message={notificationMessage} show={showNotification} />
