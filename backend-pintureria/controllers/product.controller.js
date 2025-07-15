@@ -108,9 +108,11 @@ export const getProductById = async (req, res) => {
         ...product, 
         imageUrl: product.image_url, 
         oldPrice: product.old_price,
-        averageRating: parseFloat(p.average_rating),
-        reviewCount: parseInt(p.review_count, 10),
-        stock: parseInt(p.stock, 10)
+        // --- CORRECCIÓN AQUÍ ---
+        // Se cambió 'p' por 'product' para usar la variable correcta.
+        averageRating: parseFloat(product.average_rating),
+        reviewCount: parseInt(product.review_count, 10),
+        stock: parseInt(product.stock, 10)
       });
     } else {
       res.status(404).json({ message: 'Producto no encontrado' });
@@ -164,22 +166,18 @@ export const updateProduct = async (req, res) => {
   }
 };
 
-// --- CORRECCIÓN: Lógica de borrado seguro ---
 export const deleteProduct = async (req, res) => {
   const { id } = req.params;
   try {
-    // 1. Verificar si el producto está referenciado en la tabla order_items
     const orderItemsCheck = await db.query(
       'SELECT 1 FROM order_items WHERE product_id = $1 LIMIT 1',
       [id]
     );
 
     if (orderItemsCheck.rows.length > 0) {
-      // Si hay referencias, no permitir el borrado y devolver un error claro.
       return res.status(409).json({ message: 'No se puede eliminar el producto porque está asociado a órdenes existentes. Considere desactivarlo.' });
     }
 
-    // 2. Si no hay referencias, proceder con la eliminación
     const result = await db.query('DELETE FROM products WHERE id = $1 RETURNING *', [id]);
     if (result.rowCount === 0) {
       return res.status(404).json({ message: 'Producto no encontrado' });
