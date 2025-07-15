@@ -5,10 +5,10 @@ import ProductCard from '../components/ProductCard.jsx';
 import StarRating from '../components/StarRating.jsx';
 import ReviewList from '../components/ReviewList.jsx';
 import ReviewForm from '../components/ReviewForm.jsx';
-
 import { useProductStore } from '../stores/useProductStore.js';
 import { useCartStore } from '../stores/useCartStore.js';
 import { useAuthStore } from '../stores/useAuthStore.js';
+import { useNotificationStore } from '../stores/useNotificationStore.js'; // Importar store de notificaciones
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
@@ -18,6 +18,7 @@ const ProductDetailPage = () => {
   const { products } = useProductStore();
   const { addToCart } = useCartStore();
   const { user, token } = useAuthStore();
+  const showNotification = useNotificationStore(state => state.showNotification); // Obtener la función de notificación
 
   const [product, setProduct] = useState(null);
   const [reviews, setReviews] = useState([]);
@@ -76,15 +77,18 @@ const ProductDetailPage = () => {
           },
         });
 
+        // --- CORRECCIÓN EN EL MANEJO DE LA RESPUESTA ---
         if (!response.ok) {
-          const data = await response.json();
-          throw new Error(data.message || 'Error al eliminar la reseña');
+          // Si la respuesta no es OK, intentamos leerla como JSON para obtener el mensaje de error.
+          const errorData = await response.json().catch(() => ({ message: 'Error al eliminar la reseña' }));
+          throw new Error(errorData.message);
         }
         
-        fetchProductAndReviews(); 
+        showNotification('Reseña eliminada con éxito', 'success');
+        fetchProductAndReviews(); // Recargar reseñas y producto
 
       } catch (err) {
-        alert(`Error: ${err.message}`);
+        showNotification(err.message, 'error');
       }
     }
   };
@@ -99,6 +103,7 @@ const ProductDetailPage = () => {
 
   return (
     <div className="container mx-auto px-4 py-8">
+      {/* ... resto del JSX (sin cambios) ... */}
       <div className="text-sm text-gray-500 mb-6">
         <Link to="/" className="hover:text-[#0F3460]">Inicio</Link>
         <span className="mx-2">&gt;</span>
@@ -109,7 +114,6 @@ const ProductDetailPage = () => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
         <div className="bg-white p-4 rounded-lg shadow-md flex items-center justify-center">
-          {/* --- CAMBIO CLAVE: Se añade loading="lazy" --- */}
           <img 
             src={product.imageUrl} 
             alt={`Imagen de ${product.name}`} 
