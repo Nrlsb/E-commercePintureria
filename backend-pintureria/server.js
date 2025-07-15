@@ -1,3 +1,4 @@
+// backend-pintureria/server.js
 import dotenv from 'dotenv';
 dotenv.config(); 
 
@@ -9,6 +10,7 @@ import productRoutes from './routes/product.routes.js';
 import authRoutes from './routes/auth.routes.js';
 import orderRoutes from './routes/order.routes.js';
 import paymentRoutes from './routes/payment.routes.js';
+import shippingRoutes from './routes/shipping.routes.js'; // <-- NUEVA RUTA
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -41,18 +43,13 @@ const corsOptions = {
 app.use(cors(corsOptions));
 
 // --- Middlewares Globales ---
-// Middleware para parsear JSON en todas las rutas
 app.use(express.json());
 
 // --- Montaje de Rutas ---
 app.use('/api/products', productRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/orders', orderRoutes);
-
-// --- CAMBIO CLAVE: Montaje especial para el webhook ---
-// Se monta el router de pagos en su ruta base, pero el middleware raw se aplica
-// directamente en el router de pagos para no afectar a otras rutas.
-// Esto asegura que la ruta /api/payment/notification no sea parseada como JSON.
+app.use('/api/shipping', shippingRoutes); // <-- NUEVA RUTA
 app.use('/api/payment', paymentRoutes);
 
 

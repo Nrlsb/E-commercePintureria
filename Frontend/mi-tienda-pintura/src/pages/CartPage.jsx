@@ -1,14 +1,28 @@
 // src/pages/CartPage.jsx
-import React from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useCartStore } from '../stores/useCartStore'; // 1. Importamos el store del carrito
+import { useCartStore } from '../stores/useCartStore';
+import Spinner from '../components/Spinner';
 
 const CartPage = () => {
-  // 2. Obtenemos el estado y las acciones directamente del store
-  const { cart, updateQuantity, removeItem } = useCartStore();
+  const { cart, updateQuantity, removeItem, shippingCost, postalCode, calculateShipping } = useCartStore();
   
+  const [localPostalCode, setLocalPostalCode] = useState(postalCode);
+  const [loadingShipping, setLoadingShipping] = useState(false);
+
   const calculateSubtotal = (item) => item.price * item.quantity;
-  const calculateTotal = () => cart.reduce((total, item) => total + calculateSubtotal(item), 0);
+  const cartSubtotal = cart.reduce((total, item) => total + calculateSubtotal(item), 0);
+  const calculateTotal = () => cartSubtotal + shippingCost;
+
+  const handleShippingCalculation = async () => {
+    if (!localPostalCode || !/^\d{4}$/.test(localPostalCode)) {
+      alert('Por favor, ingresa un código postal válido de 4 dígitos.');
+      return;
+    }
+    setLoadingShipping(true);
+    await calculateShipping(localPostalCode);
+    setLoadingShipping(false);
+  };
 
   if (cart.length === 0) {
     return (
@@ -42,7 +56,6 @@ const CartPage = () => {
                 </div>
                 <div className="flex items-center space-x-4">
                   <div className="flex items-center border border-gray-300 rounded-md">
-                    {/* 3. Usamos las acciones del store */}
                     <button onClick={() => updateQuantity(item.id, item.quantity - 1)} className="px-3 py-1 text-lg font-bold hover:bg-gray-100 rounded-l-md transition-colors">-</button>
                     <span className="px-4 py-1 text-lg">{item.quantity}</span>
                     <button onClick={() => updateQuantity(item.id, item.quantity + 1)} className="px-3 py-1 text-lg font-bold hover:bg-gray-100 rounded-r-md transition-colors">+</button>
@@ -62,18 +75,38 @@ const CartPage = () => {
         <div className="lg:col-span-1">
             <div className="bg-white p-6 rounded-lg shadow-md sticky top-28">
                 <h2 className="text-2xl font-bold border-b pb-4 mb-4">Resumen de Compra</h2>
-                <div className="flex justify-between mb-4 text-lg">
+                <div className="flex justify-between mb-2 text-lg">
                     <span>Subtotal</span>
-                    <span>${new Intl.NumberFormat('es-AR').format(calculateTotal())}</span>
+                    <span>${new Intl.NumberFormat('es-AR').format(cartSubtotal)}</span>
                 </div>
-                <div className="flex justify-between mb-6 text-lg">
+                
+                {/* --- NUEVA SECCIÓN DE ENVÍO --- */}
+                <div className="border-t pt-4 mt-4">
+                  <h3 className="font-semibold mb-2">Calcular Envío</h3>
+                  <div className="flex items-center space-x-2">
+                    <input 
+                      type="text"
+                      value={localPostalCode}
+                      onChange={(e) => setLocalPostalCode(e.target.value)}
+                      placeholder="Cód. Postal"
+                      className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#0F3460]"
+                    />
+                    <button onClick={handleShippingCalculation} disabled={loadingShipping} className="bg-gray-200 px-4 py-2 rounded-md hover:bg-gray-300 disabled:opacity-50">
+                      {loadingShipping ? <Spinner className="w-5 h-5 text-gray-700" /> : 'OK'}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex justify-between mt-2 text-lg">
                     <span>Envío</span>
-                    <span className="text-gray-500">A calcular</span>
+                    <span>{shippingCost > 0 ? `$${new Intl.NumberFormat('es-AR').format(shippingCost)}` : 'A calcular'}</span>
                 </div>
-                <div className="flex justify-between font-bold text-2xl border-t pt-4">
+
+                <div className="flex justify-between font-bold text-2xl border-t pt-4 mt-4">
                     <span>Total</span>
                     <span>${new Intl.NumberFormat('es-AR').format(calculateTotal())}</span>
                 </div>
+
                 <Link to="/checkout" className="block text-center w-full mt-6 bg-[#10B981] text-white font-bold py-3 rounded-lg hover:bg-green-600 transition-colors">
                     Finalizar Compra
                 </Link>

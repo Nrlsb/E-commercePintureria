@@ -1,17 +1,19 @@
 // src/stores/useCartStore.js
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware'; // Importamos el middleware
+import { persist } from 'zustand/middleware';
 import { useNotificationStore } from './useNotificationStore';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+
 export const useCartStore = create(
-  // Envolvemos toda la lógica del store con `persist`.
   persist(
     (set, get) => ({
       cart: [],
+      shippingCost: 0, // <-- NUEVO ESTADO
+      postalCode: '',  // <-- NUEVO ESTADO
 
-      // Las acciones internas no cambian, `persist` funciona de forma transparente.
       addToCart: (product, quantity = 1) => {
-        const { cart } = get();
+        const { cart, postalCode } = get();
         const showNotification = useNotificationStore.getState().showNotification;
         
         const itemInCart = cart.find(item => item.id === product.id);
@@ -22,43 +24,89 @@ export const useCartStore = create(
           return;
         }
 
-        set(state => {
-          const existingProduct = state.cart.find(item => item.id === product.id);
-          if (existingProduct) {
-            return {
-              cart: state.cart.map(item =>
-                item.id === product.id ? { ...item, quantity: item.quantity + quantity } : item
-              ),
-            };
-          } else {
-            return { cart: [...state.cart, { ...product, quantity }] };
-          }
-        });
+        let updatedCart;
+        const existingProduct = cart.find(item => item.id === product.id);
+        if (existingProduct) {
+          updatedCart = cart.map(item =>
+            item.id === product.id ? { ...item, quantity: item.quantity + quantity } : item
+          );
+        } else {
+          updatedCart = [...cart, { ...product, quantity }];
+        }
+        
+        set({ cart: updatedCart });
         showNotification('¡Añadido al carrito!');
+
+        // Si ya hay un código postal, recalcula el envío
+        if (postalCode) {
+          get().calculateShipping(postalCode, updatedCart);
+        }
       },
 
       updateQuantity: (productId, newQuantity) => {
+        const { postalCode, cart } = get();
+        let updatedCart;
         if (newQuantity <= 0) {
-          get().removeItem(productId);
-          return;
-        }
-        set(state => ({
-          cart: state.cart.map(item =>
+          updatedCart = cart.filter(item => item.id !== productId);
+        } else {
+          updatedCart = cart.map(item =>
             item.id === productId ? { ...item, quantity: newQuantity } : item
-          ),
-        }));
+          );
+        }
+        set({ cart: updatedCart });
+
+        if (postalCode) {
+          get().calculateShipping(postalCode, updatedCart);
+        }
       },
 
       removeItem: (productId) => {
-        set(state => ({
-          cart: state.cart.filter(item => item.id !== productId),
-        }));
+        const { postalCode, cart } = get();
+        const updatedCart = cart.filter(item => item.id !== productId);
+        set({ cart: updatedCart });
+        
+        if (postalCode) {
+          if (updatedCart.length > 0) {
+            get().calculateShipping(postalCode, updatedCart);
+          } else {
+            // Si el carrito queda vacío, resetea el costo de envío
+            set({ shippingCost: 0, postalCode: '' });
+          }
+        }
       },
 
-      clearCart: () => set({ cart: [] }),
+      clearCart: () => set({ cart: [], shippingCost: 0, postalCode: '' }),
+
+      // --- NUEVA ACCIÓN ---
+      calculateShipping: async (postalCode, cartItems) => {
+        if (!/^\d{4}$/.test(postalCode)) {
+          set({ shippingCost: 0, postalCode: '' });
+          return;
+        }
+        const items = cartItems || get().cart;
+        if (items.length === 0) {
+          set({ shippingCost: 0, postalCode: postalCode });
+          return;
+        }
+        try {
+          const response = await fetch(`${API_URL}/api/shipping/calculate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ postalCode, items }),
+          });
+          if (!response.ok) throw new Error('No se pudo calcular el envío.');
+          const data = await response.json();
+          set({ shippingCost: data.cost, postalCode: data.postalCode });
+        } catch (error) {
+          console.error("Error calculating shipping:", error);
+          // Opcional: notificar al usuario del error
+          useNotificationStore.getState().showNotification('Error al calcular el envío.');
+          set({ shippingCost: 0, postalCode: postalCode });
+        }
+      },
     }),
     {
-      name: 'cart-storage', // Clave que se usará en localStorage para guardar el carrito.
+      name: 'cart-storage',
     }
   )
 );
