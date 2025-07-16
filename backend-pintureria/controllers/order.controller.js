@@ -5,19 +5,23 @@ import { sendOrderConfirmationEmail } from '../emailService.js';
 
 const { MercadoPagoConfig, Preference, Payment, PaymentRefund } = mercadopago;
 const client = new MercadoPagoConfig({ accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN });
-const MIN_TRANSACTION_AMOUNT = 100; // Mismo valor que en el frontend
+const MIN_TRANSACTION_AMOUNT = 100;
 
 export const processPayment = async (req, res) => {
   const { token, issuer_id, payment_method_id, transaction_amount, installments, payer, cart } = req.body;
   const userId = req.user.userId;
 
-  // --- VALIDACIÓN DE MONTO EN BACKEND ---
   if (transaction_amount < MIN_TRANSACTION_AMOUNT) {
     return res.status(400).json({ message: `El monto de la transacción debe ser de al menos $${MIN_TRANSACTION_AMOUNT}.` });
   }
 
   if (!cart || cart.length === 0) {
     return res.status(400).json({ message: 'El carrito está vacío.' });
+  }
+  
+  // --- MEJORA: Añadir validación para el objeto de identificación ---
+  if (!payer || !payer.identification || !payer.identification.type || !payer.identification.number) {
+    return res.status(400).json({ message: 'La información de identificación del pagador es requerida.' });
   }
   
   const dbClient = await db.connect();
@@ -36,10 +40,11 @@ export const processPayment = async (req, res) => {
       }
     }
 
-    const totalAmount = cart.reduce((total, item) => total + item.price * item.quantity, 0);
+    // --- CORRECCIÓN CLAVE: Usar el monto de la transacción del frontend ---
+    // Se elimina el recálculo del total y se usa 'transaction_amount' que ya incluye el envío.
     const orderResult = await dbClient.query(
       'INSERT INTO orders (user_id, total_amount, status) VALUES ($1, $2, $3) RETURNING id',
-      [userId, totalAmount, 'pending']
+      [userId, transaction_amount, 'pending']
     );
     const orderId = orderResult.rows[0].id;
 
@@ -75,7 +80,7 @@ export const processPayment = async (req, res) => {
       for (const item of cart) {
         await dbClient.query(
           'UPDATE products SET stock = stock - $1 WHERE id = $2',
-          [item.quantity, item.id] // Corregido: item.id en lugar de item.product_id
+          [item.quantity, item.id]
         );
       }
       await dbClient.query(
@@ -85,7 +90,7 @@ export const processPayment = async (req, res) => {
 
       const orderDataForEmail = {
         id: orderId,
-        total_amount: totalAmount,
+        total_amount: transaction_amount, // Usar el monto correcto para el email
         items: cart,
       };
       await sendOrderConfirmationEmail(payer.email, orderDataForEmail);
@@ -112,7 +117,6 @@ export const processPayment = async (req, res) => {
 };
 
 // --- OTRAS FUNCIONES SIN CAMBIOS ---
-// ... (createPaymentPreference, getOrderHistory, etc.)
 export const createPaymentPreference = async (req, res) => {
   const { cart } = req.body;
   const userId = req.user.userId;
