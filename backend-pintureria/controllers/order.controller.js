@@ -9,8 +9,7 @@ const MIN_TRANSACTION_AMOUNT = 100;
 
 export const processPayment = async (req, res) => {
   const { token, issuer_id, payment_method_id, transaction_amount, installments, payer, cart } = req.body;
-  // --- MODIFICACIÓN CLAVE: Obtener nombre y apellido del token ---
-  const { userId, firstName, lastName } = req.user;
+  const { userId } = req.user; // Solo necesitamos el ID del usuario logueado para nuestros registros
 
   if (transaction_amount < MIN_TRANSACTION_AMOUNT) {
     return res.status(400).json({ message: `El monto de la transacción debe ser de al menos $${MIN_TRANSACTION_AMOUNT}.` });
@@ -66,9 +65,11 @@ export const processPayment = async (req, res) => {
           type: payer.identification.type,
           number: payer.identification.number,
         },
-        // --- MODIFICACIÓN CLAVE: Añadir nombre y apellido al pagador ---
-        first_name: firstName,
-        last_name: lastName,
+        // --- CORRECCIÓN CLAVE: Usar los datos del pagador del formulario ---
+        // El brick de Mercado Pago incluye 'firstName' y 'lastName' en el objeto 'payer'
+        // que se recibe del frontend. Usamos esos datos en lugar de los del token JWT.
+        first_name: payer.firstName,
+        last_name: payer.lastName,
       },
       external_reference: orderId.toString(),
       notification_url: `${process.env.BACKEND_URL}/api/payment/notification`,
@@ -109,7 +110,8 @@ export const processPayment = async (req, res) => {
 
   } catch (error) {
     await dbClient.query('ROLLBACK');
-    console.error('Error al procesar el pago:', error);
+    // Logueo mejorado para ver el error exacto de Mercado Pago
+    console.error('Error detallado al procesar el pago:', JSON.stringify(error, null, 2));
     const errorMessage = error.cause?.message || error.message || 'Error interno del servidor al procesar el pago.';
     res.status(500).json({ message: errorMessage });
   } finally {
