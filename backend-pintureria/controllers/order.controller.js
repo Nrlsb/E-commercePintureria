@@ -3,18 +3,18 @@ import db from '../db.js';
 import mercadopago from 'mercadopago';
 import { sendOrderConfirmationEmail } from '../emailService.js';
 
-// Configuración del cliente de Mercado Pago
 const { MercadoPagoConfig, Preference, Payment, PaymentRefund } = mercadopago;
 const client = new MercadoPagoConfig({ accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN });
+const MIN_TRANSACTION_AMOUNT = 100; // Mismo valor que en el frontend
 
-// --- NUEVA FUNCIÓN PARA PROCESAR PAGOS CON CHECKOUT API ---
-/**
- * Procesa un pago directamente a través de la API de Mercado Pago.
- * Crea una orden en la base de datos y luego intenta ejecutar el pago.
- */
 export const processPayment = async (req, res) => {
   const { token, issuer_id, payment_method_id, transaction_amount, installments, payer, cart } = req.body;
   const userId = req.user.userId;
+
+  // --- VALIDACIÓN DE MONTO EN BACKEND ---
+  if (transaction_amount < MIN_TRANSACTION_AMOUNT) {
+    return res.status(400).json({ message: `El monto de la transacción debe ser de al menos $${MIN_TRANSACTION_AMOUNT}.` });
+  }
 
   if (!cart || cart.length === 0) {
     return res.status(400).json({ message: 'El carrito está vacío.' });
@@ -23,7 +23,8 @@ export const processPayment = async (req, res) => {
   const dbClient = await db.connect();
 
   try {
-    // 1. Verificar el stock antes de crear la orden
+    await dbClient.query('BEGIN');
+
     for (const item of cart) {
       const stockResult = await dbClient.query('SELECT stock FROM products WHERE id = $1 FOR UPDATE', [item.id]);
       if (stockResult.rows.length === 0) {
@@ -35,10 +36,6 @@ export const processPayment = async (req, res) => {
       }
     }
 
-    // Iniciar transacción
-    await dbClient.query('BEGIN');
-
-    // 2. Crear la orden en la base de datos con estado 'pending'
     const totalAmount = cart.reduce((total, item) => total + item.price * item.quantity, 0);
     const orderResult = await dbClient.query(
       'INSERT INTO orders (user_id, total_amount, status) VALUES ($1, $2, $3) RETURNING id',
@@ -46,7 +43,6 @@ export const processPayment = async (req, res) => {
     );
     const orderId = orderResult.rows[0].id;
 
-    // Insertar los items de la orden
     for (const item of cart) {
       await dbClient.query(
         'INSERT INTO order_items (order_id, product_id, quantity, price) VALUES ($1, $2, $3, $4)',
@@ -54,7 +50,6 @@ export const processPayment = async (req, res) => {
       );
     }
     
-    // 3. Preparar y ejecutar el pago con Mercado Pago
     const payment_data = {
       transaction_amount: Number(transaction_amount),
       token,
@@ -76,13 +71,11 @@ export const processPayment = async (req, res) => {
     const payment = new Payment(client);
     const paymentResult = await payment.create({ body: payment_data });
 
-    // 4. Manejar la respuesta del pago
     if (paymentResult.status === 'approved') {
-      // Si se aprueba, actualizar stock y estado de la orden
       for (const item of cart) {
         await dbClient.query(
           'UPDATE products SET stock = stock - $1 WHERE id = $2',
-          [item.quantity, item.product_id]
+          [item.quantity, item.id] // Corregido: item.id en lugar de item.product_id
         );
       }
       await dbClient.query(
@@ -90,7 +83,6 @@ export const processPayment = async (req, res) => {
         [paymentResult.id, paymentResult.id, orderId]
       );
 
-      // Enviar email de confirmación
       const orderDataForEmail = {
         id: orderId,
         total_amount: totalAmount,
@@ -102,7 +94,6 @@ export const processPayment = async (req, res) => {
       res.status(201).json({ status: 'approved', orderId: orderId, paymentId: paymentResult.id });
 
     } else {
-      // Si es rechazado o pendiente, no confirmamos la transacción en la BD
       await dbClient.query('ROLLBACK');
       res.status(400).json({ 
         status: paymentResult.status, 
@@ -120,8 +111,8 @@ export const processPayment = async (req, res) => {
   }
 };
 
-
-// --- La función de crear preferencia se mantiene por si se quiere volver a usar o para otros flujos ---
+// --- OTRAS FUNCIONES SIN CAMBIOS ---
+// ... (createPaymentPreference, getOrderHistory, etc.)
 export const createPaymentPreference = async (req, res) => {
   const { cart } = req.body;
   const userId = req.user.userId;
@@ -206,9 +197,6 @@ export const createPaymentPreference = async (req, res) => {
   }
 };
 
-
-// --- OTRAS FUNCIONES DEL CONTROLADOR (SIN CAMBIOS) ---
-
 export const getOrderHistory = async (req, res) => {
   const userId = req.user.userId;
   try {
@@ -285,7 +273,6 @@ export const cancelOrder = async (req, res) => {
             [orderId]
         );
         
-        // Devolver stock
         const orderItemsResult = await dbClient.query('SELECT product_id, quantity FROM order_items WHERE order_id = $1', [orderId]);
         for (const item of orderItemsResult.rows) {
             await dbClient.query('UPDATE products SET stock = stock + $1 WHERE id = $2', [item.quantity, item.product_id]);

@@ -1,6 +1,6 @@
 // src/pages/CheckoutPage.jsx
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { CardPayment } from '@mercadopago/sdk-react';
 import { useCartStore } from '../stores/useCartStore';
 import { useAuthStore } from '../stores/useAuthStore';
@@ -8,6 +8,7 @@ import { useNotificationStore } from '../stores/useNotificationStore';
 import Spinner from '../components/Spinner.jsx';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+const MIN_TRANSACTION_AMOUNT = 100; // Monto mínimo en ARS para procesar pagos
 
 const CheckoutPage = () => {
   const { cart, shippingCost, postalCode } = useCartStore(state => ({
@@ -66,33 +67,28 @@ const CheckoutPage = () => {
     }
   };
 
-  // --- CONFIGURACIÓN MEJORADA PARA EL BRICK ---
   const initialization = {
     amount: total,
     payer: {
       email: user?.email,
-      // Asumiendo que el store de auth puede proveer estos datos
-      // firstName: user?.firstName, 
-      // lastName: user?.lastName,
     },
   };
 
   const customization = {
     visual: {
       style: {
-        theme: 'bootstrap', // Opciones: 'default', 'dark', 'bootstrap', 'flat'
+        theme: 'bootstrap',
       },
     },
     paymentMethods: {
-      maxInstallments: 6, // Limita el número máximo de cuotas a mostrar
+      maxInstallments: 6,
     },
   };
 
-  // --- MANEJADOR DE ERRORES MEJORADO ---
   const handleOnError = (err) => {
     console.error('Error en el brick de pago:', err);
     let friendlyMessage = 'Error en el formulario de pago. Por favor, revisa los datos ingresados.';
-    if (err.message.includes('empty_installments') || err.message.includes('higher amount')) {
+    if (err.message?.includes('empty_installments') || err.message?.includes('higher amount')) {
       friendlyMessage = 'No hay cuotas disponibles para este monto o tarjeta. El monto puede ser muy bajo.';
     }
     setError(friendlyMessage);
@@ -105,14 +101,27 @@ const CheckoutPage = () => {
       
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
         <div className="lg:col-span-2 bg-white p-8 rounded-lg shadow-md">
-          {/* --- BRICK DE PAGO CON CONFIGURACIÓN ACTUALIZADA --- */}
-          <CardPayment
-            initialization={initialization}
-            customization={customization}
-            onSubmit={handlePayment}
-            onReady={() => console.log('Brick de tarjeta listo')}
-            onError={handleOnError}
-          />
+          {/* --- VALIDACIÓN DE MONTO MÍNIMO --- */}
+          {total >= MIN_TRANSACTION_AMOUNT ? (
+            <CardPayment
+              initialization={initialization}
+              customization={customization}
+              onSubmit={handlePayment}
+              onReady={() => console.log('Brick de tarjeta listo')}
+              onError={handleOnError}
+            />
+          ) : (
+            <div className="text-center p-6 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <h3 className="text-xl font-semibold text-yellow-800">Monto mínimo no alcanzado</h3>
+              <p className="text-yellow-700 mt-2">
+                El total de tu compra debe ser de al menos ${MIN_TRANSACTION_AMOUNT} para poder realizar el pago con tarjeta.
+              </p>
+              <Link to="/" className="inline-block mt-4 bg-[#0F3460] text-white font-bold py-2 px-4 rounded-lg hover:bg-[#1a4a8a]">
+                Seguir comprando
+              </Link>
+            </div>
+          )}
+          
           {error && <p className="text-red-500 text-sm mt-4 text-center">{error}</p>}
           {isProcessing && (
             <div className="flex justify-center items-center mt-4">
