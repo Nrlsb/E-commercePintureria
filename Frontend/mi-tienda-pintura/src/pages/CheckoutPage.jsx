@@ -1,7 +1,6 @@
 // src/pages/CheckoutPage.jsx
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-// --- 1. Importar CardPayment en lugar de Wallet ---
 import { CardPayment } from '@mercadopago/sdk-react';
 import { useCartStore } from '../stores/useCartStore';
 import { useAuthStore } from '../stores/useAuthStore';
@@ -29,7 +28,6 @@ const CheckoutPage = () => {
   const subtotal = calculateSubtotal();
   const total = subtotal + shippingCost;
 
-  // --- 2. Función para manejar el envío del formulario de pago ---
   const handlePayment = async (formData) => {
     setIsProcessing(true);
     setError('');
@@ -41,14 +39,13 @@ const CheckoutPage = () => {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        // Enviamos todos los datos requeridos por el backend
         body: JSON.stringify({ 
-          ...formData, // Esto incluye token, issuer_id, etc. del brick
+          ...formData,
           cart,
           transaction_amount: total,
           payer: {
             ...formData.payer,
-            email: user.email, // Usamos el email del usuario logueado
+            email: user.email,
           }
         }),
       });
@@ -59,7 +56,6 @@ const CheckoutPage = () => {
         throw new Error(data.message || 'El pago fue rechazado.');
       }
 
-      // Si el pago es exitoso, redirigimos
       navigate(`/success?order_id=${data.orderId}`);
 
     } catch (err) {
@@ -70,10 +66,37 @@ const CheckoutPage = () => {
     }
   };
 
+  // --- CONFIGURACIÓN MEJORADA PARA EL BRICK ---
   const initialization = {
     amount: total,
-    // Opcional: puedes añadir una preferencia para pre-cargar datos
-    // preferenceId: '<PREFERENCE_ID>' 
+    payer: {
+      email: user?.email,
+      // Asumiendo que el store de auth puede proveer estos datos
+      // firstName: user?.firstName, 
+      // lastName: user?.lastName,
+    },
+  };
+
+  const customization = {
+    visual: {
+      style: {
+        theme: 'bootstrap', // Opciones: 'default', 'dark', 'bootstrap', 'flat'
+      },
+    },
+    paymentMethods: {
+      maxInstallments: 6, // Limita el número máximo de cuotas a mostrar
+    },
+  };
+
+  // --- MANEJADOR DE ERRORES MEJORADO ---
+  const handleOnError = (err) => {
+    console.error('Error en el brick de pago:', err);
+    let friendlyMessage = 'Error en el formulario de pago. Por favor, revisa los datos ingresados.';
+    if (err.message.includes('empty_installments') || err.message.includes('higher amount')) {
+      friendlyMessage = 'No hay cuotas disponibles para este monto o tarjeta. El monto puede ser muy bajo.';
+    }
+    setError(friendlyMessage);
+    showNotification(friendlyMessage, 'error');
   };
 
   return (
@@ -82,12 +105,13 @@ const CheckoutPage = () => {
       
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
         <div className="lg:col-span-2 bg-white p-8 rounded-lg shadow-md">
-          {/* --- 3. Renderizar el brick de CardPayment --- */}
+          {/* --- BRICK DE PAGO CON CONFIGURACIÓN ACTUALIZADA --- */}
           <CardPayment
             initialization={initialization}
+            customization={customization}
             onSubmit={handlePayment}
             onReady={() => console.log('Brick de tarjeta listo')}
-            onError={(err) => console.error('Error en el brick:', err)}
+            onError={handleOnError}
           />
           {error && <p className="text-red-500 text-sm mt-4 text-center">{error}</p>}
           {isProcessing && (
