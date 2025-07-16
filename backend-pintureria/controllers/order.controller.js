@@ -9,7 +9,8 @@ const MIN_TRANSACTION_AMOUNT = 100;
 
 export const processPayment = async (req, res) => {
   const { token, issuer_id, payment_method_id, transaction_amount, installments, payer, cart } = req.body;
-  const userId = req.user.userId;
+  // --- MODIFICACIÓN CLAVE: Obtener nombre y apellido del token ---
+  const { userId, firstName, lastName } = req.user;
 
   if (transaction_amount < MIN_TRANSACTION_AMOUNT) {
     return res.status(400).json({ message: `El monto de la transacción debe ser de al menos $${MIN_TRANSACTION_AMOUNT}.` });
@@ -19,7 +20,6 @@ export const processPayment = async (req, res) => {
     return res.status(400).json({ message: 'El carrito está vacío.' });
   }
   
-  // --- MEJORA: Añadir validación para el objeto de identificación ---
   if (!payer || !payer.identification || !payer.identification.type || !payer.identification.number) {
     return res.status(400).json({ message: 'La información de identificación del pagador es requerida.' });
   }
@@ -40,8 +40,6 @@ export const processPayment = async (req, res) => {
       }
     }
 
-    // --- CORRECCIÓN CLAVE: Usar el monto de la transacción del frontend ---
-    // Se elimina el recálculo del total y se usa 'transaction_amount' que ya incluye el envío.
     const orderResult = await dbClient.query(
       'INSERT INTO orders (user_id, total_amount, status) VALUES ($1, $2, $3) RETURNING id',
       [userId, transaction_amount, 'pending']
@@ -68,6 +66,9 @@ export const processPayment = async (req, res) => {
           type: payer.identification.type,
           number: payer.identification.number,
         },
+        // --- MODIFICACIÓN CLAVE: Añadir nombre y apellido al pagador ---
+        first_name: firstName,
+        last_name: lastName,
       },
       external_reference: orderId.toString(),
       notification_url: `${process.env.BACKEND_URL}/api/payment/notification`,
@@ -90,7 +91,7 @@ export const processPayment = async (req, res) => {
 
       const orderDataForEmail = {
         id: orderId,
-        total_amount: transaction_amount, // Usar el monto correcto para el email
+        total_amount: transaction_amount,
         items: cart,
       };
       await sendOrderConfirmationEmail(payer.email, orderDataForEmail);
