@@ -16,10 +16,23 @@ export const confirmTransferPayment = async (req, res) => {
     );
 
     if (result.rowCount === 0) {
-      return res.status(404).json({ message: 'Orden no encontrada o ya no estaba pendiente de pago por transferencia.' });
+      return res.status(404).json({ message: 'Orden no encontrada o ya no estaba pendiente de pago.' });
     }
 
-    res.status(200).json({ message: 'Pago confirmado con éxito.', order: result.rows[0] });
+    const order = result.rows[0];
+
+    // Obtener datos para el email
+    const userData = await db.query('SELECT email FROM users WHERE id = $1', [order.user_id]);
+    const itemsData = await db.query('SELECT p.name, oi.quantity, oi.price FROM order_items oi JOIN products p ON p.id = oi.product_id WHERE oi.order_id = $1', [orderId]);
+    
+    const orderForEmail = {
+      ...order,
+      items: itemsData.rows,
+    };
+
+    await sendOrderConfirmationEmail(userData.rows[0].email, orderForEmail);
+
+    res.status(200).json({ message: 'Pago confirmado y email enviado con éxito.', order });
   } catch (error) {
     console.error('Error al confirmar el pago de la orden:', error);
     res.status(500).json({ message: 'Error interno del servidor.' });
