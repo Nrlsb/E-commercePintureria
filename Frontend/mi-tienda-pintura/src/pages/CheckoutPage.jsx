@@ -1,8 +1,8 @@
 // Frontend/mi-tienda-pintura/src/pages/CheckoutPage.jsx
 // Este archivo ha sido modificado para implementar un único flujo de pago a través de Mercado Pago.
-// Se ha corregido el error de importación y se ha añadido un fallback para el valor 'total'.
+// FIX: Se calcula el total directamente desde el array del carrito para asegurar consistencia.
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
@@ -14,9 +14,18 @@ import Spinner from '../components/Spinner';
 
 const CheckoutPage = () => {
   // Obtenemos los datos necesarios de nuestros stores de Zustand
-  const { cart, total, clearCart } = useCartStore();
+  // Ya no extraemos 'total' del store para evitar inconsistencias.
+  const { cart } = useCartStore(); 
   const { user, token } = useAuthStore();
   const navigate = useNavigate();
+
+  // FIX: Calculamos el total dinámicamente desde el carrito.
+  // useMemo asegura que este cálculo solo se rehace si el carrito cambia.
+  const cartTotal = useMemo(() => {
+    if (!cart) return 0;
+    return cart.reduce((acc, item) => acc + item.price * item.quantity, 0);
+  }, [cart]);
+
 
   // Estados para manejar la carga y los errores
   const [loading, setLoading] = useState(false);
@@ -38,13 +47,8 @@ const CheckoutPage = () => {
 
   /**
    * Manejador principal del pago.
-   * Esta función se encarga de:
-   * 1. Validar que los datos de envío estén completos.
-   * 2. Llamar al backend para crear una preferencia de pago en Mercado Pago.
-   * 3. Redirigir al usuario al checkout de Mercado Pago si la creación es exitosa.
    */
   const handlePayment = async () => {
-    // Validación simple del formulario de envío
     if (!shippingInfo.address || !shippingInfo.city || !shippingInfo.postalCode) {
       setError('Por favor, completa todos los datos de envío para continuar.');
       return;
@@ -53,9 +57,7 @@ const CheckoutPage = () => {
     setLoading(true);
 
     try {
-      // Petición al backend para crear la orden de pago
       const response = await axios.post(
-        // Usamos variables de entorno para la URL de la API
         `${import.meta.env.VITE_API_URL}/api/payments/create-order`,
         {
           items: cart.map(item => ({
@@ -65,18 +67,16 @@ const CheckoutPage = () => {
             unit_price: item.price,
             currency_id: 'ARS',
           })),
-          shippingInfo, // Se pueden enviar los datos de envío al backend
+          shippingInfo,
         },
         {
           headers: {
-            Authorization: `Bearer ${token}`, // Enviamos el token de autenticación
+            Authorization: `Bearer ${token}`,
           },
         }
       );
 
-      // Si el backend responde con la URL de pago de Mercado Pago (init_point)...
       if (response.data.init_point) {
-        // ...redirigimos al usuario a esa URL.
         window.location.href = response.data.init_point;
       } else {
         setError('No se pudo iniciar el proceso de pago. Inténtalo de nuevo.');
@@ -88,6 +88,18 @@ const CheckoutPage = () => {
       setLoading(false);
     }
   };
+
+  // Si el carrito no se ha cargado o está vacío, podemos mostrar un mensaje.
+  if (!cart || cart.length === 0) {
+    return (
+      <div className="container mx-auto mt-10 text-center">
+        <h1 className="text-2xl">Tu carrito está vacío.</h1>
+        <button onClick={() => navigate('/')} className="mt-4 bg-blue-600 text-white font-bold py-2 px-4 rounded-lg">
+          Volver a la tienda
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto mt-10 mb-20 p-4">
@@ -165,8 +177,7 @@ const CheckoutPage = () => {
           <div className="border-t mt-4 pt-4">
             <div className="flex justify-between mb-2">
               <p className="text-gray-600">Subtotal</p>
-              {/* FIX: Usamos (total || 0) para evitar error si total es undefined */}
-              <p className="font-semibold">${(total || 0).toFixed(2)}</p>
+              <p className="font-semibold">${cartTotal.toFixed(2)}</p>
             </div>
             <div className="flex justify-between mb-2">
               <p className="text-gray-600">Envío</p>
@@ -174,8 +185,7 @@ const CheckoutPage = () => {
             </div>
             <div className="flex justify-between text-xl font-bold mt-4">
               <p>Total</p>
-              {/* FIX: Usamos (total || 0) para evitar error si total es undefined */}
-              <p>${(total || 0).toFixed(2)}</p>
+              <p>${cartTotal.toFixed(2)}</p>
             </div>
           </div>
           {error && <p className="text-red-500 text-sm mt-4 text-center">{error}</p>}
