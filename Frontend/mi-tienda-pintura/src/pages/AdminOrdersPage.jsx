@@ -3,17 +3,32 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useNotificationStore } from '../stores/useNotificationStore';
-import OrderDetailModal from '../components/OrderDetailModal'; // <-- NUEVO
+import OrderDetailModal from '../components/OrderDetailModal';
 import Spinner from '../components/Spinner';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+
+const StatusBadge = ({ status }) => {
+  const styles = {
+    approved: 'bg-green-100 text-green-800',
+    pending_transfer: 'bg-blue-100 text-blue-800',
+    pending: 'bg-yellow-100 text-yellow-800',
+    cancelled: 'bg-red-100 text-red-800',
+  };
+  const statusText = status ? status.replace('_', ' ') : 'Desconocido';
+  return (
+    <span className={`px-2 py-1 text-xs font-semibold rounded-full capitalize ${styles[status] || 'bg-gray-100 text-gray-800'}`}>
+      {statusText}
+    </span>
+  );
+};
 
 const AdminOrdersPage = () => {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [selectedOrder, setSelectedOrder] = useState(null); // Para el modal
-  const [filters, setFilters] = useState({ status: '', search: '' }); // Para filtros y búsqueda
+  const [selectedOrder, setSelectedOrder] = useState(null);
+  const [filters, setFilters] = useState({ status: '', search: '' });
   
   const navigate = useNavigate();
   const token = useAuthStore(state => state.token);
@@ -69,11 +84,30 @@ const AdminOrdersPage = () => {
   };
 
   const handleAction = async (action, orderId) => {
-    // ... (la lógica de handleAction se mantiene igual)
-  };
+    const confirmMessages = {
+      cancel: `¿Estás seguro de que quieres cancelar la orden #${orderId}? Esta acción es irreversible.`,
+      confirm: `¿Confirmas que has recibido el pago para la orden #${orderId}?`
+    };
+    const urls = {
+      cancel: `${API_URL}/api/orders/${orderId}/cancel`,
+      confirm: `${API_URL}/api/orders/${orderId}/confirm-payment`
+    };
 
-  const StatusBadge = ({ status }) => {
-    // ... (la lógica de StatusBadge se mantiene igual)
+    if (window.confirm(confirmMessages[action])) {
+      try {
+        const response = await fetch(urls[action], {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` },
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message || 'Error al procesar la acción.');
+        
+        showNotification(data.message, 'success');
+        fetchOrders(); // Recargar las órdenes para ver el estado actualizado
+      } catch (err) {
+        showNotification(`Error: ${err.message}`, 'error');
+      }
+    }
   };
 
   return (
@@ -85,7 +119,6 @@ const AdminOrdersPage = () => {
         <Link to="/admin" className="text-blue-600 hover:underline">&larr; Volver al Panel</Link>
       </div>
 
-      {/* --- NUEVA SECCIÓN DE FILTROS --- */}
       <div className="bg-white p-4 rounded-lg shadow-md mb-6 flex flex-col md:flex-row gap-4">
         <input
           type="text"
