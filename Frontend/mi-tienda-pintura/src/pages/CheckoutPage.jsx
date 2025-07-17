@@ -1,7 +1,7 @@
 // src/pages/CheckoutPage.jsx
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Payment } from '@mercadopago/sdk-react'; // <-- Se importa el Payment Brick
+import { Payment } from '@mercadopago/sdk-react';
 import { useCartStore } from '../stores/useCartStore';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useNotificationStore } from '../stores/useNotificationStore';
@@ -17,13 +17,12 @@ const CheckoutPage = () => {
   
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState('');
-  const [preferenceId, setPreferenceId] = useState(null); // <-- Estado para el ID de la preferencia
+  const [preferenceId, setPreferenceId] = useState(null);
   const navigate = useNavigate();
 
   const subtotal = cart.reduce((total, item) => total + item.price * item.quantity, 0);
   const total = subtotal + shippingCost;
 
-  // --- PASO 1: Crear la preferencia de pago ---
   const handleCreatePreference = async () => {
     setIsProcessing(true);
     setError('');
@@ -36,7 +35,6 @@ const CheckoutPage = () => {
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || 'No se pudo generar el link de pago.');
       
-      // Guardamos el ID de la preferencia para renderizar el Brick
       setPreferenceId(data.preferenceId);
 
     } catch (err) {
@@ -52,21 +50,18 @@ const CheckoutPage = () => {
     preferenceId: preferenceId,
   };
   
+  // --- CORRECCIÓN CLAVE: Se elimina la personalización de 'paymentMethods' ---
+  // Dejamos que el Brick muestre automáticamente los métodos de pago
+  // disponibles en la preferencia creada en el backend.
   const customization = {
-    paymentMethods: {
-      creditCard: "all",
-      debitCard: "all",
-      mercadoPago: "all",
-      // Habilitamos PIX para permitir pagos por transferencia/QR
-      pix: "all", 
+    visual: {
+      style: {
+        theme: 'bootstrap', // Puedes mantener otros estilos visuales
+      },
     },
   };
 
   const handleOnSubmit = async ({ formData }) => {
-    // El envío del pago es manejado por el Brick.
-    // La confirmación se recibe vía webhook.
-    // El 'onSubmit' aquí puede usarse para mostrar un estado de "procesando"
-    // mientras se redirige al usuario.
     console.log("Pago enviado, esperando redirección o webhook...", formData);
     setIsProcessing(true);
   };
@@ -85,7 +80,6 @@ const CheckoutPage = () => {
         <div className="lg:col-span-2 bg-white p-8 rounded-lg shadow-md">
           <h2 className="text-xl font-bold mb-4">Resumen y Método de Pago</h2>
           
-          {/* --- PASO 2: Renderizar el Payment Brick si tenemos un preferenceId --- */}
           {preferenceId ? (
             <div id="payment-brick-container">
               <Payment
@@ -97,7 +91,6 @@ const CheckoutPage = () => {
               />
             </div>
           ) : (
-            // --- Vista inicial antes de crear la preferencia ---
             <div>
               <p className="text-gray-700 mb-6">Revisa tu pedido y haz clic en "Continuar al Pago" para elegir cómo pagar de forma segura con Mercado Pago (tarjeta, saldo en cuenta o transferencia).</p>
               {total < MIN_TRANSACTION_AMOUNT && (
