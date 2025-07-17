@@ -1,6 +1,6 @@
 // Frontend/mi-tienda-pintura/src/pages/CheckoutPage.jsx
 // Este archivo ha sido modificado para implementar un único flujo de pago a través de Mercado Pago.
-// Se ha corregido el error de importación de los stores de Zustand.
+// Se ha corregido el error de importación y se ha añadido un fallback para el valor 'total'.
 
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -138,9 +138,6 @@ const CheckoutPage = () => {
             </div>
           </form>
           
-          {/* SECCIÓN DE MÉTODO DE PAGO ELIMINADA */}
-          {/* Ya no mostramos la selección de método de pago aquí. */}
-          {/* Todo se manejará a través del checkout de Mercado Pago. */}
           <h2 className="text-2xl font-semibold mb-4 mt-8">2. Método de Pago</h2>
           <div className="bg-gray-100 p-4 rounded-lg border border-gray-200 flex items-center">
             <img src="https://logospng.org/download/mercado-pago/logo-mercado-pago-256.png" alt="Logo de Mercado Pago" className="h-8 mr-4"/>
@@ -168,16 +165,17 @@ const CheckoutPage = () => {
           <div className="border-t mt-4 pt-4">
             <div className="flex justify-between mb-2">
               <p className="text-gray-600">Subtotal</p>
-              <p className="font-semibold">${total.toFixed(2)}</p>
+              {/* FIX: Usamos (total || 0) para evitar error si total es undefined */}
+              <p className="font-semibold">${(total || 0).toFixed(2)}</p>
             </div>
             <div className="flex justify-between mb-2">
               <p className="text-gray-600">Envío</p>
-              {/* El costo de envío real debería calcularse e integrarse aquí */}
               <p className="font-semibold">A calcular</p>
             </div>
             <div className="flex justify-between text-xl font-bold mt-4">
               <p>Total</p>
-              <p>${total.toFixed(2)}</p>
+              {/* FIX: Usamos (total || 0) para evitar error si total es undefined */}
+              <p>${(total || 0).toFixed(2)}</p>
             </div>
           </div>
           {error && <p className="text-red-500 text-sm mt-4 text-center">{error}</p>}
