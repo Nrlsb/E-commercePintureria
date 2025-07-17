@@ -1,11 +1,13 @@
 // backend-pintureria/controllers/order.controller.js
 import db from '../db.js';
 import mercadopago from 'mercadopago';
-import { sendOrderConfirmationEmail, sendBankTransferInstructionsEmail } from '../emailService.js';
+import { sendOrderConfirmationEmail, sendBankTransferInstructionsEmail, sendPaymentReminderEmail, sendOrderCancelledEmail } from '../emailService.js';
 
 const { MercadoPagoConfig, Preference, Payment, PaymentRefund } = mercadopago;
 const client = new MercadoPagoConfig({ accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN });
 const MIN_TRANSACTION_AMOUNT = 100;
+
+// ... (otras funciones como confirmTransferPayment, createBankTransferOrder, etc. se mantienen igual)
 
 export const confirmTransferPayment = async (req, res) => {
   const { orderId } = req.params;
@@ -21,7 +23,6 @@ export const confirmTransferPayment = async (req, res) => {
 
     const order = result.rows[0];
 
-    // Obtener datos para el email
     const userData = await db.query('SELECT email FROM users WHERE id = $1', [order.user_id]);
     const itemsData = await db.query('SELECT p.name, oi.quantity, oi.price FROM order_items oi JOIN products p ON p.id = oi.product_id WHERE oi.order_id = $1', [orderId]);
     
@@ -171,31 +172,38 @@ export const processPayment = async (req, res) => {
 
 export const getOrderById = async (req, res) => {
   const { orderId } = req.params;
-  const { userId } = req.user;
+  const { userId, role } = req.user;
   try {
-    const query = `
-      SELECT
-        o.*,
-        COALESCE(
-          (
-            SELECT json_agg(items)
-            FROM (
-              SELECT
-                oi.quantity,
-                oi.price,
-                p.name,
-                p.image_url as "imageUrl"
-              FROM order_items oi
-              JOIN products p ON oi.product_id = p.id
-              WHERE oi.order_id = o.id
-            ) AS items
-          ),
-          '[]'::json
-        ) AS items
-      FROM orders o
-      WHERE o.id = $1 AND o.user_id = $2;
-    `;
-    const orderResult = await db.query(query, [orderId, userId]);
+    let query;
+    const params = [orderId];
+    
+    // Si es admin, puede ver cualquier orden. Si no, solo las suyas.
+    if (role === 'admin') {
+      query = `
+        SELECT o.*, u.first_name, u.last_name, u.email, u.phone,
+        COALESCE((SELECT json_agg(items) FROM (
+          SELECT oi.quantity, oi.price, p.name, p.image_url as "imageUrl"
+          FROM order_items oi JOIN products p ON oi.product_id = p.id
+          WHERE oi.order_id = o.id
+        ) AS items), '[]'::json) AS items
+        FROM orders o JOIN users u ON o.user_id = u.id
+        WHERE o.id = $1;
+      `;
+    } else {
+      query = `
+        SELECT o.*,
+        COALESCE((SELECT json_agg(items) FROM (
+          SELECT oi.quantity, oi.price, p.name, p.image_url as "imageUrl"
+          FROM order_items oi JOIN products p ON oi.product_id = p.id
+          WHERE oi.order_id = o.id
+        ) AS items), '[]'::json) AS items
+        FROM orders o
+        WHERE o.id = $1 AND o.user_id = $2;
+      `;
+      params.push(userId);
+    }
+
+    const orderResult = await db.query(query, params);
     if (orderResult.rows.length === 0) {
       return res.status(404).json({ message: 'Orden no encontrada o no pertenece al usuario.' });
     }
@@ -210,24 +218,12 @@ export const getOrderHistory = async (req, res) => {
   const userId = req.user.userId;
   try {
     const query = `
-      SELECT
-        o.*,
-        COALESCE(
-          (
-            SELECT json_agg(items)
-            FROM (
-              SELECT
-                oi.quantity,
-                oi.price,
-                p.name,
-                p.image_url as "imageUrl"
-              FROM order_items oi
-              JOIN products p ON oi.product_id = p.id
-              WHERE oi.order_id = o.id
-            ) AS items
-          ),
-          '[]'::json
-        ) AS items
+      SELECT o.*,
+      COALESCE((SELECT json_agg(items) FROM (
+        SELECT oi.quantity, oi.price, p.name, p.image_url as "imageUrl"
+        FROM order_items oi JOIN products p ON oi.product_id = p.id
+        WHERE oi.order_id = o.id
+      ) AS items), '[]'::json) AS items
       FROM orders o
       WHERE o.user_id = $1
       ORDER BY o.created_at DESC;
@@ -240,14 +236,37 @@ export const getOrderHistory = async (req, res) => {
   }
 };
 
+// --- FUNCIÓN MODIFICADA ---
 export const getAllOrders = async (req, res) => {
+    const { status, search } = req.query;
+    let query = `
+        SELECT o.id, o.total_amount, o.status, o.created_at, u.email as user_email 
+        FROM orders o
+        JOIN users u ON o.user_id = u.id
+    `;
+    const queryParams = [];
+    let paramIndex = 1;
+    const whereClauses = [];
+
+    if (status) {
+        whereClauses.push(`o.status = $${paramIndex++}`);
+        queryParams.push(status);
+    }
+
+    if (search) {
+        whereClauses.push(`(u.email ILIKE $${paramIndex} OR o.id::text ILIKE $${paramIndex})`);
+        queryParams.push(`%${search}%`);
+        paramIndex++;
+    }
+
+    if (whereClauses.length > 0) {
+        query += ` WHERE ${whereClauses.join(' AND ')}`;
+    }
+
+    query += ' ORDER BY o.created_at DESC';
+
     try {
-        const result = await db.query(`
-            SELECT o.*, u.email as user_email 
-            FROM orders o
-            JOIN users u ON o.user_id = u.id
-            ORDER BY o.created_at DESC
-        `);
+        const result = await db.query(query, queryParams);
         res.json(result.rows);
     } catch (error) {
         console.error('Error al obtener todas las órdenes:', error);
