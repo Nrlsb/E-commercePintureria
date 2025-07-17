@@ -21,7 +21,7 @@ const ProductDetailPage = lazy(() => import('./pages/ProductDetailPage.jsx'));
 const CartPage = lazy(() => import('./pages/CartPage.jsx'));
 const CheckoutPage = lazy(() => import('./pages/CheckoutPage.jsx'));
 const OrderSuccessPage = lazy(() => import('./pages/OrderSuccessPage.jsx'));
-const OrderPendingPage = lazy(() => import('./pages/OrderPendingPage.jsx')); // <-- NUEVA PÁGINA
+// const OrderPendingPage = lazy(() => import('./pages/OrderPendingPage.jsx')); // <-- ELIMINADO
 const SearchResultsPage = lazy(() => import('./pages/SearchResultsPage.jsx'));
 const CategoryPage = lazy(() => import('./pages/CategoryPage.jsx'));
 const LoginPage = lazy(() => import('./pages/LoginPage.jsx'));
@@ -77,7 +77,7 @@ export default function App() {
             <Route element={<ProtectedRoute />}>
               <Route path="/checkout" element={<CheckoutPage />} />
               <Route path="/my-orders" element={<OrderHistoryPage />} />
-              <Route path="/order-pending/:orderId" element={<OrderPendingPage />} /> {/* <-- NUEVA RUTA */}
+              {/* <Route path="/order-pending/:orderId" element={<OrderPendingPage />} /> */} {/* <-- RUTA ELIMINADA */}
             </Route>
 
             <Route element={<AdminRoute />}>
