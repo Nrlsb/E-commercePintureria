@@ -4,7 +4,7 @@ dotenv.config();
 
 import express from 'express';
 import cors from 'cors';
-import { startCancelPendingOrdersJob } from './services/cronService.js';
+// import { startCancelPendingOrdersJob } from './services/cronService.js'; // <-- ELIMINADO
 
 // Importadores de Rutas
 import productRoutes from './routes/product.routes.js';
@@ -13,7 +13,7 @@ import orderRoutes from './routes/order.routes.js';
 import paymentRoutes from './routes/payment.routes.js';
 import shippingRoutes from './routes/shipping.routes.js';
 import reviewRoutes from './routes/review.routes.js';
-import couponRoutes from './routes/coupons.routes.js'; // <-- NUEVO
+import couponRoutes from './routes/coupons.routes.js';
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -55,11 +55,11 @@ app.use('/api/orders', orderRoutes);
 app.use('/api/shipping', shippingRoutes);
 app.use('/api/payment', paymentRoutes);
 app.use('/api/reviews', reviewRoutes);
-app.use('/api/coupons', couponRoutes); // <-- NUEVO
+app.use('/api/coupons', couponRoutes);
 
 
 // --- Inicio de Tareas Programadas ---
-startCancelPendingOrdersJob();
+// startCancelPendingOrdersJob(); // <-- ELIMINADO
 
 
 // --- Inicio del Servidor ---
