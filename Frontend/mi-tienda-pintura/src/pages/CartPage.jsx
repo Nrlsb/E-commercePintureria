@@ -2,17 +2,20 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useCartStore } from '../stores/useCartStore';
+import { useAuthStore } from '../stores/useAuthStore';
 import Spinner from '../components/Spinner';
 
 const CartPage = () => {
-  const { cart, updateQuantity, removeItem, shippingCost, postalCode, calculateShipping } = useCartStore();
+  const { cart, updateQuantity, removeItem, shippingCost, postalCode, calculateShipping, appliedCoupon, discountAmount, applyCoupon, removeCoupon } = useCartStore();
+  const { token } = useAuthStore();
   
   const [localPostalCode, setLocalPostalCode] = useState(postalCode);
+  const [couponCode, setCouponCode] = useState('');
   const [loadingShipping, setLoadingShipping] = useState(false);
 
   const calculateSubtotal = (item) => item.price * item.quantity;
   const cartSubtotal = cart.reduce((total, item) => total + calculateSubtotal(item), 0);
-  const calculateTotal = () => cartSubtotal + shippingCost;
+  const cartTotal = (cartSubtotal - discountAmount) + shippingCost;
 
   const handleShippingCalculation = async () => {
     if (!localPostalCode || !/^\d{4}$/.test(localPostalCode)) {
@@ -22,6 +25,12 @@ const CartPage = () => {
     setLoadingShipping(true);
     await calculateShipping(localPostalCode);
     setLoadingShipping(false);
+  };
+
+  const handleApplyCoupon = () => {
+    if (couponCode.trim()) {
+      applyCoupon(couponCode, token);
+    }
   };
 
   if (cart.length === 0) {
@@ -75,36 +84,52 @@ const CartPage = () => {
         <div className="lg:col-span-1">
             <div className="bg-white p-6 rounded-lg shadow-md sticky top-28">
                 <h2 className="text-2xl font-bold border-b pb-4 mb-4">Resumen de Compra</h2>
-                <div className="flex justify-between mb-2 text-lg">
-                    <span>Subtotal</span>
-                    <span>${new Intl.NumberFormat('es-AR').format(cartSubtotal)}</span>
-                </div>
                 
-                {/* --- NUEVA SECCIÓN DE ENVÍO --- */}
+                <div className="space-y-2 text-lg mb-4">
+                  <div className="flex justify-between">
+                      <span>Subtotal</span>
+                      <span>${new Intl.NumberFormat('es-AR').format(cartSubtotal)}</span>
+                  </div>
+                  {appliedCoupon && (
+                    <div className="flex justify-between text-green-600">
+                      <span>Descuento ({appliedCoupon.code})</span>
+                      <span>- ${new Intl.NumberFormat('es-AR').format(discountAmount)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between">
+                      <span>Envío</span>
+                      <span>{shippingCost > 0 ? `$${new Intl.NumberFormat('es-AR').format(shippingCost)}` : 'A calcular'}</span>
+                  </div>
+                </div>
+
                 <div className="border-t pt-4 mt-4">
                   <h3 className="font-semibold mb-2">Calcular Envío</h3>
                   <div className="flex items-center space-x-2">
-                    <input 
-                      type="text"
-                      value={localPostalCode}
-                      onChange={(e) => setLocalPostalCode(e.target.value)}
-                      placeholder="Cód. Postal"
-                      className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#0F3460]"
-                    />
+                    <input type="text" value={localPostalCode} onChange={(e) => setLocalPostalCode(e.target.value)} placeholder="Cód. Postal" className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#0F3460]" />
                     <button onClick={handleShippingCalculation} disabled={loadingShipping} className="bg-gray-200 px-4 py-2 rounded-md hover:bg-gray-300 disabled:opacity-50">
                       {loadingShipping ? <Spinner className="w-5 h-5 text-gray-700" /> : 'OK'}
                     </button>
                   </div>
                 </div>
 
-                <div className="flex justify-between mt-2 text-lg">
-                    <span>Envío</span>
-                    <span>{shippingCost > 0 ? `$${new Intl.NumberFormat('es-AR').format(shippingCost)}` : 'A calcular'}</span>
+                <div className="border-t pt-4 mt-4">
+                  <h3 className="font-semibold mb-2">Cupón de Descuento</h3>
+                  {appliedCoupon ? (
+                    <div className="flex justify-between items-center bg-green-50 p-2 rounded-md">
+                      <p className="text-green-700 font-semibold">Cupón "{appliedCoupon.code}" aplicado.</p>
+                      <button onClick={removeCoupon} className="text-red-500 font-bold text-xl">&times;</button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center space-x-2">
+                      <input type="text" value={couponCode} onChange={(e) => setCouponCode(e.target.value)} placeholder="Ingresa tu cupón" className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#0F3460]" />
+                      <button onClick={handleApplyCoupon} className="bg-gray-200 px-4 py-2 rounded-md hover:bg-gray-300">Aplicar</button>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex justify-between font-bold text-2xl border-t pt-4 mt-4">
                     <span>Total</span>
-                    <span>${new Intl.NumberFormat('es-AR').format(calculateTotal())}</span>
+                    <span>${new Intl.NumberFormat('es-AR').format(cartTotal)}</span>
                 </div>
 
                 <Link to="/checkout" className="block text-center w-full mt-6 bg-[#10B981] text-white font-bold py-3 rounded-lg hover:bg-green-600 transition-colors">

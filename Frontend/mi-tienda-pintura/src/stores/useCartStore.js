@@ -9,8 +9,10 @@ export const useCartStore = create(
   persist(
     (set, get) => ({
       cart: [],
-      shippingCost: 0, // <-- NUEVO ESTADO
-      postalCode: '',  // <-- NUEVO ESTADO
+      shippingCost: 0,
+      postalCode: '',
+      appliedCoupon: null, // <-- NUEVO ESTADO
+      discountAmount: 0,   // <-- NUEVO ESTADO
 
       addToCart: (product, quantity = 1) => {
         const { cart, postalCode } = get();
@@ -20,7 +22,7 @@ export const useCartStore = create(
         const currentQuantityInCart = itemInCart ? itemInCart.quantity : 0;
 
         if (currentQuantityInCart + quantity > product.stock) {
-          showNotification(`No puedes añadir más. Stock máximo: ${product.stock}`);
+          showNotification(`No puedes añadir más. Stock máximo: ${product.stock}`, 'error');
           return;
         }
 
@@ -35,9 +37,9 @@ export const useCartStore = create(
         }
         
         set({ cart: updatedCart });
+        get().recalculateDiscount(); // Recalcular descuento si cambia el carrito
         showNotification('¡Añadido al carrito!');
 
-        // Si ya hay un código postal, recalcula el envío
         if (postalCode) {
           get().calculateShipping(postalCode, updatedCart);
         }
@@ -54,6 +56,7 @@ export const useCartStore = create(
           );
         }
         set({ cart: updatedCart });
+        get().recalculateDiscount();
 
         if (postalCode) {
           get().calculateShipping(postalCode, updatedCart);
@@ -64,20 +67,19 @@ export const useCartStore = create(
         const { postalCode, cart } = get();
         const updatedCart = cart.filter(item => item.id !== productId);
         set({ cart: updatedCart });
+        get().recalculateDiscount();
         
         if (postalCode) {
           if (updatedCart.length > 0) {
             get().calculateShipping(postalCode, updatedCart);
           } else {
-            // Si el carrito queda vacío, resetea el costo de envío
             set({ shippingCost: 0, postalCode: '' });
           }
         }
       },
 
-      clearCart: () => set({ cart: [], shippingCost: 0, postalCode: '' }),
+      clearCart: () => set({ cart: [], shippingCost: 0, postalCode: '', appliedCoupon: null, discountAmount: 0 }),
 
-      // --- NUEVA ACCIÓN ---
       calculateShipping: async (postalCode, cartItems) => {
         if (!/^\d{4}$/.test(postalCode)) {
           set({ shippingCost: 0, postalCode: '' });
@@ -99,10 +101,54 @@ export const useCartStore = create(
           set({ shippingCost: data.cost, postalCode: data.postalCode });
         } catch (error) {
           console.error("Error calculating shipping:", error);
-          // Opcional: notificar al usuario del error
-          useNotificationStore.getState().showNotification('Error al calcular el envío.');
+          useNotificationStore.getState().showNotification('Error al calcular el envío.', 'error');
           set({ shippingCost: 0, postalCode: postalCode });
         }
+      },
+
+      // --- NUEVAS ACCIONES PARA CUPONES ---
+      applyCoupon: async (code, token) => {
+        const showNotification = useNotificationStore.getState().showNotification;
+        try {
+          const response = await fetch(`${API_URL}/api/coupons/validate`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`,
+            },
+            body: JSON.stringify({ code }),
+          });
+          const data = await response.json();
+          if (!response.ok) {
+            throw new Error(data.message);
+          }
+          set({ appliedCoupon: data.coupon });
+          get().recalculateDiscount();
+          showNotification(data.message, 'success');
+        } catch (error) {
+          set({ appliedCoupon: null, discountAmount: 0 });
+          showNotification(error.message, 'error');
+        }
+      },
+
+      removeCoupon: () => {
+        set({ appliedCoupon: null, discountAmount: 0 });
+        useNotificationStore.getState().showNotification('Cupón removido.', 'success');
+      },
+
+      recalculateDiscount: () => {
+        const { cart, appliedCoupon } = get();
+        if (!appliedCoupon) return;
+
+        const subtotal = cart.reduce((total, item) => total + item.price * item.quantity, 0);
+        let discount = 0;
+        if (appliedCoupon.discountType === 'percentage') {
+          discount = subtotal * (appliedCoupon.discountValue / 100);
+        } else if (appliedCoupon.discountType === 'fixed') {
+          discount = appliedCoupon.discountValue;
+        }
+        // El descuento no puede ser mayor que el subtotal
+        set({ discountAmount: Math.min(discount, subtotal) });
       },
     }),
     {
