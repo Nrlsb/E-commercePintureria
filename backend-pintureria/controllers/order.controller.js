@@ -1,11 +1,80 @@
 // backend-pintureria/controllers/order.controller.js
 import db from '../db.js';
 import mercadopago from 'mercadopago';
-import { sendOrderConfirmationEmail } from '../emailService.js';
+import { sendOrderConfirmationEmail, sendBankTransferInstructionsEmail } from '../emailService.js';
 
 const { MercadoPagoConfig, Preference, Payment, PaymentRefund } = mercadopago;
 const client = new MercadoPagoConfig({ accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN });
 const MIN_TRANSACTION_AMOUNT = 100;
+
+// --- NUEVA FUNCIÓN ---
+export const createBankTransferOrder = async (req, res) => {
+  const { cart, total, shippingCost, postalCode } = req.body;
+  const { userId, email } = req.user;
+
+  if (!cart || cart.length === 0) {
+    return res.status(400).json({ message: 'El carrito está vacío.' });
+  }
+
+  const dbClient = await db.connect();
+
+  try {
+    await dbClient.query('BEGIN');
+
+    // 1. Verificar stock
+    for (const item of cart) {
+      const stockResult = await dbClient.query('SELECT stock FROM products WHERE id = $1 FOR UPDATE', [item.id]);
+      if (stockResult.rows.length === 0) {
+        throw new Error(`Producto "${item.name}" no encontrado.`);
+      }
+      const availableStock = stockResult.rows[0].stock;
+      if (item.quantity > availableStock) {
+        throw new Error(`Stock insuficiente para "${item.name}". Solo quedan ${availableStock} unidades.`);
+      }
+    }
+
+    // 2. Crear la orden con estado 'pending_transfer'
+    const orderResult = await dbClient.query(
+      'INSERT INTO orders (user_id, total_amount, status, shipping_cost, postal_code) VALUES ($1, $2, $3, $4, $5) RETURNING id, created_at',
+      [userId, total, 'pending_transfer', shippingCost, postalCode]
+    );
+    const order = orderResult.rows[0];
+    const orderId = order.id;
+
+    // 3. Insertar los items de la orden
+    for (const item of cart) {
+      await dbClient.query(
+        'INSERT INTO order_items (order_id, product_id, quantity, price) VALUES ($1, $2, $3, $4)',
+        [orderId, item.id, item.quantity, item.price]
+      );
+      // 4. Descontar el stock
+      await dbClient.query(
+        'UPDATE products SET stock = stock - $1 WHERE id = $2',
+        [item.quantity, item.id]
+      );
+    }
+
+    // 5. Enviar email con instrucciones
+    const orderDataForEmail = {
+      id: orderId,
+      created_at: order.created_at,
+      total_amount: total,
+      items: cart,
+    };
+    await sendBankTransferInstructionsEmail(email, orderDataForEmail);
+
+    await dbClient.query('COMMIT');
+    res.status(201).json({ status: 'pending_transfer', orderId: orderId });
+
+  } catch (error) {
+    await dbClient.query('ROLLBACK');
+    console.error('Error al crear orden por transferencia:', error);
+    res.status(500).json({ message: error.message || 'Error interno del servidor.' });
+  } finally {
+    dbClient.release();
+  }
+};
+
 
 export const processPayment = async (req, res) => {
   const { token, issuer_id, payment_method_id, transaction_amount, installments, payer, cart } = req.body;
@@ -65,9 +134,6 @@ export const processPayment = async (req, res) => {
           type: payer.identification.type,
           number: payer.identification.number,
         },
-        // --- CORRECCIÓN CLAVE: Usar los datos del pagador del formulario ---
-        // El brick de Mercado Pago incluye 'firstName' y 'lastName' en el objeto 'payer'
-        // que se recibe del frontend. Usamos esos datos en lugar de los del token JWT.
         first_name: payer.firstName,
         last_name: payer.lastName,
       },
@@ -110,7 +176,6 @@ export const processPayment = async (req, res) => {
 
   } catch (error) {
     await dbClient.query('ROLLBACK');
-    // Logueo mejorado para ver el error exacto de Mercado Pago
     console.error('Error detallado al procesar el pago:', JSON.stringify(error, null, 2));
     const errorMessage = error.cause?.message || error.message || 'Error interno del servidor al procesar el pago.';
     res.status(500).json({ message: errorMessage });

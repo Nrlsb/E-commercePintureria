@@ -5,7 +5,8 @@ import {
   getAllOrders,
   cancelOrder,
   createPaymentPreference,
-  processPayment, // <-- 1. Importar la nueva función
+  processPayment,
+  createBankTransferOrder, // <-- 1. Importar la nueva función
 } from '../controllers/order.controller.js';
 import { authenticateToken, isAdmin } from '../middlewares/auth.middleware.js';
 
@@ -17,9 +18,11 @@ router.get('/', authenticateToken, getOrderHistory);
 // Ruta para Checkout Pro (se puede mantener como alternativa o eliminar)
 router.post('/create-payment-preference', authenticateToken, createPaymentPreference);
 
-// --- 2. NUEVA RUTA PARA CHECKOUT API ---
+// Ruta para Checkout API (pago con tarjeta y saldo en cuenta)
 router.post('/process-payment', authenticateToken, processPayment);
 
+// --- 2. NUEVA RUTA PARA PAGO POR TRANSFERENCIA ---
+router.post('/bank-transfer', authenticateToken, createBankTransferOrder);
 
 // --- Rutas de Administrador ---
 router.get('/admin', [authenticateToken, isAdmin], getAllOrders);
