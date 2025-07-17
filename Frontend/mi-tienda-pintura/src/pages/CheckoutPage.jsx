@@ -1,12 +1,14 @@
 // Frontend/mi-tienda-pintura/src/pages/CheckoutPage.jsx
 // Este archivo ha sido modificado para implementar un único flujo de pago a través de Mercado Pago.
+// Se ha corregido el error de importación de los stores de Zustand.
 
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
-import useCartStore from '../stores/useCartStore';
-import useAuthStore from '../stores/useAuthStore';
+// Corregimos la importación para que coincida con la exportación nombrada de los stores
+import { useCartStore } from '../stores/useCartStore';
+import { useAuthStore } from '../stores/useAuthStore';
 
 import Spinner from '../components/Spinner';
 
