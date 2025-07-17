@@ -11,17 +11,18 @@ import Header from './components/Header.jsx';
 import Navbar from './components/Navbar.jsx';
 import Footer from './components/Footer.jsx';
 import Notification from './components/Notification.jsx';
-import Spinner from './components/Spinner.jsx';
+import Spinner from './components/Spinner.jsx'; // Importamos el spinner para el fallback
 import AdminRoute from './components/AdminRoute.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
 
 // --- IMPLEMENTACIÓN DE LAZY LOADING ---
+// Se utiliza React.lazy para importar los componentes de las páginas de forma dinámica.
+// Esto significa que el código de cada página solo se descargará cuando sea necesario.
 const HomePage = lazy(() => import('./pages/HomePage.jsx'));
 const ProductDetailPage = lazy(() => import('./pages/ProductDetailPage.jsx'));
 const CartPage = lazy(() => import('./pages/CartPage.jsx'));
 const CheckoutPage = lazy(() => import('./pages/CheckoutPage.jsx'));
 const OrderSuccessPage = lazy(() => import('./pages/OrderSuccessPage.jsx'));
-const OrderPendingPage = lazy(() => import('./pages/OrderPendingPage.jsx')); // <-- NUEVA PÁGINA
 const SearchResultsPage = lazy(() => import('./pages/SearchResultsPage.jsx'));
 const CategoryPage = lazy(() => import('./pages/CategoryPage.jsx'));
 const LoginPage = lazy(() => import('./pages/LoginPage.jsx'));
@@ -45,10 +46,10 @@ if (MERCADOPAGO_PUBLIC_KEY) {
 export default function App() {
   const fetchProducts = useProductStore(state => state.fetchProducts);
   const fetchAvailableBrands = useProductStore(state => state.fetchAvailableBrands);
-  const { message: notificationMessage, show: showNotification, type: notificationType } = useNotificationStore();
+  const { message: notificationMessage, show: showNotification } = useNotificationStore();
 
   useEffect(() => {
-    fetchProducts({ page: 1 });
+    fetchProducts();
     fetchAvailableBrands();
   }, [fetchProducts, fetchAvailableBrands]);
 
@@ -57,6 +58,9 @@ export default function App() {
       <Header />
       <Navbar />
       <main className="flex-grow container mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col">
+        {/* --- USO DE SUSPENSE --- */}
+        {/* Se envuelven las rutas en el componente Suspense. */}
+        {/* Muestra un 'fallback' (el Spinner) mientras el componente de la ruta se está cargando. */}
         <Suspense fallback={
             <div className="flex-grow flex items-center justify-center">
               <Spinner className="w-12 h-12 text-[#0F3460]" />
@@ -77,7 +81,6 @@ export default function App() {
             <Route element={<ProtectedRoute />}>
               <Route path="/checkout" element={<CheckoutPage />} />
               <Route path="/my-orders" element={<OrderHistoryPage />} />
-              <Route path="/order-pending/:orderId" element={<OrderPendingPage />} /> {/* <-- NUEVA RUTA */}
             </Route>
 
             <Route element={<AdminRoute />}>
@@ -90,7 +93,7 @@ export default function App() {
         </Suspense>
       </main>
       <Footer />
-      <Notification message={notificationMessage} show={showNotification} type={notificationType} />
+      <Notification message={notificationMessage} show={showNotification} />
     </div>
   );
 }

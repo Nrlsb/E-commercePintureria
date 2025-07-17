@@ -1,4 +1,3 @@
-// backend-pintureria/controllers/auth.controller.js
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
@@ -44,31 +43,12 @@ export const loginUser = async (req, res) => {
         if (!isMatch) {
             return res.status(401).json({ message: 'Credenciales inválidas.' });
         }
-
-        // --- MODIFICACIÓN CLAVE: Añadir nombre y apellido al token ---
         const token = jwt.sign(
-            { 
-                userId: user.id, 
-                email: user.email, 
-                role: user.role,
-                firstName: user.first_name, // Añadido
-                lastName: user.last_name    // Añadido
-            },
+            { userId: user.id, email: user.email, role: user.role },
             JWT_SECRET,
             { expiresIn: '1h' }
         );
-        
-        // Se devuelve también el nombre y apellido para el estado del frontend
-        res.json({ 
-            token, 
-            user: { 
-                id: user.id, 
-                email: user.email, 
-                role: user.role, 
-                firstName: user.first_name, 
-                lastName: user.last_name 
-            } 
-        });
+        res.json({ token, user: { id: user.id, email: user.email, role: user.role } });
     } catch (err) {
         console.error(err);
         res.status(500).json({ message: 'Error interno del servidor' });
@@ -92,11 +72,13 @@ export const forgotPassword = async (req, res) => {
       [hashedToken, passwordResetExpires, email]
     );
 
+    // --- CAMBIO CLAVE: Manejo de error específico ---
     try {
       await sendPasswordResetEmail(email, resetToken);
       res.status(200).json({ message: 'Se ha enviado un correo para restablecer la contraseña.' });
     } catch (emailError) {
       console.error('Error específico del servicio de email:', emailError.message);
+      // No devolvemos el error específico al frontend por seguridad, pero lo logueamos.
       res.status(500).json({ message: 'Error interno del servidor al intentar enviar el correo.' });
     }
 

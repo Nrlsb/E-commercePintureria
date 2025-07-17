@@ -1,202 +1,134 @@
-// Frontend/mi-tienda-pintura/src/pages/CheckoutPage.jsx
-// Este archivo ha sido modificado para implementar un único flujo de pago a través de Mercado Pago.
-// FIX: Se calcula el total directamente desde el array del carrito para asegurar consistencia.
-
-import React, { useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
-
-// Corregimos la importación para que coincida con la exportación nombrada de los stores
+// src/pages/CheckoutPage.jsx
+import React, { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Wallet } from '@mercadopago/sdk-react';
 import { useCartStore } from '../stores/useCartStore';
 import { useAuthStore } from '../stores/useAuthStore';
+import Spinner from '../components/Spinner.jsx';
 
-import Spinner from '../components/Spinner';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
 const CheckoutPage = () => {
-  // Obtenemos los datos necesarios de nuestros stores de Zustand
-  // Ya no extraemos 'total' del store para evitar inconsistencias.
-  const { cart } = useCartStore(); 
-  const { user, token } = useAuthStore();
+  const cart = useCartStore(state => state.cart);
+  const token = useAuthStore(state => state.token);
+
+  const [preferenceId, setPreferenceId] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
   const navigate = useNavigate();
 
-  // FIX: Calculamos el total dinámicamente desde el carrito.
-  // useMemo asegura que este cálculo solo se rehace si el carrito cambia.
-  const cartTotal = useMemo(() => {
-    if (!cart) return 0;
-    return cart.reduce((acc, item) => acc + item.price * item.quantity, 0);
-  }, [cart]);
-
-
-  // Estados para manejar la carga y los errores
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-
-  // Estado para la información de envío
-  const [shippingInfo, setShippingInfo] = useState({
-    address: '',
-    city: '',
-    postalCode: '',
-    country: 'Argentina',
-  });
-
-  // Manejador para actualizar el estado de la información de envío
-  const handleShippingChange = (e) => {
-    const { name, value } = e.target;
-    setShippingInfo(prevState => ({ ...prevState, [name]: value }));
+  const calculateTotal = () => {
+    return cart.reduce((total, item) => total + item.price * item.quantity, 0);
   };
 
-  /**
-   * Manejador principal del pago.
-   */
-  const handlePayment = async () => {
-    if (!shippingInfo.address || !shippingInfo.city || !shippingInfo.postalCode) {
-      setError('Por favor, completa todos los datos de envío para continuar.');
-      return;
+  const handleCreatePreference = async () => {
+    if (!token) {
+        navigate('/login?redirect=/checkout');
+        return;
     }
-    setError('');
+
     setLoading(true);
-
+    setError(null);
     try {
-      const response = await axios.post(
-        `${import.meta.env.VITE_API_URL}/api/payments/create-order`,
-        {
-          items: cart.map(item => ({
-            id: item._id,
-            title: item.name,
-            quantity: item.quantity,
-            unit_price: item.price,
-            currency_id: 'ARS',
-          })),
-          shippingInfo,
+      const response = await fetch(`${API_URL}/api/orders/create-payment-preference`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
         },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      if (response.data.init_point) {
-        window.location.href = response.data.init_point;
-      } else {
-        setError('No se pudo iniciar el proceso de pago. Inténtalo de nuevo.');
-        setLoading(false);
+        body: JSON.stringify({ cart }),
+      });
+      
+      if (response.status === 403) {
+        alert("Tu sesión ha expirado. Por favor, inicia sesión de nuevo para continuar.");
+        navigate('/login?redirect=/checkout');
+        return;
       }
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({ message: 'Hubo un problema al generar el link de pago.' }));
+        throw new Error(data.message);
+      }
+
+      const data = await response.json();
+      setPreferenceId(data.id);
     } catch (err) {
-      console.error('Error creating payment order:', err);
-      setError('Hubo un error al procesar tu pago. Por favor, intenta más tarde.');
+      setError(err.message);
+      console.error('Error al crear preferencia:', err);
+    } finally {
       setLoading(false);
     }
   };
 
-  // Si el carrito no se ha cargado o está vacío, podemos mostrar un mensaje.
-  if (!cart || cart.length === 0) {
-    return (
-      <div className="container mx-auto mt-10 text-center">
-        <h1 className="text-2xl">Tu carrito está vacío.</h1>
-        <button onClick={() => navigate('/')} className="mt-4 bg-blue-600 text-white font-bold py-2 px-4 rounded-lg">
-          Volver a la tienda
-        </button>
-      </div>
-    );
-  }
-
   return (
-    <div className="container mx-auto mt-10 mb-20 p-4">
-      <h1 className="text-3xl font-bold mb-8 text-center text-gray-800">Finalizar Compra</h1>
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        
-        {/* Columna de Datos de Envío */}
-        <div className="lg:col-span-2 bg-white p-6 rounded-lg shadow-md">
-          <h2 className="text-2xl font-semibold mb-4">1. Datos de Envío</h2>
-          <form>
-            <div className="mb-4">
-              <label htmlFor="address" className="block text-gray-700 font-medium mb-2">Dirección</label>
-              <input
-                type="text"
-                id="address"
-                name="address"
-                value={shippingInfo.address}
-                onChange={handleShippingChange}
-                className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                required
-              />
+    <div className="container mx-auto px-4 py-8">
+      <h1 className="text-3xl font-bold text-gray-800 mb-8">Finalizar Compra</h1>
+      
+      {/* --- CÓDIGO RESTAURADO --- */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
+        <div className="lg:col-span-2 bg-white p-8 rounded-lg shadow-md">
+          <div className="space-y-8">
+            <div>
+              <h2 className="text-2xl font-semibold mb-4">1. Información de Contacto</h2>
+              <input type="email" placeholder="Correo electrónico" className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0F3460]" required />
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-              <div>
-                <label htmlFor="city" className="block text-gray-700 font-medium mb-2">Ciudad</label>
-                <input
-                  type="text"
-                  id="city"
-                  name="city"
-                  value={shippingInfo.city}
-                  onChange={handleShippingChange}
-                  className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                />
-              </div>
-              <div>
-                <label htmlFor="postalCode" className="block text-gray-700 font-medium mb-2">Código Postal</label>
-                <input
-                  type="text"
-                  id="postalCode"
-                  name="postalCode"
-                  value={shippingInfo.postalCode}
-                  onChange={handleShippingChange}
-                  className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                />
+
+            <div>
+              <h2 className="text-2xl font-semibold mb-4">2. Dirección de Envío</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <input type="text" placeholder="Nombre" className="p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0F3460]" required />
+                <input type="text" placeholder="Apellido" className="p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0F3460]" required />
+                <input type="text" placeholder="Dirección" className="sm:col-span-2 p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0F3460]" required />
+                <input type="text" placeholder="Ciudad" className="p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0F3460]" required />
+                <input type="text" placeholder="Código Postal" className="p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0F3460]" required />
               </div>
             </div>
-          </form>
-          
-          <h2 className="text-2xl font-semibold mb-4 mt-8">2. Método de Pago</h2>
-          <div className="bg-gray-100 p-4 rounded-lg border border-gray-200 flex items-center">
-            <img src="https://logospng.org/download/mercado-pago/logo-mercado-pago-256.png" alt="Logo de Mercado Pago" className="h-8 mr-4"/>
-            <p className="text-gray-700">Todos los pagos se procesan de forma segura a través de Mercado Pago.</p>
           </div>
         </div>
 
-        {/* Columna de Resumen del Pedido */}
-        <div className="bg-gray-50 p-6 rounded-lg shadow-md h-fit">
-          <h2 className="text-2xl font-semibold mb-4 border-b pb-4">Resumen del Pedido</h2>
-          <div>
-            {cart.map(item => (
-              <div key={item._id} className="flex justify-between items-center mb-3">
-                <div className="flex items-center">
-                  <img src={item.image} alt={item.name} className="w-12 h-12 object-cover rounded-md mr-4" />
-                  <div>
-                    <p className="font-semibold">{item.name}</p>
-                    <p className="text-sm text-gray-600">Cant: {item.quantity}</p>
+        <div className="lg:col-span-1">
+          <div className="bg-white p-6 rounded-lg shadow-md sticky top-28">
+            <h2 className="text-2xl font-bold border-b pb-4 mb-4">Tu Pedido</h2>
+            <div className="space-y-4 mb-6 max-h-64 overflow-y-auto">
+              {cart.map(item => (
+                <div key={item.id} className="flex justify-between items-center">
+                  <div className="flex items-center">
+                    <img src={item.imageUrl} alt={item.name} className="w-16 h-16 rounded-md mr-3" />
+                    <div>
+                      <p className="font-semibold">{item.name}</p>
+                      <p className="text-sm text-gray-500">Cant: {item.quantity}</p>
+                    </div>
                   </div>
+                  <p className="font-semibold">${new Intl.NumberFormat('es-AR').format(item.price * item.quantity)}</p>
                 </div>
-                <p className="font-semibold">${(item.price * item.quantity).toFixed(2)}</p>
+              ))}
+            </div>
+            <div className="border-t pt-4">
+              <div className="flex justify-between font-bold text-2xl">
+                <span>Total</span>
+                <span>${new Intl.NumberFormat('es-AR').format(calculateTotal())}</span>
               </div>
-            ))}
+            </div>
+
+            <div className="mt-6">
+              {!preferenceId ? (
+                <button 
+                  onClick={handleCreatePreference} 
+                  disabled={loading || cart.length === 0}
+                  className="w-full flex justify-center items-center bg-[#0F3460] text-white font-bold py-3 rounded-lg hover:bg-[#1a4a8a] transition-colors disabled:bg-gray-400 disabled:cursor-wait"
+                >
+                  {loading ? <Spinner /> : 'Continuar al Pago'}
+                </button>
+              ) : (
+                <Wallet initialization={{ preferenceId: preferenceId }} />
+              )}
+              {error && <p className="text-red-500 text-sm mt-2 text-center">{error}</p>}
+            </div>
+
+            <Link to="/cart" className="block text-center w-full mt-4 text-[#0F3460] hover:underline font-medium">
+              &larr; Volver al carrito
+            </Link>
           </div>
-          <div className="border-t mt-4 pt-4">
-            <div className="flex justify-between mb-2">
-              <p className="text-gray-600">Subtotal</p>
-              <p className="font-semibold">${cartTotal.toFixed(2)}</p>
-            </div>
-            <div className="flex justify-between mb-2">
-              <p className="text-gray-600">Envío</p>
-              <p className="font-semibold">A calcular</p>
-            </div>
-            <div className="flex justify-between text-xl font-bold mt-4">
-              <p>Total</p>
-              <p>${cartTotal.toFixed(2)}</p>
-            </div>
-          </div>
-          {error && <p className="text-red-500 text-sm mt-4 text-center">{error}</p>}
-          <button
-            onClick={handlePayment}
-            disabled={loading || cart.length === 0}
-            className="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg mt-6 hover:bg-blue-700 transition-colors disabled:bg-gray-400 flex items-center justify-center"
-          >
-            {loading ? <Spinner /> : 'Pagar Ahora'}
-          </button>
-          <p className="text-xs text-gray-500 mt-4 text-center">Serás redirigido a Mercado Pago para completar tu compra de forma segura.</p>
         </div>
       </div>
     </div>
