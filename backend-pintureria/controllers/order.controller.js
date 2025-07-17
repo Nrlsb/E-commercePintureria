@@ -4,13 +4,12 @@ import mercadopago from 'mercadopago';
 import { sendOrderConfirmationEmail } from '../emailService.js';
 
 // --- CONFIGURACIÓN DE MERCADOPAGO ---
-// Se utiliza la clase Preference para crear la solicitud de pago.
-const { MercadoPagoConfig, Preference, Payment, PaymentRefund } = mercadopago;
+const { MercadoPagoConfig, Preference } = mercadopago;
 const client = new MercadoPagoConfig({ accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN });
 
 const MIN_TRANSACTION_AMOUNT = 100;
 
-// --- NUEVA FUNCIÓN PARA CREAR PREFERENCIA DE PAGO (TARJETAS Y OTROS) ---
+// --- FUNCIÓN PARA CREAR PREFERENCIA DE PAGO (TARJETAS Y OTROS) ---
 export const createPaymentPreference = async (req, res) => {
   const { cart, total, shippingCost, postalCode } = req.body;
   const { userId, email, firstName, lastName } = req.user;
@@ -47,7 +46,6 @@ export const createPaymentPreference = async (req, res) => {
         'INSERT INTO order_items (order_id, product_id, quantity, price) VALUES ($1, $2, $3, $4)',
         [orderId, item.id, item.quantity, item.price]
       );
-      // ¡Importante! El stock se descuenta DESPUÉS de que el pago sea aprobado (vía webhook).
     }
 
     // 4. Crear la preferencia de pago en Mercado Pago
@@ -55,10 +53,10 @@ export const createPaymentPreference = async (req, res) => {
     const preferenceResponse = await preference.create({
       body: {
         items: cart.map(p => ({
-          id: p.id,
+          id: p.id.toString(), // El ID debe ser un string
           title: p.name,
-          quantity: p.quantity,
-          unit_price: p.price,
+          quantity: Number(p.quantity), // Aseguramos que la cantidad sea un número
+          unit_price: Number(p.price), // <-- CORRECCIÓN CLAVE: Aseguramos que el precio sea un número
           picture_url: p.imageUrl,
           category_id: p.category,
         })),
@@ -85,7 +83,9 @@ export const createPaymentPreference = async (req, res) => {
   } catch (error) {
     await dbClient.query('ROLLBACK');
     console.error('Error al crear la preferencia de pago:', error);
-    res.status(500).json({ message: error.message || 'Error interno del servidor.' });
+    // Devuelve el mensaje de error de Mercado Pago si está disponible
+    const errorMessage = error.cause?.message || error.message || 'Error interno del servidor.';
+    res.status(500).json({ message: errorMessage });
   } finally {
     dbClient.release();
   }
@@ -93,8 +93,6 @@ export const createPaymentPreference = async (req, res) => {
 
 
 // --- Las demás funciones (getOrderHistory, getAllOrders, etc.) se mantienen igual ---
-// Se elimina `createBankTransferOrder`, `confirmTransferPayment` y `processPayment`
-// ya que esta nueva función centraliza la creación de la preferencia de pago.
 
 export const getOrderHistory = async (req, res) => {
   const userId = req.user.userId;
