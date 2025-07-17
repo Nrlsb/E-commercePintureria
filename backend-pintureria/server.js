@@ -4,7 +4,6 @@ dotenv.config();
 
 import express from 'express';
 import cors from 'cors';
-// import { startCancelPendingOrdersJob } from './services/cronService.js'; // <-- ELIMINADO
 
 // Importadores de Rutas
 import productRoutes from './routes/product.routes.js';
@@ -19,17 +18,20 @@ const app = express();
 const PORT = process.env.PORT || 5001;
 
 // --- Configuración de CORS ---
+// Se ha modificado la whitelist para ser más flexible con los dominios de Vercel.
 const whitelist = [
-  'http://localhost:5173',
-  'https://e-commerce-pintureria.vercel.app',
-  /^https:\/\/e-commerce-pintureria-.*\.vercel\.app$/
+  'http://localhost:5173', // Para desarrollo local
+  // Esta expresión regular aceptará el dominio principal y cualquier subdominio de preview/branch de Vercel.
+  /^https:\/\/e-commerce-pintureria.*\.vercel\.app$/
 ];
 
 const corsOptions = {
   origin: (origin, callback) => {
+    // Permite requests sin 'origin' (como Postman o apps móviles)
     if (!origin) {
       return callback(null, true);
     }
+    // Comprueba si el origen está en nuestra whitelist
     if (whitelist.some(allowedOrigin => 
         typeof allowedOrigin === 'string' 
           ? allowedOrigin === origin 
@@ -56,10 +58,6 @@ app.use('/api/shipping', shippingRoutes);
 app.use('/api/payment', paymentRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/coupons', couponRoutes);
-
-
-// --- Inicio de Tareas Programadas ---
-// startCancelPendingOrdersJob(); // <-- ELIMINADO
 
 
 // --- Inicio del Servidor ---
