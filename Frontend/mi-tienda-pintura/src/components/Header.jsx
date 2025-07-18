@@ -12,6 +12,7 @@ const UserMenuDesktop = () => {
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef(null);
   const { user, logout } = useAuthStore();
+  const { clearCart } = useCartStore(); // 1. Obtenemos la acción para limpiar el carrito
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -26,6 +27,7 @@ const UserMenuDesktop = () => {
 
   const handleLogout = () => {
     logout();
+    clearCart(); // 2. Llamamos a clearCart() para vaciar el carrito al cerrar sesión
     setIsOpen(false);
     navigate('/');
   };
@@ -65,7 +67,7 @@ const Header = () => {
   const navigate = useNavigate();
 
   const { user, logout } = useAuthStore();
-  const cart = useCartStore(state => state.cart);
+  const { cart, clearCart } = useCartStore(); // 3. Obtenemos la acción aquí también para el menú móvil
   const setSearchQuery = useProductStore(state => state.setSearchQuery);
   const cartItemCount = cart.reduce((total, item) => total + item.quantity, 0);
 
@@ -85,6 +87,7 @@ const Header = () => {
 
   const handleMobileLogout = () => {
     logout();
+    clearCart(); // 4. Y la llamamos aquí para el logout en móvil
     handleMobileLinkClick();
     navigate('/');
   };
