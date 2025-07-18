@@ -27,7 +27,8 @@
     "node-cron": "^4.2.1",
     "node-fetch": "^2.7.0",
     "nodemailer": "^7.0.5",
-    "pg": "^8.16.3"
+    "pg": "^8.16.3",
+    "sharp": "^0.33.4"
   },
   "devDependencies": {
     "cross-env": "^7.0.3",
