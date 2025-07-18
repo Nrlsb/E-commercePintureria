@@ -4,7 +4,7 @@ import mercadopago from 'mercadopago';
 import { sendOrderConfirmationEmail } from '../emailService.js';
 
 // --- CONFIGURACIÓN DE MERCADOPAGO ---
-const { MercadoPagoConfig, Preference } = mercadopago;
+const { MercadoPagoConfig, Preference, PaymentRefund } = mercadopago;
 const client = new MercadoPagoConfig({ accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN });
 
 const MIN_TRANSACTION_AMOUNT = 100;
@@ -66,15 +66,13 @@ export const createPaymentPreference = async (req, res) => {
           surname: lastName,
           email: email,
         },
-        // --- CORRECCIÓN APLICADA ---
-        // Se habilitan explícitamente los métodos de pago con tarjeta.
         payment_methods: {
           credit_card: {},
           debit_card: {},
           excluded_payment_types: [
-            { id: 'ticket' } // Excluimos pagos en efectivo por ahora para simplificar
+            { id: 'ticket' }
           ],
-          installments: 12 // Número máximo de cuotas
+          installments: 12
         },
         back_urls: {
           success: `${process.env.VITE_FRONTEND_URL}/success`,
@@ -93,6 +91,10 @@ export const createPaymentPreference = async (req, res) => {
 
   } catch (error) {
     await dbClient.query('ROLLBACK');
+    // --- LOG DETALLADO AÑADIDO ---
+    // Este console.log mostrará el objeto de error completo de Mercado Pago en la consola del backend.
+    console.error('Detalle completo del error de Mercado Pago:', JSON.stringify(error, null, 2));
+    
     console.error('Error al crear la preferencia de pago:', error);
     const errorMessage = error.cause?.message || error.message || 'Error interno del servidor.';
     res.status(500).json({ message: errorMessage });
