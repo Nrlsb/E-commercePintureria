@@ -9,7 +9,7 @@ const client = new MercadoPagoConfig({ accessToken: process.env.MERCADOPAGO_ACCE
 
 const MIN_TRANSACTION_AMOUNT = 100;
 
-// --- FUNCIÓN PARA CREAR PREFERENCIA DE PAGO (TARJETAS Y OTROS) ---
+// --- FUNCIÓN PARA CREAR PREFERENCIA DE PAGO ---
 export const createPaymentPreference = async (req, res) => {
   const { cart, total, shippingCost, postalCode } = req.body;
   const { userId, email, firstName, lastName } = req.user;
@@ -52,11 +52,13 @@ export const createPaymentPreference = async (req, res) => {
     const preference = new Preference(client);
     const preferenceResponse = await preference.create({
       body: {
+        // --- CORRECCIÓN CLAVE: Añadir el propósito de la preferencia ---
+        purpose: 'wallet_purchase', // Esto habilita la preferencia para ser usada con Bricks.
         items: cart.map(p => ({
-          id: p.id.toString(), // El ID debe ser un string
+          id: p.id.toString(),
           title: p.name,
-          quantity: Number(p.quantity), // Aseguramos que la cantidad sea un número
-          unit_price: Number(p.price), // <-- CORRECCIÓN CLAVE: Aseguramos que el precio sea un número
+          quantity: Number(p.quantity),
+          unit_price: Number(p.price),
           picture_url: p.imageUrl,
           category_id: p.category,
         })),
@@ -83,7 +85,6 @@ export const createPaymentPreference = async (req, res) => {
   } catch (error) {
     await dbClient.query('ROLLBACK');
     console.error('Error al crear la preferencia de pago:', error);
-    // Devuelve el mensaje de error de Mercado Pago si está disponible
     const errorMessage = error.cause?.message || error.message || 'Error interno del servidor.';
     res.status(500).json({ message: errorMessage });
   } finally {
@@ -91,9 +92,7 @@ export const createPaymentPreference = async (req, res) => {
   }
 };
 
-
-// --- Las demás funciones (getOrderHistory, getAllOrders, etc.) se mantienen igual ---
-
+// --- Las demás funciones se mantienen igual ---
 export const getOrderHistory = async (req, res) => {
   const userId = req.user.userId;
   try {
