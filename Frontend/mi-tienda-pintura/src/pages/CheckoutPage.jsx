@@ -1,42 +1,42 @@
 // src/pages/CheckoutPage.jsx
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Payment } from '@mercadopago/sdk-react';
+import { useNavigate, Link } from 'react-router-dom';
+import { CardPayment } from '@mercadopago/sdk-react';
 import { useCartStore } from '../stores/useCartStore';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useNotificationStore } from '../stores/useNotificationStore';
 import Spinner from '../components/Spinner.jsx';
+import CopyButton from '../components/CopyButton.jsx';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 const MIN_TRANSACTION_AMOUNT = 100;
 
 const CheckoutPage = () => {
   const { cart, shippingCost, postalCode, clearCart } = useCartStore();
-  const { token } = useAuthStore();
+  const { user, token } = useAuthStore();
   const showNotification = useNotificationStore(state => state.showNotification);
   
+  const [paymentMethod, setPaymentMethod] = useState('mercado_pago');
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState('');
-  const [preferenceId, setPreferenceId] = useState(null);
   const navigate = useNavigate();
 
   const subtotal = cart.reduce((total, item) => total + item.price * item.quantity, 0);
   const total = subtotal + shippingCost;
 
-  const handleCreatePreference = async () => {
+  const handlePayment = async (formData) => {
     setIsProcessing(true);
     setError('');
     try {
-      const response = await fetch(`${API_URL}/api/orders/create-payment-preference`, {
+      const response = await fetch(`${API_URL}/api/orders/process-payment`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ cart, total, shippingCost, postalCode }),
+        body: JSON.stringify({ ...formData, cart, transaction_amount: total, payer: { ...formData.payer, email: user.email } }),
       });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.message || 'No se pudo generar el link de pago.');
-      
-      setPreferenceId(data.preferenceId);
-
+      if (!response.ok) throw new Error(data.message || 'El pago fue rechazado.');
+      clearCart();
+      navigate(`/success?order_id=${data.orderId}`);
     } catch (err) {
       setError(err.message);
       showNotification(err.message, 'error');
@@ -45,31 +45,42 @@ const CheckoutPage = () => {
     }
   };
 
-  const initialization = {
-    amount: total,
-    preferenceId: preferenceId,
-  };
-  
-  // --- CORRECCIÓN CLAVE: Se elimina la personalización de 'paymentMethods' ---
-  // Dejamos que el Brick muestre automáticamente los métodos de pago
-  // disponibles en la preferencia creada en el backend.
-  const customization = {
-    visual: {
-      style: {
-        theme: 'bootstrap', // Puedes mantener otros estilos visuales
-      },
-    },
+  const handleBankTransfer = async () => {
+    setIsProcessing(true);
+    setError('');
+    try {
+        const response = await fetch(`${API_URL}/api/orders/bank-transfer`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ cart, total, shippingCost, postalCode }),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message || 'No se pudo crear la orden.');
+        
+        clearCart();
+        navigate(`/order-pending/${data.orderId}`);
+    } catch (err) {
+        setError(err.message);
+        showNotification(err.message, 'error');
+    } finally {
+        setIsProcessing(false);
+    }
   };
 
-  const handleOnSubmit = async ({ formData }) => {
-    console.log("Pago enviado, esperando redirección o webhook...", formData);
-    setIsProcessing(true);
+  const initialization = { amount: total, payer: { email: user?.email } };
+  const customization = {
+    visual: { style: { theme: 'bootstrap' } },
+    paymentMethods: { maxInstallments: 6, mercadoPago: ['wallet_purchase'] },
   };
-  
+
   const handleOnError = (err) => {
-    console.error('Error en el Payment Brick:', err);
-    showNotification('Ocurrió un error al procesar el pago.', 'error');
-    setIsProcessing(false);
+    console.error('Error en el brick de pago:', err);
+    let friendlyMessage = 'Error en el formulario de pago. Por favor, revisa los datos ingresados.';
+    if (err.message?.includes('empty_installments') || err.message?.includes('higher amount')) {
+      friendlyMessage = 'No hay cuotas disponibles para este monto o tarjeta. El monto puede ser muy bajo.';
+    }
+    setError(friendlyMessage);
+    showNotification(friendlyMessage, 'error');
   };
 
   return (
@@ -78,37 +89,52 @@ const CheckoutPage = () => {
       
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
         <div className="lg:col-span-2 bg-white p-8 rounded-lg shadow-md">
-          <h2 className="text-xl font-bold mb-4">Resumen y Método de Pago</h2>
+          <h2 className="text-xl font-bold mb-4">Selecciona tu método de pago</h2>
           
-          {preferenceId ? (
-            <div id="payment-brick-container">
-              <Payment
-                initialization={initialization}
-                customization={customization}
-                onSubmit={handleOnSubmit}
-                onError={handleOnError}
-                onReady={() => setIsProcessing(false)}
-              />
-            </div>
-          ) : (
-            <div>
-              <p className="text-gray-700 mb-6">Revisa tu pedido y haz clic en "Continuar al Pago" para elegir cómo pagar de forma segura con Mercado Pago (tarjeta, saldo en cuenta o transferencia).</p>
-              {total < MIN_TRANSACTION_AMOUNT && (
-                 <div className="text-center p-4 my-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                   <p className="text-yellow-700">El total de tu compra debe ser de al menos ${MIN_TRANSACTION_AMOUNT} para continuar.</p>
-                 </div>
+          <div className="flex space-x-4 mb-8 border-b pb-6">
+            <button onClick={() => setPaymentMethod('mercado_pago')} className={`px-6 py-3 rounded-lg font-semibold transition-all ${paymentMethod === 'mercado_pago' ? 'bg-[#0F3460] text-white shadow-lg' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}>
+              Tarjeta o Saldo en cuenta
+            </button>
+            <button onClick={() => setPaymentMethod('bank_transfer')} className={`px-6 py-3 rounded-lg font-semibold transition-all ${paymentMethod === 'bank_transfer' ? 'bg-[#0F3460] text-white shadow-lg' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}>
+              Transferencia Bancaria
+            </button>
+          </div>
+
+          {paymentMethod === 'mercado_pago' && (
+            <>
+              {total >= MIN_TRANSACTION_AMOUNT ? (
+                <CardPayment initialization={initialization} customization={customization} onSubmit={handlePayment} onReady={() => console.log('Brick de tarjeta listo')} onError={handleOnError} />
+              ) : (
+                <div className="text-center p-6 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <h3 className="text-xl font-semibold text-yellow-800">Monto mínimo no alcanzado</h3>
+                  <p className="text-yellow-700 mt-2">El total de tu compra debe ser de al menos ${MIN_TRANSACTION_AMOUNT} para pagar con este método.</p>
+                </div>
               )}
-              <button 
-                onClick={handleCreatePreference} 
-                disabled={isProcessing || total < MIN_TRANSACTION_AMOUNT}
-                className="w-full mt-6 bg-[#0F3460] text-white font-bold py-3 rounded-lg hover:bg-[#1a4a8a] transition-colors disabled:bg-gray-400 flex items-center justify-center"
-              >
-                {isProcessing ? <Spinner /> : 'Continuar al Pago'}
+            </>
+          )}
+
+          {paymentMethod === 'bank_transfer' && (
+            <div>
+              <h3 className="text-xl font-bold mb-4">Datos para la Transferencia</h3>
+              <div className="bg-gray-50 p-4 rounded-md space-y-2 text-gray-800">
+                <p><strong>Banco:</strong> Banco de la Plaza</p>
+                <p><strong>Titular:</strong> Pinturerías Mercurio S.A.</p>
+                <p><strong>CUIT:</strong> 30-12345678-9</p>
+                <p className="flex items-center"><strong>CBU/CVU:</strong> 0001112223334445556667 <CopyButton textToCopy="0001112223334445556667" /></p>
+                <p className="flex items-center"><strong>Alias:</strong> PINTU.MERCURIO.MP <CopyButton textToCopy="PINTU.MERCURIO.MP" /></p>
+                <p className="font-bold text-lg mt-2">Monto a transferir: ${new Intl.NumberFormat('es-AR').format(total)}</p>
+              </div>
+              <p className="text-sm text-gray-600 mt-4">Al confirmar, tu orden quedará pendiente y recibirás un email con estas instrucciones. El stock de tus productos será reservado por 48 horas.</p>
+              <button onClick={handleBankTransfer} disabled={isProcessing} className="w-full mt-6 bg-[#0F3460] text-white font-bold py-3 rounded-lg hover:bg-[#1a4a8a] transition-colors disabled:bg-gray-400">
+                {isProcessing ? <Spinner /> : 'Confirmar y Finalizar Compra'}
               </button>
             </div>
           )}
           
           {error && <p className="text-red-500 text-sm mt-4 text-center">{error}</p>}
+          {isProcessing && paymentMethod === 'mercado_pago' && (
+            <div className="flex justify-center items-center mt-4"><Spinner className="w-8 h-8 text-[#0F3460] mr-2" /><span>Procesando tu pago...</span></div>
+          )}
         </div>
 
         <div className="lg:col-span-1">
