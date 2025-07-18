@@ -21,7 +21,7 @@ const ProductDetailPage = lazy(() => import('./pages/ProductDetailPage.jsx'));
 const CartPage = lazy(() => import('./pages/CartPage.jsx'));
 const CheckoutPage = lazy(() => import('./pages/CheckoutPage.jsx'));
 const OrderSuccessPage = lazy(() => import('./pages/OrderSuccessPage.jsx'));
-const OrderPendingPage = lazy(() => import('./pages/OrderPendingPage.jsx')); // <-- NUEVA PÁGINA
+const OrderPendingPage = lazy(() => import('./pages/OrderPendingPage.jsx'));
 const SearchResultsPage = lazy(() => import('./pages/SearchResultsPage.jsx'));
 const CategoryPage = lazy(() => import('./pages/CategoryPage.jsx'));
 const LoginPage = lazy(() => import('./pages/LoginPage.jsx'));
@@ -43,14 +43,15 @@ if (MERCADOPAGO_PUBLIC_KEY) {
 }
 
 export default function App() {
-  const fetchProducts = useProductStore(state => state.fetchProducts);
+  // Se elimina la llamada a fetchProducts de aquí.
   const fetchAvailableBrands = useProductStore(state => state.fetchAvailableBrands);
   const { message: notificationMessage, show: showNotification, type: notificationType } = useNotificationStore();
 
   useEffect(() => {
-    fetchProducts({ page: 1 });
+    // La responsabilidad de cargar los productos ahora recae en cada página (HomePage, CategoryPage, etc.)
+    // Mantenemos la carga de las marcas aquí, ya que es un dato más global.
     fetchAvailableBrands();
-  }, [fetchProducts, fetchAvailableBrands]);
+  }, [fetchAvailableBrands]);
 
   return (
     <div className="bg-gray-50 min-h-screen font-sans flex flex-col relative">
@@ -77,7 +78,7 @@ export default function App() {
             <Route element={<ProtectedRoute />}>
               <Route path="/checkout" element={<CheckoutPage />} />
               <Route path="/my-orders" element={<OrderHistoryPage />} />
-              <Route path="/order-pending/:orderId" element={<OrderPendingPage />} /> {/* <-- NUEVA RUTA */}
+              <Route path="/order-pending/:orderId" element={<OrderPendingPage />} />
             </Route>
 
             <Route element={<AdminRoute />}>
