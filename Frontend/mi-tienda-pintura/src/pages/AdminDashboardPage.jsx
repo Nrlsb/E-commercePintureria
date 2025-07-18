@@ -28,7 +28,8 @@ const ICONS = {
     add: "M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z",
     edit: "M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34a.9959.9959 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z",
     delete: "M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z",
-    orders: "M13 2.05v3.03c3.39.49 6 3.39 6 6.92 0 .9-.18 1.75-.48 2.54l2.6 1.53c.56-1.24.88-2.62.88-4.07 0-5.18-3.95-9.45-9-9.95zM12 19c-3.87 0-7-3.13-7-7 0-3.53 2.61-6.43 6-6.92V2.05c-5.06.5-9 4.76-9 9.95 0 5.52 4.48 10 10 10 3.31 0 6.24-1.61 8.06-4.09l-2.6-1.53C16.17 17.98 14.21 19 12 19z"
+    orders: "M13 2.05v3.03c3.39.49 6 3.39 6 6.92 0 .9-.18 1.75-.48 2.54l2.6 1.53c.56-1.24.88-2.62.88-4.07 0-5.18-3.95-9.45-9-9.95zM12 19c-3.87 0-7-3.13-7-7 0-3.53 2.61-6.43 6-6.92V2.05c-5.06.5-9 4.76-9 9.95 0 5.52 4.48 10 10 10 3.31 0 6.24-1.61 8.06-4.09l-2.6-1.53C16.17 17.98 14.21 19 12 19z",
+    upload: "M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5v-2z" // <-- AÑADIDO
 };
 
 const AdminDashboardPage = () => {
@@ -44,8 +45,7 @@ const AdminDashboardPage = () => {
     const fetchData = async () => {
       try {
         const [productsResponse, ordersResponse] = await Promise.all([
-          // Se pide la primera página de productos para la vista general del dashboard
-          fetch(`${API_URL}/api/products?page=1&limit=100`), // Pedimos hasta 100 productos
+          fetch(`${API_URL}/api/products?page=1&limit=100`),
           fetch(`${API_URL}/api/orders/admin`, { headers: { 'Authorization': `Bearer ${token}` } })
         ]);
 
@@ -55,8 +55,6 @@ const AdminDashboardPage = () => {
         const productsData = await productsResponse.json();
         const ordersData = await ordersResponse.json();
         
-        // --- CORRECCIÓN CLAVE ---
-        // Se extrae el array 'products' del objeto de respuesta.
         setProducts(productsData.products);
         setOrders(ordersData);
 
@@ -106,6 +104,11 @@ const AdminDashboardPage = () => {
             <Link to="/admin/product/new" className="bg-green-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-600 transition-colors flex items-center justify-center space-x-2">
                 <Icon path={ICONS.add} className="w-5 h-5" />
                 <span>Crear Producto</span>
+            </Link>
+            {/* --- BOTÓN AÑADIDO --- */}
+            <Link to="/admin/product/bulk-upload" className="bg-purple-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-600 transition-colors flex items-center justify-center space-x-2">
+                <Icon path={ICONS.upload} className="w-5 h-5" />
+                <span>Carga Masiva</span>
             </Link>
         </div>
       </div>

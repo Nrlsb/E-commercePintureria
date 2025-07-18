@@ -13,7 +13,8 @@ import orderRoutes from './routes/order.routes.js';
 import paymentRoutes from './routes/payment.routes.js';
 import shippingRoutes from './routes/shipping.routes.js';
 import reviewRoutes from './routes/review.routes.js';
-import couponRoutes from './routes/coupons.routes.js'; // <-- NUEVO
+import couponRoutes from './routes/coupons.routes.js';
+import uploadRoutes from './routes/upload.routes.js'; // <-- AÑADIDO
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -48,6 +49,10 @@ app.use(cors(corsOptions));
 // --- Middlewares Globales ---
 app.use(express.json());
 
+// --- Servir archivos estáticos ---
+// Esto permite que el frontend acceda a las imágenes subidas en la carpeta 'public/uploads'
+app.use(express.static('public')); // <-- AÑADIDO
+
 // --- Montaje de Rutas ---
 app.use('/api/products', productRoutes);
 app.use('/api/auth', authRoutes);
@@ -55,7 +60,8 @@ app.use('/api/orders', orderRoutes);
 app.use('/api/shipping', shippingRoutes);
 app.use('/api/payment', paymentRoutes);
 app.use('/api/reviews', reviewRoutes);
-app.use('/api/coupons', couponRoutes); // <-- NUEVO
+app.use('/api/coupons', couponRoutes);
+app.use('/api/uploads', uploadRoutes); // <-- AÑADIDO
 
 
 // --- Inicio de Tareas Programadas ---

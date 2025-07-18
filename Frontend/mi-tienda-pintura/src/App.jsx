@@ -32,6 +32,7 @@ const OrderHistoryPage = lazy(() => import('./pages/OrderHistoryPage.jsx'));
 const AdminOrdersPage = lazy(() => import('./pages/AdminOrdersPage.jsx'));
 const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage.jsx'));
 const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage.jsx'));
+const BulkUploadPage = lazy(() => import('./pages/BulkUploadPage.jsx')); // <-- AÑADIDO
 
 
 const MERCADOPAGO_PUBLIC_KEY = import.meta.env.VITE_MERCADOPAGO_PUBLIC_KEY;
@@ -86,6 +87,7 @@ export default function App() {
               <Route path="/admin/orders" element={<AdminOrdersPage />} />
               <Route path="/admin/product/new" element={<ProductFormPage />} />
               <Route path="/admin/product/edit/:productId" element={<ProductFormPage />} />
+              <Route path="/admin/product/bulk-upload" element={<BulkUploadPage />} /> {/* <-- AÑADIDO */}
             </Route>
           </Routes>
         </Suspense>
