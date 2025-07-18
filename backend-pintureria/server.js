@@ -14,7 +14,10 @@ import paymentRoutes from './routes/payment.routes.js';
 import shippingRoutes from './routes/shipping.routes.js';
 import reviewRoutes from './routes/review.routes.js';
 import couponRoutes from './routes/coupons.routes.js';
-import uploadRoutes from './routes/upload.routes.js'; // <-- AÑADIDO
+import uploadRoutes from './routes/upload.routes.js';
+
+// --- NUEVO: Importación del manejador de errores ---
+import errorHandler from './middlewares/errorHandler.js';
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -50,8 +53,7 @@ app.use(cors(corsOptions));
 app.use(express.json());
 
 // --- Servir archivos estáticos ---
-// Esto permite que el frontend acceda a las imágenes subidas en la carpeta 'public/uploads'
-app.use(express.static('public')); // <-- AÑADIDO
+app.use(express.static('public'));
 
 // --- Montaje de Rutas ---
 app.use('/api/products', productRoutes);
@@ -61,12 +63,14 @@ app.use('/api/shipping', shippingRoutes);
 app.use('/api/payment', paymentRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/coupons', couponRoutes);
-app.use('/api/uploads', uploadRoutes); // <-- AÑADIDO
-
+app.use('/api/uploads', uploadRoutes);
 
 // --- Inicio de Tareas Programadas ---
 startCancelPendingOrdersJob();
 
+// --- NUEVO: Middleware de Manejo de Errores ---
+// Debe ser el último middleware que se añade a la aplicación.
+app.use(errorHandler);
 
 // --- Inicio del Servidor ---
 app.listen(PORT, () => {

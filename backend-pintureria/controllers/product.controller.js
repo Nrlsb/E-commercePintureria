@@ -3,7 +3,8 @@ import db from '../db.js';
 
 // --- Controladores de Productos ---
 
-export const getProducts = async (req, res) => {
+// Cada función ahora recibe 'next' para pasar los errores al middleware central.
+export const getProducts = async (req, res, next) => {
   try {
     const { category, sortBy, brands, minPrice, maxPrice, page = 1, limit = 12 } = req.query;
 
@@ -83,12 +84,12 @@ export const getProducts = async (req, res) => {
     });
 
   } catch (err) {
-    console.error('Error al obtener productos:', err);
-    res.status(500).json({ message: 'Error interno del servidor' });
+    // En lugar de responder aquí, pasamos el error al manejador central.
+    next(err);
   }
 };
 
-export const getProductById = async (req, res) => {
+export const getProductById = async (req, res, next) => {
   const { productId } = req.params;
   try {
     const query = `
@@ -108,8 +109,6 @@ export const getProductById = async (req, res) => {
         ...product, 
         imageUrl: product.image_url, 
         oldPrice: product.old_price,
-        // --- CORRECCIÓN AQUÍ ---
-        // Se cambió 'p' por 'product' para usar la variable correcta.
         averageRating: parseFloat(product.average_rating),
         reviewCount: parseInt(product.review_count, 10),
         stock: parseInt(product.stock, 10)
@@ -118,23 +117,21 @@ export const getProductById = async (req, res) => {
       res.status(404).json({ message: 'Producto no encontrado' });
     }
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: 'Error interno del servidor' });
+    next(err);
   }
 };
 
-export const getProductBrands = async (req, res) => {
+export const getProductBrands = async (req, res, next) => {
   try {
     const result = await db.query('SELECT DISTINCT brand FROM products ORDER BY brand ASC');
     const brands = result.rows.map(row => row.brand);
     res.json(brands);
   } catch (err) {
-    console.error('Error al obtener las marcas:', err);
-    res.status(500).json({ message: 'Error interno del servidor' });
+    next(err);
   }
 };
 
-export const createProduct = async (req, res) => {
+export const createProduct = async (req, res, next) => {
   const { name, brand, category, price, old_price, image_url, description, stock } = req.body;
   try {
     const result = await db.query(
@@ -143,12 +140,11 @@ export const createProduct = async (req, res) => {
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: 'Error al crear el producto' });
+    next(err);
   }
 };
 
-export const updateProduct = async (req, res) => {
+export const updateProduct = async (req, res, next) => {
   const { id } = req.params;
   const { name, brand, category, price, old_price, image_url, description, stock } = req.body;
   try {
@@ -161,12 +157,11 @@ export const updateProduct = async (req, res) => {
     }
     res.json(result.rows[0]);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: 'Error al actualizar el producto' });
+    next(err);
   }
 };
 
-export const deleteProduct = async (req, res) => {
+export const deleteProduct = async (req, res, next) => {
   const { id } = req.params;
   try {
     const orderItemsCheck = await db.query(
@@ -184,15 +179,14 @@ export const deleteProduct = async (req, res) => {
     }
     res.status(200).json({ message: 'Producto eliminado con éxito' });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: 'Error al eliminar el producto' });
+    next(err);
   }
 };
 
 
 // --- Controladores de Reseñas ---
 
-export const getProductReviews = async (req, res) => {
+export const getProductReviews = async (req, res, next) => {
   const { productId } = req.params;
   try {
     const query = `
@@ -205,12 +199,11 @@ export const getProductReviews = async (req, res) => {
     const result = await db.query(query, [productId]);
     res.json(result.rows);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: 'Error al obtener las reseñas' });
+    next(err);
   }
 };
 
-export const createProductReview = async (req, res) => {
+export const createProductReview = async (req, res, next) => {
   const { productId } = req.params;
   const { rating, comment } = req.body;
   const userId = req.user.userId;
@@ -224,15 +217,14 @@ export const createProductReview = async (req, res) => {
     const result = await db.query(query, [rating, comment, productId, userId]);
     res.status(201).json(result.rows[0]);
   } catch (err) {
-    console.error(err);
     if (err.code === '23505') { 
       return res.status(409).json({ message: 'Ya has enviado una reseña para este producto.' });
     }
-    res.status(500).json({ message: 'Error al crear la reseña' });
+    next(err);
   }
 };
 
-export const deleteReview = async (req, res) => {
+export const deleteReview = async (req, res, next) => {
   const { reviewId } = req.params;
   const { userId, role } = req.user;
 
@@ -254,7 +246,6 @@ export const deleteReview = async (req, res) => {
     res.status(204).send();
 
   } catch (err) {
-    console.error('Error al eliminar la reseña:', err);
-    res.status(500).json({ message: 'Error interno del servidor al eliminar la reseña.' });
+    next(err);
   }
 };
