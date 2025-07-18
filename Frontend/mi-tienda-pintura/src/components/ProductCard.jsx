@@ -6,31 +6,27 @@ import { ICONS } from '../data/icons.js';
 import StarRating from './StarRating.jsx';
 import { useCartStore } from '../stores/useCartStore.js';
 
-// 1. Obtenemos la URL base del backend desde las variables de entorno.
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
 const ProductCard = ({ product }) => {
   const addToCart = useCartStore(state => state.addToCart);
 
-  // 2. Construimos la URL completa de la imagen.
-  // Si la imageUrl ya es una URL completa (http...), la usamos directamente.
-  // Si no, le anteponemos la URL del backend.
   const fullImageUrl = product.imageUrl && product.imageUrl.startsWith('http')
     ? product.imageUrl
     : `${API_URL}${product.imageUrl}`;
 
   return (
     <div className="bg-white border border-gray-200 rounded-xl shadow-md hover:shadow-xl flex flex-col overflow-hidden transition-all duration-300 ease-in-out transform hover:-translate-y-1 group">
-      <Link to={`/product/${product.id}`} className="relative w-full h-56 cursor-pointer block">
+      <Link to={`/product/${product.id}`} className="relative w-full h-56 cursor-pointer block bg-white p-2">
         <img 
-          // 3. Usamos la URL completa que acabamos de construir.
           src={fullImageUrl} 
           alt={`Imagen de ${product.name}`} 
-          className="w-full h-full object-cover"
+          // --- CAMBIO CLAVE: De 'object-cover' a 'object-contain' ---
+          // Esto asegura que toda la imagen sea visible dentro del contenedor.
+          className="w-full h-full object-contain"
           loading="lazy"
           width="300"
           height="224"
-          // Añadimos un fallback por si la imagen falla en cargar
           onError={(e) => { e.target.onerror = null; e.target.src='https://placehold.co/300x224/cccccc/ffffff?text=Imagen+no+disponible'; }}
         />
       </Link>
