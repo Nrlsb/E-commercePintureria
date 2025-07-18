@@ -66,8 +66,11 @@ export const createPaymentPreference = async (req, res) => {
           surname: lastName,
           email: email,
         },
-        // --- CORRECCIÓN CLAVE: Especificar los métodos de pago aceptados ---
+        // --- CORRECCIÓN APLICADA ---
+        // Se habilitan explícitamente los métodos de pago con tarjeta.
         payment_methods: {
+          credit_card: {},
+          debit_card: {},
           excluded_payment_types: [
             { id: 'ticket' } // Excluimos pagos en efectivo por ahora para simplificar
           ],
