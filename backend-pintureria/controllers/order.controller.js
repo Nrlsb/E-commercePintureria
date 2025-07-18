@@ -52,8 +52,7 @@ export const createPaymentPreference = async (req, res) => {
     const preference = new Preference(client);
     const preferenceResponse = await preference.create({
       body: {
-        // --- CORRECCIÓN CLAVE: Añadir el propósito de la preferencia ---
-        purpose: 'wallet_purchase', // Esto habilita la preferencia para ser usada con Bricks.
+        purpose: 'wallet_purchase',
         items: cart.map(p => ({
           id: p.id.toString(),
           title: p.name,
@@ -66,6 +65,13 @@ export const createPaymentPreference = async (req, res) => {
           name: firstName,
           surname: lastName,
           email: email,
+        },
+        // --- CORRECCIÓN CLAVE: Especificar los métodos de pago aceptados ---
+        payment_methods: {
+          excluded_payment_types: [
+            { id: 'ticket' } // Excluimos pagos en efectivo por ahora para simplificar
+          ],
+          installments: 12 // Número máximo de cuotas
         },
         back_urls: {
           success: `${process.env.VITE_FRONTEND_URL}/success`,
