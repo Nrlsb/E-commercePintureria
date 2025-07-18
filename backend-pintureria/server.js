@@ -15,8 +15,6 @@ import shippingRoutes from './routes/shipping.routes.js';
 import reviewRoutes from './routes/review.routes.js';
 import couponRoutes from './routes/coupons.routes.js';
 import uploadRoutes from './routes/upload.routes.js';
-
-// --- NUEVO: Importación del manejador de errores ---
 import errorHandler from './middlewares/errorHandler.js';
 
 const app = express();
@@ -50,7 +48,12 @@ const corsOptions = {
 app.use(cors(corsOptions));
 
 // --- Middlewares Globales ---
-app.use(express.json());
+
+// --- CORRECCIÓN: Aumentamos el límite del tamaño del payload ---
+// Esto permite que el servidor acepte las imágenes en formato Base64 para el análisis de IA.
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ limit: '10mb', extended: true }));
+
 
 // --- Servir archivos estáticos ---
 app.use(express.static('public'));
@@ -68,8 +71,7 @@ app.use('/api/uploads', uploadRoutes);
 // --- Inicio de Tareas Programadas ---
 startCancelPendingOrdersJob();
 
-// --- NUEVO: Middleware de Manejo de Errores ---
-// Debe ser el último middleware que se añade a la aplicación.
+// --- Middleware de Manejo de Errores ---
 app.use(errorHandler);
 
 // --- Inicio del Servidor ---
