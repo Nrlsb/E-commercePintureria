@@ -3,7 +3,7 @@ import multer from 'multer';
 import path from 'path';
 import db from '../db.js';
 import fs from 'fs';
-import sharp from 'sharp'; // 1. Importamos la librería sharp
+import sharp from 'sharp';
 
 // Asegurarse de que el directorio de subida exista
 const uploadDir = 'public/uploads/';
@@ -11,16 +11,19 @@ if (!fs.existsSync(uploadDir)){
     fs.mkdirSync(uploadDir, { recursive: true });
 }
 
-// 2. Usamos 'memoryStorage' para que Multer mantenga los archivos en un buffer en memoria.
-// Esto nos permite procesarlos con sharp antes de guardarlos en el disco.
+// Usamos 'memoryStorage' para que Multer mantenga los archivos en un buffer en memoria.
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
-// Middleware para procesar hasta 50 imágenes a la vez
-export const uploadImages = upload.array('productImages', 50);
+// Middleware para procesar múltiples imágenes (para la carga masiva existente)
+export const uploadMultipleImages = upload.array('productImages', 50);
 
-// 3. Nueva función controladora que procesa, guarda y asocia las imágenes.
+// --- NUEVO: Middleware para procesar una sola imagen ---
+export const uploadSingleImage = upload.single('productImage');
+
+// Controlador para la carga masiva (sin cambios en su lógica interna por ahora)
 export const processAndAssociateImages = async (req, res, next) => {
+  // ... (código existente de la carga masiva)
   if (!req.files || req.files.length === 0) {
     return res.status(400).json({ message: 'No se subieron archivos.' });
   }
@@ -31,22 +34,17 @@ export const processAndAssociateImages = async (req, res, next) => {
   };
 
   for (const file of req.files) {
-    // Extraemos el ID del producto del nombre del archivo original (ej: "123.jpg")
     const productId = path.basename(file.originalname, path.extname(file.originalname)).split('_')[0];
-    
-    // Generamos un nuevo nombre de archivo con la extensión .webp
     const newFilename = `${productId}_${Date.now()}.webp`;
     const outputPath = path.join(uploadDir, newFilename);
-    const imageUrl = `/uploads/${newFilename}`; // URL relativa para la base de datos
+    const imageUrl = `/uploads/${newFilename}`;
 
     try {
-      // 4. Usamos sharp para procesar la imagen desde el buffer
       await sharp(file.buffer)
-        .resize(800, 800, { fit: 'inside', withoutEnlargement: true }) // Redimensiona si es más grande de 800x800
-        .toFormat('webp', { quality: 80 }) // Convierte a formato WebP con 80% de calidad
-        .toFile(outputPath); // Guarda la imagen procesada en el disco
+        .resize(800, 800, { fit: 'inside', withoutEnlargement: true })
+        .toFormat('webp', { quality: 80 })
+        .toFile(outputPath);
 
-      // 5. Actualizamos la URL de la imagen para el producto correspondiente en la BD
       const result = await db.query(
         'UPDATE products SET image_url = $1 WHERE id = $2 RETURNING id',
         [imageUrl, productId]
@@ -55,12 +53,10 @@ export const processAndAssociateImages = async (req, res, next) => {
       if (result.rowCount > 0) {
         results.success.push(`${file.originalname} -> ${newFilename}`);
       } else {
-        // Si el producto no se encuentra, eliminamos la imagen que acabamos de crear.
         fs.unlinkSync(outputPath); 
         results.failed.push({ file: file.originalname, reason: 'Producto no encontrado' });
       }
     } catch (error) {
-      // Si hay un error en el procesamiento, lo capturamos.
       results.failed.push({ file: file.originalname, reason: error.message });
     }
   }
@@ -69,4 +65,32 @@ export const processAndAssociateImages = async (req, res, next) => {
     message: 'Proceso de carga y optimización completado.',
     ...results
   });
+};
+
+
+// --- NUEVO: Controlador para subir y optimizar una sola imagen ---
+export const handleSingleImageUpload = async (req, res, next) => {
+  if (!req.file) {
+    return res.status(400).json({ message: 'No se subió ningún archivo.' });
+  }
+
+  try {
+    // Generamos un nombre de archivo único para evitar colisiones
+    const originalName = path.parse(req.file.originalname).name;
+    const newFilename = `${originalName}-${Date.now()}.webp`;
+    const outputPath = path.join(uploadDir, newFilename);
+    const imageUrl = `/uploads/${newFilename}`;
+
+    // Procesamos la imagen con sharp
+    await sharp(req.file.buffer)
+      .resize(800, 800, { fit: 'inside', withoutEnlargement: true })
+      .toFormat('webp', { quality: 80 })
+      .toFile(outputPath);
+
+    // Devolvemos la URL pública de la imagen recién creada
+    res.status(201).json({ imageUrl });
+
+  } catch (error) {
+    next(error); // Pasamos el error al manejador central
+  }
 };
