@@ -8,14 +8,17 @@ import Icon from '../components/Icon';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
-// --- NUEVO: Componente para la subida de imagen ---
-const ImageUploader = ({ imageUrl, onUploadSuccess, token }) => {
+// --- Componente para la subida de imagen (Modificado para pasar el archivo) ---
+const ImageUploader = ({ imageUrl, onUploadSuccess, onFileSelect, token }) => {
   const [uploading, setUploading] = useState(false);
   const showNotification = useNotificationStore(state => state.showNotification);
 
   const handleFileChange = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
+
+    // Pasamos el archivo al componente padre para el análisis de IA
+    onFileSelect(file);
 
     setUploading(true);
     const formData = new FormData();
@@ -24,18 +27,14 @@ const ImageUploader = ({ imageUrl, onUploadSuccess, token }) => {
     try {
       const response = await fetch(`${API_URL}/api/uploads/single`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
+        headers: { 'Authorization': `Bearer ${token}` },
         body: formData,
       });
 
       const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.message || 'Error al subir la imagen');
-      }
+      if (!response.ok) throw new Error(data.message || 'Error al subir la imagen');
       
-      onUploadSuccess(data.imageUrl); // Notificamos al padre con la nueva URL
+      onUploadSuccess(data.imageUrl);
       showNotification('Imagen subida y optimizada con éxito.', 'success');
     } catch (err) {
       showNotification(err.message, 'error');
@@ -73,15 +72,9 @@ const ImageUploader = ({ imageUrl, onUploadSuccess, token }) => {
             className={`flex items-center justify-center px-4 py-2 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors ${uploading ? 'bg-gray-200 cursor-not-allowed' : ''}`}
           >
             {uploading ? (
-              <>
-                <Spinner className="w-5 h-5 mr-2 text-gray-600" />
-                <span>Subiendo...</span>
-              </>
+              <><Spinner className="w-5 h-5 mr-2 text-gray-600" /><span>Subiendo...</span></>
             ) : (
-              <>
-                <Icon path="M9 16h6v-6h4l-7-7-7-7h4v6zm-4 2h14v2H5v-2z" className="w-5 h-5 mr-2" />
-                <span>Cambiar Imagen</span>
-              </>
+              <><Icon path="M9 16h6v-6h4l-7-7-7-7h4v6zm-4 2h14v2H5v-2z" className="w-5 h-5 mr-2" /><span>Cambiar Imagen</span></>
             )}
           </label>
         </div>
@@ -103,30 +96,26 @@ const ProductFormPage = () => {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [isAiLoading, setIsAiLoading] = useState(false);
+  const [uploadedImageFile, setUploadedImageFile] = useState(null);
 
   const isEditing = Boolean(productId);
 
   useEffect(() => {
     if (isEditing) {
       setLoading(true);
-      const fetchProduct = async () => {
-        try {
-          const response = await fetch(`${API_URL}/api/products/${productId}`);
-          if (!response.ok) throw new Error('No se pudo cargar el producto.');
-          const data = await response.json();
-          setProduct({
+      fetch(`${API_URL}/api/products/${productId}`)
+        .then(res => res.ok ? res.json() : Promise.reject(new Error('No se pudo cargar el producto.')))
+        .then(data => setProduct({
             name: data.name || '', brand: data.brand || '', category: data.category || '',
             price: data.price || '', old_price: data.old_price || '', image_url: data.image_url || '',
             description: data.description || '', stock: data.stock || 0,
-          });
-        } catch (err) {
-          setError(err.message);
-          showNotification(err.message, 'error');
-        } finally {
-          setLoading(false);
-        }
-      };
-      fetchProduct();
+        }))
+        .catch(err => {
+            setError(err.message);
+            showNotification(err.message, 'error');
+        })
+        .finally(() => setLoading(false));
     }
   }, [productId, isEditing, showNotification]);
 
@@ -138,6 +127,48 @@ const ProductFormPage = () => {
   const handleImageUploadSuccess = (newImageUrl) => {
     setProduct(prev => ({ ...prev, image_url: newImageUrl }));
   };
+  
+  const fileToBase64 = (file) => new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result.split(',')[1]);
+      reader.onerror = error => reject(error);
+  });
+
+  const handleAIDataGeneration = async () => {
+    if (!uploadedImageFile) {
+        showNotification('Primero debes seleccionar una imagen.', 'error');
+        return;
+    }
+    setIsAiLoading(true);
+    try {
+        const base64ImageData = await fileToBase64(uploadedImageFile);
+        const response = await fetch(`${API_URL}/api/uploads/analyze-image`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ imageData: base64ImageData, mimeType: uploadedImageFile.type })
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message || 'La IA no pudo procesar la imagen.');
+
+        setProduct(prev => ({
+            ...prev,
+            name: data.name || prev.name,
+            description: data.description || prev.description,
+            category: data.category || prev.category,
+        }));
+        showNotification('Datos generados por IA.', 'success');
+
+    } catch (err) {
+        showNotification(err.message, 'error');
+    } finally {
+        setIsAiLoading(false);
+    }
+  };
+
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -198,16 +229,33 @@ const ProductFormPage = () => {
               <InputField label="Precio Anterior (Opcional)" name="old_price" type="number" value={product.old_price} onChange={handleChange} step="0.01" />
             </div>
 
-            {/* --- Componente de subida de imagen reemplaza el input de URL --- */}
             <ImageUploader 
               imageUrl={product.image_url} 
               onUploadSuccess={handleImageUploadSuccess}
+              onFileSelect={setUploadedImageFile}
               token={token}
             />
+            
+            <button
+                type="button"
+                onClick={handleAIDataGeneration}
+                disabled={!uploadedImageFile || isAiLoading}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-purple-600 text-white font-semibold rounded-lg hover:bg-purple-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+            >
+                {isAiLoading ? (
+                    <><Spinner /><span>Analizando imagen...</span></>
+                ) : (
+                    <>
+                        <Icon path="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z" className="w-5 h-5" />
+                        <span>Generar datos con IA</span>
+                    </>
+                )}
+            </button>
+
 
             <div>
               <label className="block mb-2 font-medium text-gray-700">Descripción</label>
-              <textarea name="description" value={product.description} onChange={handleChange} className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0F3460]" rows="4" required></textarea>
+              <textarea name="description" value={product.description} onChange={handleChange} className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0F3460]" rows="6" required></textarea>
             </div>
             
             {error && <p className="text-red-500 text-sm text-center col-span-2">{error}</p>}

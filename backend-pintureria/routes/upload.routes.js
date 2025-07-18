@@ -3,17 +3,21 @@ import { Router } from 'express';
 import { 
   uploadMultipleImages, 
   processAndAssociateImages,
-  uploadSingleImage,          // <-- NUEVO: Importamos el middleware
-  handleSingleImageUpload     // <-- NUEVO: Importamos el controlador
+  uploadSingleImage,
+  handleSingleImageUpload,
+  analyzeImageWithAI // <-- NUEVO: Importamos el controlador de IA
 } from '../controllers/upload.controller.js';
 import { authenticateToken, isAdmin } from '../middlewares/auth.middleware.js';
 
 const router = Router();
 
-// Endpoint para la carga masiva (se mantiene igual)
+// Endpoint para la carga masiva
 router.post('/', [authenticateToken, isAdmin, uploadMultipleImages], processAndAssociateImages);
 
-// --- NUEVO: Endpoint para subir una sola imagen desde el formulario del producto ---
+// Endpoint para subir una sola imagen desde el formulario
 router.post('/single', [authenticateToken, isAdmin, uploadSingleImage], handleSingleImageUpload);
+
+// --- NUEVO: Endpoint para analizar la imagen con IA ---
+router.post('/analyze-image', [authenticateToken, isAdmin], analyzeImageWithAI);
 
 export default router;
