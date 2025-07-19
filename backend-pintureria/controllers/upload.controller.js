@@ -19,7 +19,7 @@ export const analyzeImageWithAI = async (req, res, next) => { /* ... */ };
 export const bulkCreateProductsWithAI = async (req, res, next) => { /* ... */ };
 
 
-// --- Controlador para Asociación Masiva con IA (Búsqueda por Marca y Nombre) ---
+// --- Controlador para Asociación Masiva con IA (Búsqueda Flexible) ---
 export const bulkAssociateImagesWithAI = async (req, res, next) => {
     if (!req.files || req.files.length === 0) {
         return res.status(400).json({ message: 'No se subieron archivos.' });
@@ -32,7 +32,6 @@ export const bulkAssociateImagesWithAI = async (req, res, next) => {
     }
 
     try {
-        // Obtenemos todas las marcas una sola vez para optimizar
         const brandsResult = await db.query('SELECT DISTINCT brand FROM products');
         const allBrands = brandsResult.rows.map(row => row.brand.toLowerCase());
 
@@ -47,7 +46,6 @@ export const bulkAssociateImagesWithAI = async (req, res, next) => {
                 
                 const keywords = aiData.name.toLowerCase().split(' ').filter(kw => kw.length > 2);
                 
-                // Separamos la marca de las otras palabras clave
                 let brandKeyword = null;
                 const nameKeywords = [];
                 for (const kw of keywords) {
@@ -58,11 +56,11 @@ export const bulkAssociateImagesWithAI = async (req, res, next) => {
                     }
                 }
 
-                if (nameKeywords.length === 0) {
+                if (nameKeywords.length === 0 && !brandKeyword) {
                     throw new Error(`La IA no pudo extraer palabras clave del nombre: "${aiData.name}"`);
                 }
 
-                // Construimos una consulta mucho más estricta
+                // --- INICIO DE LA BÚSQUEDA FLEXIBLE ---
                 const queryParams = [];
                 const whereClauses = [];
                 let paramIndex = 1;
@@ -71,12 +69,14 @@ export const bulkAssociateImagesWithAI = async (req, res, next) => {
                     whereClauses.push(`p.brand ILIKE $${paramIndex++}`);
                     queryParams.push(brandKeyword);
                 }
-
-                for (const kw of nameKeywords) {
-                    whereClauses.push(`p.name ILIKE $${paramIndex++}`);
-                    queryParams.push(`%${kw}%`);
+                
+                // Buscamos que el nombre contenga AL MENOS UNA de las palabras clave
+                if (nameKeywords.length > 0) {
+                    const nameConditions = nameKeywords.map(() => `p.name ILIKE $${paramIndex++}`);
+                    whereClauses.push(`(${nameConditions.join(' OR ')})`);
+                    nameKeywords.forEach(kw => queryParams.push(`%${kw}%`));
                 }
-
+                
                 const sqlQuery = `
                   SELECT id, name, brand 
                   FROM products p
@@ -85,6 +85,7 @@ export const bulkAssociateImagesWithAI = async (req, res, next) => {
                 `;
 
                 const searchResult = await db.query(sqlQuery, queryParams);
+                // --- FIN DE LA BÚSQUEDA FLEXIBLE ---
 
                 if (searchResult.rows.length === 0) {
                     throw new Error(`No se encontró un producto que coincida con la marca "${brandKeyword || 'N/A'}" y las palabras clave: "${nameKeywords.join(', ')}".`);
