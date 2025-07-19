@@ -19,7 +19,7 @@ export const analyzeImageWithAI = async (req, res, next) => { /* ... */ };
 export const bulkCreateProductsWithAI = async (req, res, next) => { /* ... */ };
 
 
-// --- NUEVO: Controlador para Asociación Masiva de Imágenes con IA ---
+// --- Controlador para Asociación Masiva con IA (Búsqueda Mejorada) ---
 export const bulkAssociateImagesWithAI = async (req, res, next) => {
     if (!req.files || req.files.length === 0) {
         return res.status(400).json({ message: 'No se subieron archivos.' });
@@ -33,28 +33,39 @@ export const bulkAssociateImagesWithAI = async (req, res, next) => {
 
     for (const file of req.files) {
         try {
-            // 1. Analizar la imagen con IA para obtener el nombre del producto
+            // 1. Analizar la imagen con IA
             const base64ImageData = file.buffer.toString('base64');
             const aiData = await getAIDataForImage(base64ImageData, file.mimetype, apiKey);
 
             if (!aiData.name) {
-                throw new Error('La IA no pudo identificar un nombre para el producto en la imagen.');
+                throw new Error('La IA no pudo identificar un nombre para el producto.');
             }
 
-            // 2. Buscar un producto existente que coincida con el nombre generado por la IA
-            // Usamos ILIKE para una búsqueda flexible y tomamos el primer resultado como el más probable.
-            const searchResult = await db.query(
-                "SELECT id, name FROM products WHERE name ILIKE $1 LIMIT 1",
-                [`%${aiData.name}%`]
-            );
+            // --- INICIO DE LA MEJORA EN LA BÚSQUEDA ---
+            
+            // 2. Descomponer el nombre de la IA en palabras clave
+            const keywords = aiData.name.split(' ').filter(kw => kw.length > 2); // Ignorar palabras cortas
+            if (keywords.length === 0) {
+                throw new Error('No se generaron suficientes palabras clave a partir del nombre de la IA.');
+            }
+
+            // 3. Construir una consulta SQL dinámica que busque productos que contengan TODAS las palabras clave
+            const whereClauses = keywords.map((kw, index) => `name ILIKE $${index + 1}`);
+            const queryParams = keywords.map(kw => `%${kw}%`);
+            
+            const sqlQuery = `SELECT id, name FROM products WHERE ${whereClauses.join(' AND ')} LIMIT 1`;
+
+            const searchResult = await db.query(sqlQuery, queryParams);
+            
+            // --- FIN DE LA MEJORA EN LA BÚSQUEDA ---
 
             if (searchResult.rows.length === 0) {
-                throw new Error(`No se encontró un producto que coincida con "${aiData.name}".`);
+                throw new Error(`No se encontró un producto que coincida con las palabras clave: "${keywords.join(', ')}".`);
             }
             
             const matchedProduct = searchResult.rows[0];
 
-            // 3. Procesar y guardar la imagen
+            // 4. Procesar y guardar la imagen
             const newFilename = `${matchedProduct.id}-${Date.now()}.webp`;
             const outputPath = path.join(uploadDir, newFilename);
             const imageUrl = `/uploads/${newFilename}`;
@@ -64,7 +75,7 @@ export const bulkAssociateImagesWithAI = async (req, res, next) => {
                 .toFormat('webp', { quality: 80 })
                 .toFile(outputPath);
             
-            // 4. Actualizar el producto encontrado con la nueva URL de la imagen
+            // 5. Actualizar el producto encontrado con la nueva URL de la imagen
             await db.query('UPDATE products SET image_url = $1 WHERE id = $2', [imageUrl, matchedProduct.id]);
 
             results.success.push({
