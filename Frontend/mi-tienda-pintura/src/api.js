@@ -13,26 +13,35 @@ useAuthStore.subscribe(
 );
 
 const refreshToken = async () => {
+  console.log('%c[Auth] Intentando refrescar el token...', 'color: blue; font-weight: bold;');
   try {
-    // --- CORRECCIÓN: Añadir 'credentials: include' para enviar la cookie ---
     const response = await fetch(`${API_URL}/api/auth/refresh`, {
       method: 'GET',
       credentials: 'include', // ¡Esta línea es crucial!
     });
+
+    console.log('[Auth] Respuesta del servidor al refrescar:', response.status, response.statusText);
+
     if (!response.ok) {
+      const errorText = await response.text();
+      console.error('[Auth] Falló el refresco del token. Respuesta:', errorText);
       throw new Error('Could not refresh token');
     }
+    
     const data = await response.json();
+    console.log('%c[Auth] Token refrescado exitosamente.', 'color: green; font-weight: bold;');
     useAuthStore.getState().login(data.accessToken, data.user);
     return data.accessToken;
   } catch (error) {
-    // Si el refresco falla, deslogueamos al usuario
+    console.error('%c[Auth] Error catastrófico en refreshToken. Deslogueando...', 'color: red; font-weight: bold;', error);
     useAuthStore.getState().logout();
     return null;
   }
 };
 
 export const apiFetch = async (url, options = {}) => {
+  console.log(`[API Fetch] Petición a: ${url} con token: ${accessToken ? accessToken.substring(0, 15) + '...' : 'null'}`);
+  
   const headers = {
     ...options.headers,
     'Authorization': `Bearer ${accessToken}`,
@@ -42,22 +51,27 @@ export const apiFetch = async (url, options = {}) => {
     headers['Content-Type'] = 'application/json';
   }
 
-  // --- CORRECCIÓN: Añadir 'credentials: include' a todas las peticiones autenticadas ---
   const fetchOptions = {
     ...options,
     headers,
-    credentials: 'include', // Asegura que las cookies se envíen siempre
+    credentials: 'include',
   };
 
   let response = await fetch(`${API_URL}${url}`, fetchOptions);
+  
+  console.log(`[API Fetch] Respuesta inicial para ${url}:`, response.status, response.statusText);
 
-  // Si el token de acceso expiró (403), intentamos refrescarlo
   if (response.status === 403) {
+    console.warn(`[API Fetch] Token expirado (403) para ${url}. Intentando refrescar.`);
     const newAccessToken = await refreshToken();
+
     if (newAccessToken) {
-      // Reintentamos la petición original con el nuevo token
+      console.log(`[API Fetch] Reintentando petición a ${url} con nuevo token.`);
       fetchOptions.headers['Authorization'] = `Bearer ${newAccessToken}`;
       response = await fetch(`${API_URL}${url}`, fetchOptions);
+      console.log(`[API Fetch] Respuesta del reintento para ${url}:`, response.status, response.statusText);
+    } else {
+       console.error(`[API Fetch] No se pudo obtener un nuevo token. La petición a ${url} falló.`);
     }
   }
 
