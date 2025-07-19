@@ -20,7 +20,6 @@ const StatCard = ({ title, value, icon, color }) => (
   </div>
 );
 
-// --- Se añade el ícono de IA ---
 const ICONS = {
     box: "M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16zM12 12.78l-7-4V10l7 4.22V18l-7-4v-1.54l7 4zM13 18v-4.22l7-4V10l-7 4zM12 2.22L18.09 6 12 9.78 5.91 6 12 2.22z",
     clipboardList: "M19 3h-4.18C14.4 1.84 13.3 1 12 1s-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm2 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z",
@@ -48,16 +47,12 @@ const AdminDashboardPage = () => {
           fetch(`${API_URL}/api/products?page=1&limit=100`),
           fetch(`${API_URL}/api/orders/admin`, { headers: { 'Authorization': `Bearer ${token}` } })
         ]);
-
         if (!productsResponse.ok) throw new Error('Error al cargar los productos');
         if (!ordersResponse.ok) throw new Error('Error al cargar las órdenes');
-
         const productsData = await productsResponse.json();
         const ordersData = await ordersResponse.json();
-        
         setProducts(productsData.products);
         setOrders(ordersData);
-
       } catch (err) {
         setError(err.message);
       } finally {
@@ -96,7 +91,7 @@ const AdminDashboardPage = () => {
     <div className="container mx-auto px-4 py-8">
       <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-8 gap-4">
         <h1 className="text-3xl font-bold text-gray-800">Panel de Administración</h1>
-        <div className="flex flex-col sm:flex-row gap-2 sm:gap-4">
+        <div className="flex flex-wrap gap-2 sm:gap-4">
             <Link to="/admin/orders" className="bg-blue-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center space-x-2">
                 <Icon path={ICONS.orders} className="w-5 h-5" />
                 <span>Gestionar Órdenes</span>
@@ -105,19 +100,23 @@ const AdminDashboardPage = () => {
                 <Icon path={ICONS.add} className="w-5 h-5" />
                 <span>Crear Producto</span>
             </Link>
-            {/* --- Se añade el nuevo botón para la creación masiva con IA --- */}
             <Link to="/admin/product/bulk-create-ai" className="bg-purple-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-600 transition-colors flex items-center justify-center space-x-2">
                 <Icon path={ICONS.sparkles} className="w-5 h-5" />
                 <span>Creación Masiva con IA</span>
             </Link>
+            {/* --- NUEVO BOTÓN --- */}
+            <Link to="/admin/product/bulk-associate-ai" className="bg-teal-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-teal-600 transition-colors flex items-center justify-center space-x-2">
+                <Icon path={ICONS.sparkles} className="w-5 h-5" />
+                <span>Asociación Masiva con IA</span>
+            </Link>
         </div>
       </div>
 
+      {/* ... resto del JSX sin cambios ... */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <StatCard title="Total de Productos" value={products.length} icon={ICONS.box} color="bg-blue-500" />
         <StatCard title="Total de Órdenes" value={orders.length} icon={ICONS.clipboardList} color="bg-green-500" />
       </div>
-      
       <div className="bg-white p-6 rounded-lg shadow-md overflow-x-auto">
         <h2 className="text-2xl font-bold mb-4 text-gray-700">Gestión de Productos</h2>
         <table className="w-full text-left table-auto">

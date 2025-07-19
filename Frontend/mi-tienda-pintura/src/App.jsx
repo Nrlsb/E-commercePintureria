@@ -33,8 +33,9 @@ const AdminOrdersPage = lazy(() => import('./pages/AdminOrdersPage.jsx'));
 const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage.jsx'));
 const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage.jsx'));
 const BulkUploadPage = lazy(() => import('./pages/BulkUploadPage.jsx'));
-// --- Se importa la nueva página ---
 const BulkCreateAIPage = lazy(() => import('./pages/BulkCreateAIPage.jsx'));
+// --- Se importa la nueva página ---
+const BulkAssociateAIPage = lazy(() => import('./pages/BulkAssociateAIPage.jsx'));
 
 
 const MERCADOPAGO_PUBLIC_KEY = import.meta.env.VITE_MERCADOPAGO_PUBLIC_KEY;
@@ -90,8 +91,9 @@ export default function App() {
               <Route path="/admin/product/new" element={<ProductFormPage />} />
               <Route path="/admin/product/edit/:productId" element={<ProductFormPage />} />
               <Route path="/admin/product/bulk-upload" element={<BulkUploadPage />} />
-              {/* --- Se añade la nueva ruta --- */}
               <Route path="/admin/product/bulk-create-ai" element={<BulkCreateAIPage />} />
+              {/* --- Se añade la nueva ruta --- */}
+              <Route path="/admin/product/bulk-associate-ai" element={<BulkAssociateAIPage />} />
             </Route>
           </Routes>
         </Suspense>

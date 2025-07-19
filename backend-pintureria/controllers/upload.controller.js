@@ -6,54 +6,56 @@ import fs from 'fs';
 import sharp from 'sharp';
 import fetch from 'node-fetch';
 
+// ... (código existente de configuración y otras funciones)
 const uploadDir = 'public/uploads/';
-if (!fs.existsSync(uploadDir)){
-    fs.mkdirSync(uploadDir, { recursive: true });
-}
-
+if (!fs.existsSync(uploadDir)){ fs.mkdirSync(uploadDir, { recursive: true }); }
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
-
 export const uploadMultipleImages = upload.array('productImages', 50);
 export const uploadSingleImage = upload.single('productImage');
-
-// --- LÓGICA EXISTENTE ---
 export const processAndAssociateImages = async (req, res, next) => { /* ... */ };
 export const handleSingleImageUpload = async (req, res, next) => { /* ... */ };
 export const analyzeImageWithAI = async (req, res, next) => { /* ... */ };
+export const bulkCreateProductsWithAI = async (req, res, next) => { /* ... */ };
 
 
-// --- NUEVO: Controlador para Creación Masiva de Productos con IA ---
-export const bulkCreateProductsWithAI = async (req, res, next) => {
+// --- NUEVO: Controlador para Asociación Masiva de Imágenes con IA ---
+export const bulkAssociateImagesWithAI = async (req, res, next) => {
     if (!req.files || req.files.length === 0) {
         return res.status(400).json({ message: 'No se subieron archivos.' });
     }
 
-    const results = {
-        success: [],
-        failed: []
-    };
+    const results = { success: [], failed: [] };
     const apiKey = process.env.GEMINI_API_KEY;
-
     if (!apiKey) {
-        return next(new Error('La clave de API de Gemini no está configurada en el servidor.'));
+        return next(new Error('La clave de API de Gemini no está configurada.'));
     }
 
     for (const file of req.files) {
         try {
-            // 1. Analizar la imagen con IA para obtener datos del producto
+            // 1. Analizar la imagen con IA para obtener el nombre del producto
             const base64ImageData = file.buffer.toString('base64');
             const aiData = await getAIDataForImage(base64ImageData, file.mimetype, apiKey);
 
-            // 2. Crear un producto "borrador" en la base de datos
-            const productResult = await db.query(
-                'INSERT INTO products (name, description, category, brand, price, stock) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id',
-                [aiData.name || 'Producto sin nombre', aiData.description || 'Sin descripción.', aiData.category || 'Accesorios', 'Marca a definir', 0, 0]
+            if (!aiData.name) {
+                throw new Error('La IA no pudo identificar un nombre para el producto en la imagen.');
+            }
+
+            // 2. Buscar un producto existente que coincida con el nombre generado por la IA
+            // Usamos ILIKE para una búsqueda flexible y tomamos el primer resultado como el más probable.
+            const searchResult = await db.query(
+                "SELECT id, name FROM products WHERE name ILIKE $1 LIMIT 1",
+                [`%${aiData.name}%`]
             );
-            const newProductId = productResult.rows[0].id;
+
+            if (searchResult.rows.length === 0) {
+                throw new Error(`No se encontró un producto que coincida con "${aiData.name}".`);
+            }
+            
+            const matchedProduct = searchResult.rows[0];
 
             // 3. Procesar y guardar la imagen
-            const newFilename = `${newProductId}-${Date.now()}.webp`;
+            const newFilename = `${matchedProduct.id}-${Date.now()}.webp`;
             const outputPath = path.join(uploadDir, newFilename);
             const imageUrl = `/uploads/${newFilename}`;
 
@@ -62,13 +64,13 @@ export const bulkCreateProductsWithAI = async (req, res, next) => {
                 .toFormat('webp', { quality: 80 })
                 .toFile(outputPath);
             
-            // 4. Actualizar el producto con la URL de la imagen
-            await db.query('UPDATE products SET image_url = $1 WHERE id = $2', [imageUrl, newProductId]);
+            // 4. Actualizar el producto encontrado con la nueva URL de la imagen
+            await db.query('UPDATE products SET image_url = $1 WHERE id = $2', [imageUrl, matchedProduct.id]);
 
             results.success.push({
                 fileName: file.originalname,
-                productId: newProductId,
-                name: aiData.name
+                matchedProductId: matchedProduct.id,
+                matchedProductName: matchedProduct.name
             });
 
         } catch (error) {
@@ -76,15 +78,16 @@ export const bulkCreateProductsWithAI = async (req, res, next) => {
         }
     }
 
-    res.status(201).json({
-        message: 'Proceso de creación masiva completado.',
+    res.status(200).json({
+        message: 'Proceso de asociación masiva completado.',
         ...results
     });
 };
 
-// --- NUEVO: Función auxiliar para llamar a la IA ---
+
+// --- Función auxiliar para llamar a la IA (sin cambios) ---
 async function getAIDataForImage(imageData, mimeType, apiKey) {
-    const prompt = `Analiza la imagen de un producto de pinturería. Sugiere nombre, descripción y categoría (Interior, Exterior, Impermeabilizantes, Esmaltes, Madera, Aerosoles, Automotor, Accesorios). Responde solo con un JSON válido con claves "name", "description", "category".`;
+    const prompt = `Analiza la imagen de un producto de pinturería. Sugiere un nombre de producto conciso y preciso. Responde solo con un JSON válido con la clave "name".`;
     
     const payload = {
         contents: [{ role: "user", parts: [{ text: prompt }, { inlineData: { mimeType, data: imageData } }] }],
