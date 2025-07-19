@@ -1,14 +1,9 @@
 // src/pages/OrderHistoryPage.jsx
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { useAuthStore } from '../stores/useAuthStore'; // 1. Importamos el store de autenticación
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+import { apiFetch } from '../api'; // Importar apiFetch
 
 const OrderHistoryPage = () => {
-  // 2. Obtenemos el token directamente del store
-  const token = useAuthStore(state => state.token);
-
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -16,12 +11,7 @@ const OrderHistoryPage = () => {
   useEffect(() => {
     const fetchOrders = async () => {
       try {
-        const response = await fetch(`${API_URL}/api/orders`, {
-          headers: {
-            // 3. Usamos el token obtenido del store
-            'Authorization': `Bearer ${token}`,
-          },
-        });
+        const response = await apiFetch('/api/orders'); // Usar apiFetch
         if (!response.ok) {
           throw new Error('No se pudo cargar el historial de compras.');
         }
@@ -33,12 +23,8 @@ const OrderHistoryPage = () => {
         setLoading(false);
       }
     };
-
-    // La lógica se mantiene, pero ahora el token viene del store
-    if (token) {
-      fetchOrders();
-    }
-  }, [token]); // El efecto se ejecuta cuando el token del store está disponible
+    fetchOrders();
+  }, []);
 
   if (loading) {
     return <div className="text-center p-10">Cargando historial...</div>;
@@ -49,6 +35,7 @@ const OrderHistoryPage = () => {
   }
 
   return (
+    // ... El JSX de este componente no cambia
     <div className="container mx-auto px-4 py-8">
       <h1 className="text-3xl font-bold text-gray-800 mb-8">Mi Historial de Compras</h1>
       {orders.length === 0 ? (

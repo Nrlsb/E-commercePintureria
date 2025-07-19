@@ -7,23 +7,22 @@ import { useAuthStore } from '../stores/useAuthStore';
 import { useNotificationStore } from '../stores/useNotificationStore';
 import Spinner from '../components/Spinner.jsx';
 import CopyButton from '../components/CopyButton.jsx';
+import { apiFetch } from '../api'; // Importar apiFetch
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 const MIN_TRANSACTION_AMOUNT = 100;
 const MERCADOPAGO_PUBLIC_KEY = import.meta.env.VITE_MERCADOPAGO_PUBLIC_KEY;
 
 const CheckoutPage = () => {
   const { cart, shippingCost, postalCode, clearCart } = useCartStore();
-  const { user, token } = useAuthStore();
+  const { user } = useAuthStore();
   const showNotification = useNotificationStore(state => state.showNotification);
   
   const [paymentMethod, setPaymentMethod] = useState('mercado_pago');
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState('');
-  const [isMercadoPagoReady, setIsMercadoPagoReady] = useState(false); // <-- NUEVO ESTADO
+  const [isMercadoPagoReady, setIsMercadoPagoReady] = useState(false);
   const navigate = useNavigate();
 
-  // --- MEJORA: Inicialización del SDK dentro del componente ---
   useEffect(() => {
     if (MERCADOPAGO_PUBLIC_KEY) {
       initMercadoPago(MERCADOPAGO_PUBLIC_KEY, { locale: 'es-AR' });
@@ -34,7 +33,6 @@ const CheckoutPage = () => {
     }
   }, []);
 
-
   const subtotal = cart.reduce((total, item) => total + item.price * item.quantity, 0);
   const total = subtotal + shippingCost;
 
@@ -42,9 +40,8 @@ const CheckoutPage = () => {
     setIsProcessing(true);
     setError('');
     try {
-      const response = await fetch(`${API_URL}/api/orders/process-payment`, {
+      const response = await apiFetch('/api/orders/process-payment', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ ...formData, cart, transaction_amount: total, shippingCost, postalCode, payer: { ...formData.payer, email: user.email } }),
       });
       const data = await response.json();
@@ -63,9 +60,8 @@ const CheckoutPage = () => {
     setIsProcessing(true);
     setError('');
     try {
-        const response = await fetch(`${API_URL}/api/orders/bank-transfer`, {
+        const response = await apiFetch('/api/orders/bank-transfer', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
             body: JSON.stringify({ cart, total, shippingCost, postalCode }),
         });
         const data = await response.json();
@@ -100,6 +96,7 @@ const CheckoutPage = () => {
   };
 
   return (
+    // ... El JSX de este componente no cambia
     <div className="container mx-auto px-4 py-8">
       <h1 className="text-3xl font-bold text-gray-800 mb-8">Finalizar Compra</h1>
       
@@ -118,7 +115,6 @@ const CheckoutPage = () => {
 
           {paymentMethod === 'mercado_pago' && (
             <>
-              {/* --- MEJORA: Renderizado condicional del CardPayment --- */}
               {isMercadoPagoReady && total >= MIN_TRANSACTION_AMOUNT ? (
                 <CardPayment initialization={initialization} customization={customization} onSubmit={handlePayment} onReady={() => console.log('Brick de tarjeta listo')} onError={handleOnError} />
               ) : (

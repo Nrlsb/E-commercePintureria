@@ -3,58 +3,55 @@ import { useAuthStore } from './stores/useAuthStore';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
-// Guardamos el token en la memoria del módulo para que persista entre renders
 let accessToken = useAuthStore.getState().accessToken;
 
-// Suscribirse a los cambios en el store para mantener el token actualizado
 useAuthStore.subscribe(
   (state) => {
     accessToken = state.accessToken;
   }
 );
 
-// Función para refrescar el token
 const refreshToken = async () => {
   try {
     const response = await fetch(`${API_URL}/api/auth/refresh`, {
       method: 'GET',
-      credentials: 'include', // Importante para enviar la cookie HttpOnly
+      credentials: 'include',
     });
     if (!response.ok) {
       throw new Error('Could not refresh token');
     }
     const data = await response.json();
-    useAuthStore.getState().login(data.accessToken, data.user); // Actualizar el store
+    useAuthStore.getState().login(data.accessToken, data.user);
     return data.accessToken;
   } catch (error) {
-    useAuthStore.getState().logout(); // Si el refresh falla, desloguear
+    useAuthStore.getState().logout();
     return null;
   }
 };
 
-// Wrapper para fetch que maneja la autenticación y el refresco de token
 export const apiFetch = async (url, options = {}) => {
+  const headers = {
+    ...options.headers,
+    'Authorization': `Bearer ${accessToken}`,
+  };
+
+  // No establecer Content-Type para FormData; el navegador lo hace.
+  if (!(options.body instanceof FormData)) {
+    headers['Content-Type'] = 'application/json';
+  }
+
   let response = await fetch(`${API_URL}${url}`, {
     ...options,
-    headers: {
-      ...options.headers,
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${accessToken}`,
-    },
+    headers,
   });
 
-  // Si el token expiró (403 Forbidden), intentar refrescarlo
   if (response.status === 403) {
     const newAccessToken = await refreshToken();
     if (newAccessToken) {
-      // Reintentar la petición original con el nuevo token
+      headers['Authorization'] = `Bearer ${newAccessToken}`;
       response = await fetch(`${API_URL}${url}`, {
         ...options,
-        headers: {
-          ...options.headers,
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${newAccessToken}`,
-        },
+        headers,
       });
     }
   }

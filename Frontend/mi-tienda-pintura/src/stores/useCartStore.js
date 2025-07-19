@@ -2,8 +2,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { useNotificationStore } from './useNotificationStore';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+import { apiFetch } from '../api'; // Importar apiFetch
 
 export const useCartStore = create(
   persist(
@@ -14,6 +13,7 @@ export const useCartStore = create(
       appliedCoupon: null,
       discountAmount: 0,
 
+      // ... (addToCart, updateQuantity, removeItem, clearCart no cambian)
       addToCart: (product, quantity = 1) => {
         const { cart, postalCode } = get();
         const showNotification = useNotificationStore.getState().showNotification;
@@ -91,7 +91,8 @@ export const useCartStore = create(
           return;
         }
         try {
-          const response = await fetch(`${API_URL}/api/shipping/calculate`, {
+          // Esta llamada no requiere autenticación, así que puede seguir usando fetch.
+          const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5001'}/api/shipping/calculate`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ postalCode, items }),
@@ -103,19 +104,15 @@ export const useCartStore = create(
           console.error("Error calculating shipping:", error);
           useNotificationStore.getState().showNotification('Error al calcular el envío.', 'error');
           set({ shippingCost: 0, postalCode: postalCode });
-          throw error; // <-- MEJORA: Relanzar el error
+          throw error;
         }
       },
 
-      applyCoupon: async (code, token) => {
+      applyCoupon: async (code) => { // Ya no necesita el token como argumento
         const showNotification = useNotificationStore.getState().showNotification;
         try {
-          const response = await fetch(`${API_URL}/api/coupons/validate`, {
+          const response = await apiFetch('/api/coupons/validate', { // Usar apiFetch
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`,
-            },
             body: JSON.stringify({ code }),
           });
           const data = await response.json();
