@@ -6,18 +6,87 @@ import fs from 'fs';
 import sharp from 'sharp';
 import fetch from 'node-fetch';
 
-// ... (código existente de configuración de Multer y funciones de subida)
 const uploadDir = 'public/uploads/';
 if (!fs.existsSync(uploadDir)){
     fs.mkdirSync(uploadDir, { recursive: true });
 }
+
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
+
 export const uploadMultipleImages = upload.array('productImages', 50);
 export const uploadSingleImage = upload.single('productImage');
-export const processAndAssociateImages = async (req, res, next) => { /* ... código existente ... */ };
-export const handleSingleImageUpload = async (req, res, next) => { /* ... código existente ... */ };
 
+// --- LÓGICA COMPLETA RESTAURADA ---
+export const processAndAssociateImages = async (req, res, next) => {
+  if (!req.files || req.files.length === 0) {
+    return res.status(400).json({ message: 'No se subieron archivos.' });
+  }
+
+  const results = {
+    success: [],
+    failed: []
+  };
+
+  try {
+    for (const file of req.files) {
+      const productId = path.basename(file.originalname, path.extname(file.originalname)).split('_')[0];
+      const newFilename = `${productId}_${Date.now()}.webp`;
+      const outputPath = path.join(uploadDir, newFilename);
+      const imageUrl = `/uploads/${newFilename}`;
+
+      try {
+        await sharp(file.buffer)
+          .resize(800, 800, { fit: 'inside', withoutEnlargement: true })
+          .toFormat('webp', { quality: 80 })
+          .toFile(outputPath);
+
+        const result = await db.query(
+          'UPDATE products SET image_url = $1 WHERE id = $2 RETURNING id',
+          [imageUrl, productId]
+        );
+
+        if (result.rowCount > 0) {
+          results.success.push(`${file.originalname} -> ${newFilename}`);
+        } else {
+          fs.unlinkSync(outputPath); 
+          results.failed.push({ file: file.originalname, reason: 'Producto no encontrado' });
+        }
+      } catch (error) {
+        results.failed.push({ file: file.originalname, reason: error.message });
+      }
+    }
+    res.status(200).json({
+      message: 'Proceso de carga y optimización completado.',
+      ...results
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// --- LÓGICA COMPLETA RESTAURADA ---
+export const handleSingleImageUpload = async (req, res, next) => {
+  if (!req.file) {
+    return res.status(400).json({ message: 'No se subió ningún archivo.' });
+  }
+
+  try {
+    const originalName = path.parse(req.file.originalname).name;
+    const newFilename = `${originalName}-${Date.now()}.webp`;
+    const outputPath = path.join(uploadDir, newFilename);
+    const imageUrl = `/uploads/${newFilename}`;
+
+    await sharp(req.file.buffer)
+      .resize(800, 800, { fit: 'inside', withoutEnlargement: true })
+      .toFormat('webp', { quality: 80 })
+      .toFile(outputPath);
+
+    res.status(201).json({ imageUrl });
+  } catch (error) {
+    next(error);
+  }
+};
 
 // --- Controlador para analizar la imagen con IA (Corregido) ---
 export const analyzeImageWithAI = async (req, res, next) => {
@@ -55,7 +124,6 @@ export const analyzeImageWithAI = async (req, res, next) => {
             }
         };
         
-        // --- CORRECCIÓN: Usamos la variable de entorno para la API Key ---
         const apiKey = process.env.GEMINI_API_KEY;
         if (!apiKey) {
             throw new Error('La clave de API de Gemini no está configurada en el servidor.');
@@ -71,7 +139,6 @@ export const analyzeImageWithAI = async (req, res, next) => {
         if (!apiResponse.ok) {
             const errorBody = await apiResponse.text();
             console.error("Error from Gemini API:", errorBody);
-            // Extraemos el mensaje de error de la API si es posible
             let errorMessage = `Error de la API de IA: ${apiResponse.statusText}`;
             try {
                 const parsedError = JSON.parse(errorBody);
