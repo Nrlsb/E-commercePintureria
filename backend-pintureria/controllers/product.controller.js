@@ -37,11 +37,20 @@ export const getProducts = async (req, res, next) => {
     const totalProducts = parseInt(totalResult.rows[0].count, 10);
     const totalPages = Math.ceil(totalProducts / limit);
 
+    // --- MEJORA: Se usan alias en la consulta SQL para obtener camelCase directamente ---
     let baseQuery = `
       SELECT 
-        p.*, 
-        COALESCE(AVG(r.rating), 0) as average_rating, 
-        COUNT(r.id) as review_count
+        p.id,
+        p.name,
+        p.brand,
+        p.category,
+        p.price,
+        p.old_price AS "oldPrice",
+        p.image_url AS "imageUrl",
+        p.description,
+        p.stock,
+        COALESCE(AVG(r.rating), 0) as "averageRating", 
+        COUNT(r.id) as "reviewCount"
       FROM products p
       LEFT JOIN reviews r ON p.id = r.product_id
       ${whereString}
@@ -57,7 +66,7 @@ export const getProducts = async (req, res, next) => {
         orderByClause = ' ORDER BY p.price DESC';
         break;
       case 'rating_desc':
-        orderByClause = ' ORDER BY average_rating DESC';
+        orderByClause = ' ORDER BY "averageRating" DESC'; // Usar el alias en el ORDER BY
         break;
     }
     baseQuery += orderByClause;
@@ -68,19 +77,9 @@ export const getProducts = async (req, res, next) => {
 
     const result = await db.query(baseQuery, queryParams);
     
-    const products = result.rows.map(p => ({ 
-      id: p.id,
-      name: p.name,
-      brand: p.brand,
-      category: p.category,
-      price: p.price,
-      oldPrice: p.old_price,
-      imageUrl: p.image_url, // CORRECCIÓN: Mapear a camelCase
-      description: p.description,
-      stock: parseInt(p.stock, 10),
-      averageRating: parseFloat(p.average_rating),
-      reviewCount: parseInt(p.review_count, 10)
-    }));
+    // --- MEJORA: Ya no es necesario el mapeo manual ---
+    // El driver de la base de datos (pg) convierte automáticamente los resultados a camelCase
+    const products = result.rows;
     
     res.json({
       products,
@@ -96,11 +95,20 @@ export const getProducts = async (req, res, next) => {
 export const getProductById = async (req, res, next) => {
   const { productId } = req.params;
   try {
+    // --- MEJORA: Se usan alias en la consulta SQL ---
     const query = `
       SELECT 
-        p.*, 
-        COALESCE(AVG(r.rating), 0) as average_rating, 
-        COUNT(r.id) as review_count
+        p.id,
+        p.name,
+        p.brand,
+        p.category,
+        p.price,
+        p.old_price AS "oldPrice",
+        p.image_url AS "imageUrl",
+        p.description,
+        p.stock,
+        COALESCE(AVG(r.rating), 0) as "averageRating", 
+        COUNT(r.id) as "reviewCount"
       FROM products p
       LEFT JOIN reviews r ON p.id = r.product_id
       WHERE p.id = $1
@@ -108,20 +116,8 @@ export const getProductById = async (req, res, next) => {
     `;
     const result = await db.query(query, [productId]);
     if (result.rows.length > 0) {
-      const p = result.rows[0];
-      res.json({ 
-        id: p.id,
-        name: p.name,
-        brand: p.brand,
-        category: p.category,
-        price: p.price,
-        oldPrice: p.old_price,
-        imageUrl: p.image_url, // CORRECCIÓN: Mapear a camelCase
-        description: p.description,
-        stock: parseInt(p.stock, 10),
-        averageRating: parseFloat(p.average_rating),
-        reviewCount: parseInt(p.review_count, 10)
-      });
+      // --- MEJORA: Se devuelve directamente el resultado de la consulta ---
+      res.json(result.rows[0]);
     } else {
       res.status(404).json({ message: 'Producto no encontrado' });
     }
