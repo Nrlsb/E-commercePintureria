@@ -4,11 +4,13 @@ import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import db from '../db.js';
 import { sendPasswordResetEmail } from '../emailService.js';
-import logger from '../logger.js'; // Importar logger
+import logger from '../logger.js';
 
-const JWT_SECRET = process.env.JWT_SECRET;
+// Usar variables de entorno separadas para mayor seguridad
+const JWT_ACCESS_SECRET = process.env.JWT_ACCESS_SECRET || 'access-secret';
+const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'refresh-secret';
 
-export const registerUser = async (req, res, next) => { // Añadir next
+export const registerUser = async (req, res, next) => {
   const { email, password, firstName, lastName, phone } = req.body;
   if (!email || !password || !firstName || !lastName) {
     return res.status(400).json({ message: 'Nombre, apellido, email y contraseña son requeridos.' });
@@ -26,11 +28,11 @@ export const registerUser = async (req, res, next) => { // Añadir next
     if (err.code === '23505') {
         return res.status(409).json({ message: 'El email ya está registrado.' });
     }
-    next(err); // Pasar error al middleware
+    next(err);
   }
 };
 
-export const loginUser = async (req, res, next) => { // Añadir next
+export const loginUser = async (req, res, next) => {
     const { email, password } = req.body;
     if (!email || !password) {
         return res.status(400).json({ message: 'Email y contraseña son requeridos.' });
@@ -46,21 +48,30 @@ export const loginUser = async (req, res, next) => { // Añadir next
             return res.status(401).json({ message: 'Credenciales inválidas.' });
         }
 
-        const token = jwt.sign(
-            { 
-                userId: user.id, 
-                email: user.email, 
-                role: user.role,
-                firstName: user.first_name,
-                lastName: user.last_name
-            },
-            JWT_SECRET,
-            { expiresIn: '1h' }
-        );
+        const userPayload = { 
+            userId: user.id, 
+            email: user.email, 
+            role: user.role,
+            firstName: user.first_name,
+            lastName: user.last_name
+        };
+
+        const accessToken = jwt.sign(userPayload, JWT_ACCESS_SECRET, { expiresIn: '15m' });
+        const refreshToken = jwt.sign({ userId: user.id }, JWT_REFRESH_SECRET, { expiresIn: '7d' });
+
+        await db.query('UPDATE users SET refresh_token = $1 WHERE id = $2', [refreshToken, user.id]);
+
+        res.cookie('jwt', refreshToken, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'strict',
+            maxAge: 7 * 24 * 60 * 60 * 1000 // 7 días
+        });
         
         logger.info(`Inicio de sesión exitoso para el usuario: ${user.email}`);
+        
         res.json({ 
-            token, 
+            accessToken, 
             user: { 
                 id: user.id, 
                 email: user.email, 
@@ -70,11 +81,59 @@ export const loginUser = async (req, res, next) => { // Añadir next
             } 
         });
     } catch (err) {
-        next(err); // Pasar error al middleware
+        next(err);
     }
 };
 
-export const forgotPassword = async (req, res, next) => { // Añadir next
+export const refreshToken = async (req, res, next) => {
+    const cookies = req.cookies;
+    if (!cookies?.jwt) return res.sendStatus(401);
+
+    const refreshToken = cookies.jwt;
+
+    try {
+        const userResult = await db.query('SELECT * FROM users WHERE refresh_token = $1', [refreshToken]);
+        if (userResult.rows.length === 0) {
+            return res.sendStatus(403);
+        }
+        const user = userResult.rows[0];
+
+        jwt.verify(refreshToken, JWT_REFRESH_SECRET, (err, decoded) => {
+            if (err || user.id !== decoded.userId) return res.sendStatus(403);
+
+            const userPayload = { 
+                userId: user.id, 
+                email: user.email, 
+                role: user.role,
+                firstName: user.first_name,
+                lastName: user.last_name
+            };
+            const accessToken = jwt.sign(userPayload, JWT_ACCESS_SECRET, { expiresIn: '15m' });
+            res.json({ accessToken, user: userPayload });
+        });
+    } catch (err) {
+        next(err);
+    }
+};
+
+export const logoutUser = async (req, res, next) => {
+    const cookies = req.cookies;
+    if (!cookies?.jwt) return res.sendStatus(204);
+
+    const refreshToken = cookies.jwt;
+
+    try {
+        await db.query('UPDATE users SET refresh_token = NULL WHERE refresh_token = $1', [refreshToken]);
+        
+        res.clearCookie('jwt', { httpOnly: true, sameSite: 'strict', secure: true });
+        res.sendStatus(204);
+    } catch (err) {
+        next(err);
+    }
+};
+
+
+export const forgotPassword = async (req, res, next) => {
   const { email } = req.body;
   try {
     const userResult = await db.query('SELECT * FROM users WHERE email = $1', [email]);
@@ -96,15 +155,15 @@ export const forgotPassword = async (req, res, next) => { // Añadir next
       res.status(200).json({ message: 'Se ha enviado un correo para restablecer la contraseña.' });
     } catch (emailError) {
       logger.error('Error específico del servicio de email:', emailError.message);
-      next(new Error('Error interno del servidor al intentar enviar el correo.')); // Pasar error
+      next(new Error('Error interno del servidor al intentar enviar el correo.'));
     }
 
   } catch (error) {
-    next(error); // Pasar error
+    next(error);
   }
 };
 
-export const resetPassword = async (req, res, next) => { // Añadir next
+export const resetPassword = async (req, res, next) => {
   const { token } = req.params;
   const { password } = req.body;
 
@@ -138,23 +197,6 @@ export const resetPassword = async (req, res, next) => { // Añadir next
     res.status(200).json({ message: 'Contraseña actualizada con éxito.' });
 
   } catch (error) {
-    next(error); // Pasar error
-  }
-};
-
-// --- emailService.js ---
-// (Solo se muestra un ejemplo, se deben reemplazar todos los console.log/error)
-import nodemailer from 'nodemailer';
-// import logger from './logger.js'; // Asegúrate de importar el logger aquí también
-
-// ...
-
-export const sendOrderConfirmationEmail = async (userEmail, order) => {
-  // ... (código de generación de HTML)
-  try {
-    await transporter.sendMail(mailOptions);
-    logger.info(`Email de confirmación enviado a ${userEmail} para la orden ${order.id}`);
-  } catch (error) {
-    logger.error(`Error al enviar email para la orden ${order.id}:`, error);
+    next(error);
   }
 };

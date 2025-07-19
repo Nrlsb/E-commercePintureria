@@ -6,13 +6,14 @@ import { ICONS } from '../data/icons.js';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useCartStore } from '../stores/useCartStore';
 import { useProductStore } from '../stores/useProductStore';
+import { apiFetch } from '../api.js';
 
 // --- Componente de Menú de Usuario para Escritorio ---
 const UserMenuDesktop = () => {
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef(null);
   const { user, logout } = useAuthStore();
-  const { clearCart } = useCartStore(); // 1. Obtenemos la acción para limpiar el carrito
+  const { clearCart } = useCartStore();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -25,9 +26,10 @@ const UserMenuDesktop = () => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [menuRef]);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await apiFetch('/api/auth/logout', { method: 'POST' });
     logout();
-    clearCart(); // 2. Llamamos a clearCart() para vaciar el carrito al cerrar sesión
+    clearCart();
     setIsOpen(false);
     navigate('/');
   };
@@ -36,7 +38,7 @@ const UserMenuDesktop = () => {
     <div className="relative" ref={menuRef}>
       <button onClick={() => setIsOpen(!isOpen)} className="flex items-center text-gray-300 hover:text-white transition-colors">
         <Icon path={ICONS.user} />
-        <span className="hidden md:block ml-2">Hola, {user.email.split('@')[0]}</span>
+        <span className="hidden md:block ml-2">Hola, {user.firstName || user.email.split('@')[0]}</span>
         <Icon path={ICONS.chevronDown} className="hidden md:block w-4 h-4 ml-1" />
       </button>
 
@@ -67,7 +69,7 @@ const Header = () => {
   const navigate = useNavigate();
 
   const { user, logout } = useAuthStore();
-  const { cart, clearCart } = useCartStore(); // 3. Obtenemos la acción aquí también para el menú móvil
+  const { cart, clearCart } = useCartStore();
   const setSearchQuery = useProductStore(state => state.setSearchQuery);
   const cartItemCount = cart.reduce((total, item) => total + item.quantity, 0);
 
@@ -85,9 +87,10 @@ const Header = () => {
     setIsMenuOpen(false);
   };
 
-  const handleMobileLogout = () => {
+  const handleMobileLogout = async () => {
+    await apiFetch('/api/auth/logout', { method: 'POST' });
     logout();
-    clearCart(); // 4. Y la llamamos aquí para el logout en móvil
+    clearCart();
     handleMobileLinkClick();
     navigate('/');
   };
@@ -119,7 +122,6 @@ const Header = () => {
             </div>
           </form>
 
-          {/* --- Menú para Escritorio --- */}
           <div className="hidden md:flex items-center space-x-4">
             {user ? (
               <UserMenuDesktop />
@@ -141,7 +143,6 @@ const Header = () => {
             </Link>
           </div>
 
-          {/* --- Botones para Móvil --- */}
           <div className="md:hidden flex items-center space-x-4">
             <Link to="/cart" className="text-white relative">
               <Icon path={ICONS.shoppingCart} className="w-6 h-6" />
@@ -158,7 +159,6 @@ const Header = () => {
         </div>
       </div>
 
-      {/* --- Panel Lateral para Móvil (Rediseñado) --- */}
       {isMenuOpen && (
         <div className={`fixed top-0 left-0 w-full h-full bg-black bg-opacity-50 z-40 transition-opacity duration-300`} onClick={() => setIsMenuOpen(false)}>
           <div className={`fixed top-0 right-0 w-4/5 max-w-sm h-full bg-[#0F3460] shadow-xl z-50 transform transition-transform duration-300 ease-in-out ${isMenuOpen ? 'translate-x-0' : 'translate-x-full'}`} onClick={(e) => e.stopPropagation()}>
@@ -171,11 +171,10 @@ const Header = () => {
                 <input type="search" placeholder="Buscar..." value={query} onChange={(e) => setQuery(e.target.value)} className="w-full py-2 px-4 text-gray-900 bg-gray-100 rounded-full focus:outline-none focus:ring-2 focus:ring-[#E9D502]"/>
               </form>
 
-              {/* --- CAMBIO CLAVE: Enlaces de navegación directos --- */}
               <nav className="flex flex-col space-y-4 text-lg text-gray-200">
                 {user ? (
                   <>
-                    <div className="px-4 py-2 text-white font-semibold">Hola, {user.email.split('@')[0]}</div>
+                    <div className="px-4 py-2 text-white font-semibold">Hola, {user.firstName || user.email.split('@')[0]}</div>
                     <hr className="border-gray-500"/>
                     {user.role === 'admin' && (
                       <Link to="/admin" onClick={handleMobileLinkClick} className="px-4 py-2 hover:bg-[#1a4a8a] rounded-md">Panel Admin</Link>

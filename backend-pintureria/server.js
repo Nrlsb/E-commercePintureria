@@ -4,10 +4,11 @@ dotenv.config();
 
 import express from 'express';
 import cors from 'cors';
+import cookieParser from 'cookie-parser';
 import { startCancelPendingOrdersJob } from './services/cronService.js';
 import winston from 'winston';
 import expressWinston from 'express-winston';
-import logger from './logger.js'; // Importamos nuestro logger configurado
+import logger from './logger.js';
 
 // Importadores de Rutas
 import productRoutes from './routes/product.routes.js';
@@ -53,6 +54,7 @@ app.use(cors(corsOptions));
 // --- Middlewares Globales ---
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
+app.use(cookieParser());
 
 // --- Middleware de Logging de Peticiones (antes de las rutas) ---
 app.use(expressWinston.logger({

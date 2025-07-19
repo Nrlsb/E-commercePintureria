@@ -2,11 +2,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-/**
- * Parsea un token JWT para extraer la información del payload.
- * @param {string | null} token El token JWT.
- * @returns {object | null} El payload del token o null si es inválido.
- */
 const parseJwt = (token) => {
   if (!token) return null;
   try {
@@ -18,32 +13,32 @@ const parseJwt = (token) => {
 };
 
 export const useAuthStore = create(
-  // El middleware `persist` envuelve la definición de nuestro store.
   persist(
     (set) => ({
-      token: null,
+      accessToken: null,
       user: null,
 
-      // La acción de login ahora solo se encarga de actualizar el estado.
-      // La persistencia es automática.
-      login: (newToken) => {
+      // La acción de login ahora guarda el accessToken y el usuario
+      login: (newAccessToken, userData) => {
         set({
-          token: newToken,
-          user: parseJwt(newToken),
+          accessToken: newAccessToken,
+          user: userData || parseJwt(newAccessToken),
         });
       },
 
-      // La acción de logout limpia el estado. `persist` se encargará de
-      // limpiar el localStorage.
+      // La acción de logout limpia el estado local
+      // El borrado de la cookie y el token en BD se hace en el backend
       logout: () => {
         set({
-          token: null,
+          accessToken: null,
           user: null,
         });
       },
     }),
     {
-      name: 'auth-storage', // Nombre de la clave en localStorage.
+      name: 'auth-storage',
+      // Solo persistimos el usuario, el accessToken es volátil
+      partialize: (state) => ({ user: state.user }),
     }
   )
 );
