@@ -5,9 +5,12 @@ import { useAuthStore } from '../stores/useAuthStore';
 import { useNotificationStore } from '../stores/useNotificationStore';
 import Icon from '../components/Icon';
 import Spinner from '../components/Spinner';
+// --- NUEVO: Importamos el modal de confirmación ---
+import ConfirmationModal from '../components/ConfirmationModal';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
+// ... (Componente StatCard y objeto ICONS sin cambios)
 const StatCard = ({ title, value, icon, color }) => (
   <div className="bg-white p-6 rounded-lg shadow-md flex items-center space-x-4">
     <div className={`rounded-full p-3 ${color}`}>
@@ -27,9 +30,10 @@ const ICONS = {
     edit: "M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34a.9959.9959 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z",
     delete: "M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z",
     orders: "M13 2.05v3.03c3.39.49 6 3.39 6 6.92 0 .9-.18 1.75-.48 2.54l2.6 1.53c.56-1.24.88-2.62.88-4.07 0-5.18-3.95-9.45-9-9.95zM12 19c-3.87 0-7-3.13-7-7 0-3.53 2.61-6.43 6-6.92V2.05c-5.06.5-9 4.76-9 9.95 0 5.52 4.48 10 10 10 3.31 0 6.24-1.61 8.06-4.09l-2.6-1.53C16.17 17.98 14.21 19 12 19z",
-    upload: "M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5v-2z",
+    upload: "M9 16h6v-6h4l-7-7-7-7h4v6zm-4 2h14v2H5v-2z",
     sparkles: "M12 2L9.5 7.5L4 10l5.5 2.5L12 18l2.5-5.5L20 10l-5.5-2.5z"
 };
+
 
 const AdminDashboardPage = () => {
   const [products, setProducts] = useState([]);
@@ -37,10 +41,16 @@ const AdminDashboardPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
+  
+  // --- NUEVO: Estado para manejar el modal ---
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [productToDelete, setProductToDelete] = useState(null);
+
   const token = useAuthStore(state => state.token);
   const showNotification = useNotificationStore(state => state.showNotification);
 
   useEffect(() => {
+    // ... (lógica de fetch sin cambios)
     const fetchData = async () => {
       try {
         const [productsResponse, ordersResponse] = await Promise.all([
@@ -62,25 +72,40 @@ const AdminDashboardPage = () => {
     fetchData();
   }, [token]);
 
-  const handleDelete = async (productId) => {
-    if (window.confirm('¿Estás seguro de que quieres eliminar este producto?')) {
-      setDeletingId(productId);
-      try {
-        const response = await fetch(`${API_URL}/api/products/${productId}`, {
-          method: 'DELETE',
-          headers: { 'Authorization': `Bearer ${token}` },
-        });
-        if (!response.ok) {
-            const data = await response.json();
-            throw new Error(data.message || 'Error al eliminar el producto');
-        }
-        setProducts(products.filter(p => p.id !== productId));
-        showNotification('Producto eliminado con éxito.', 'success');
-      } catch (err) {
-        showNotification(err.message, 'error');
-      } finally {
-        setDeletingId(null);
+  // --- NUEVO: Función para abrir el modal ---
+  const openDeleteModal = (product) => {
+    setProductToDelete(product);
+    setIsModalOpen(true);
+  };
+
+  // --- NUEVO: Función para cerrar el modal ---
+  const closeDeleteModal = () => {
+    setProductToDelete(null);
+    setIsModalOpen(false);
+  };
+
+  // --- MODIFICADO: La lógica de eliminación ahora se llama desde el modal ---
+  const handleDeleteConfirm = async () => {
+    if (!productToDelete) return;
+    
+    setDeletingId(productToDelete.id);
+    closeDeleteModal(); // Cierra el modal inmediatamente
+
+    try {
+      const response = await fetch(`${API_URL}/api/products/${productToDelete.id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (!response.ok) {
+          const data = await response.json();
+          throw new Error(data.message || 'Error al eliminar el producto');
       }
+      setProducts(products.filter(p => p.id !== productToDelete.id));
+      showNotification('Producto eliminado con éxito.', 'success');
+    } catch (err) {
+      showNotification(err.message, 'error');
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -89,6 +114,18 @@ const AdminDashboardPage = () => {
 
   return (
     <div className="container mx-auto px-4 py-8">
+      {/* --- NUEVO: Renderizamos el modal de confirmación --- */}
+      <ConfirmationModal
+        isOpen={isModalOpen}
+        onClose={closeDeleteModal}
+        onConfirm={handleDeleteConfirm}
+        title="Eliminar Producto"
+        message={`¿Estás seguro de que quieres eliminar "${productToDelete?.name}"? Esta acción es irreversible.`}
+        confirmText="Sí, Eliminar"
+        iconPath={ICONS.delete}
+        iconColor="text-red-500"
+      />
+
       <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-8 gap-4">
         <h1 className="text-3xl font-bold text-gray-800">Panel de Administración</h1>
         <div className="flex flex-wrap gap-2 sm:gap-4">
@@ -100,11 +137,6 @@ const AdminDashboardPage = () => {
                 <Icon path={ICONS.add} className="w-5 h-5" />
                 <span>Crear Producto</span>
             </Link>
-            <Link to="/admin/product/bulk-create-ai" className="bg-purple-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-600 transition-colors flex items-center justify-center space-x-2">
-                <Icon path={ICONS.sparkles} className="w-5 h-5" />
-                <span>Creación Masiva con IA</span>
-            </Link>
-            {/* --- NUEVO BOTÓN --- */}
             <Link to="/admin/product/bulk-associate-ai" className="bg-teal-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-teal-600 transition-colors flex items-center justify-center space-x-2">
                 <Icon path={ICONS.sparkles} className="w-5 h-5" />
                 <span>Asociación Masiva con IA</span>
@@ -112,11 +144,11 @@ const AdminDashboardPage = () => {
         </div>
       </div>
 
-      {/* ... resto del JSX sin cambios ... */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <StatCard title="Total de Productos" value={products.length} icon={ICONS.box} color="bg-blue-500" />
         <StatCard title="Total de Órdenes" value={orders.length} icon={ICONS.clipboardList} color="bg-green-500" />
       </div>
+      
       <div className="bg-white p-6 rounded-lg shadow-md overflow-x-auto">
         <h2 className="text-2xl font-bold mb-4 text-gray-700">Gestión de Productos</h2>
         <table className="w-full text-left table-auto">
@@ -142,7 +174,8 @@ const AdminDashboardPage = () => {
                   <Link to={`/admin/product/edit/${product.id}`} className="p-2 text-blue-600 hover:bg-blue-100 rounded-full transition-colors">
                     <Icon path={ICONS.edit} className="w-5 h-5" />
                   </Link>
-                  <button onClick={() => handleDelete(product.id)} disabled={deletingId === product.id} className="p-2 text-red-600 hover:bg-red-100 rounded-full transition-colors disabled:opacity-50 disabled:cursor-wait">
+                  {/* --- MODIFICADO: El botón ahora abre el modal --- */}
+                  <button onClick={() => openDeleteModal(product)} disabled={deletingId === product.id} className="p-2 text-red-600 hover:bg-red-100 rounded-full transition-colors disabled:opacity-50 disabled:cursor-wait">
                     {deletingId === product.id ? (
                       <Spinner className="w-5 h-5 text-red-500" />
                     ) : (
