@@ -6,9 +6,9 @@ import db from '../db.js';
 import { sendPasswordResetEmail } from '../emailService.js';
 import logger from '../logger.js';
 
-// Usar variables de entorno separadas para mayor seguridad
-const JWT_ACCESS_SECRET = process.env.JWT_ACCESS_SECRET || 'access-secret';
-const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'refresh-secret';
+// --- CORRECCIÓN: Usar variables de entorno separadas para mayor seguridad ---
+const JWT_ACCESS_SECRET = process.env.JWT_ACCESS_SECRET || 'access-secret-default';
+const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'refresh-secret-default';
 
 export const registerUser = async (req, res, next) => {
   const { email, password, firstName, lastName, phone } = req.body;
@@ -48,14 +48,15 @@ export const loginUser = async (req, res, next) => {
             return res.status(401).json({ message: 'Credenciales inválidas.' });
         }
 
-        const userPayload = { 
-            userId: user.id, 
-            email: user.email, 
+        const userPayload = {
+            userId: user.id,
+            email: user.email,
             role: user.role,
             firstName: user.first_name,
             lastName: user.last_name
         };
 
+        // --- CORRECCIÓN: Firmar cada token con su secreto correspondiente ---
         const accessToken = jwt.sign(userPayload, JWT_ACCESS_SECRET, { expiresIn: '15m' });
         const refreshToken = jwt.sign({ userId: user.id }, JWT_REFRESH_SECRET, { expiresIn: '7d' });
 
@@ -65,21 +66,21 @@ export const loginUser = async (req, res, next) => {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
             sameSite: 'strict',
-            path: '/', // <-- Añadir path
+            path: '/',
             maxAge: 7 * 24 * 60 * 60 * 1000 // 7 días
         });
-        
+
         logger.info(`Inicio de sesión exitoso para el usuario: ${user.email}`);
-        
-        res.json({ 
-            accessToken, 
-            user: { 
-                id: user.id, 
-                email: user.email, 
-                role: user.role, 
-                firstName: user.first_name, 
-                lastName: user.last_name 
-            } 
+
+        res.json({
+            accessToken,
+            user: {
+                id: user.id,
+                email: user.email,
+                role: user.role,
+                firstName: user.first_name,
+                lastName: user.last_name
+            }
         });
     } catch (err) {
         next(err);
@@ -95,20 +96,22 @@ export const refreshToken = async (req, res, next) => {
     try {
         const userResult = await db.query('SELECT * FROM users WHERE refresh_token = $1', [refreshToken]);
         if (userResult.rows.length === 0) {
-            return res.sendStatus(403);
+            return res.sendStatus(403); // Forbidden
         }
         const user = userResult.rows[0];
 
+        // --- CORRECCIÓN: Verificar el refreshToken con su secreto correspondiente ---
         jwt.verify(refreshToken, JWT_REFRESH_SECRET, (err, decoded) => {
             if (err || user.id !== decoded.userId) return res.sendStatus(403);
 
-            const userPayload = { 
-                userId: user.id, 
-                email: user.email, 
+            const userPayload = {
+                userId: user.id,
+                email: user.email,
                 role: user.role,
                 firstName: user.first_name,
                 lastName: user.last_name
             };
+            // --- CORRECCIÓN: Firmar el nuevo accessToken con su secreto ---
             const accessToken = jwt.sign(userPayload, JWT_ACCESS_SECRET, { expiresIn: '15m' });
             res.json({ accessToken, user: userPayload });
         });
@@ -125,13 +128,12 @@ export const logoutUser = async (req, res, next) => {
 
     try {
         await db.query('UPDATE users SET refresh_token = NULL WHERE refresh_token = $1', [refreshToken]);
-        
-        // --- MEJORA: Añadir las mismas opciones que al crear la cookie ---
-        res.clearCookie('jwt', { 
-            httpOnly: true, 
-            sameSite: 'strict', 
+
+        res.clearCookie('jwt', {
+            httpOnly: true,
+            sameSite: 'strict',
             secure: process.env.NODE_ENV === 'production',
-            path: '/' 
+            path: '/'
         });
         res.sendStatus(204);
     } catch (err) {
@@ -199,7 +201,7 @@ export const resetPassword = async (req, res, next) => {
       'UPDATE users SET password_hash = $1, reset_password_token = NULL, reset_password_expires = NULL WHERE id = $2',
       [passwordHash, user.id]
     );
-    
+
     logger.info(`Contraseña actualizada para el usuario: ${user.email}`);
     res.status(200).json({ message: 'Contraseña actualizada con éxito.' });
 
