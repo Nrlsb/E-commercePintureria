@@ -106,7 +106,7 @@ export const useCartStore = create(
         }
       },
 
-      // --- NUEVAS ACCIONES PARA CUPONES ---
+      // --- CORRECCIÓN: Se añade el token a las cabeceras de la petición ---
       applyCoupon: async (code, token) => {
         const showNotification = useNotificationStore.getState().showNotification;
         try {
@@ -114,7 +114,7 @@ export const useCartStore = create(
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`,
+              'Authorization': `Bearer ${token}`, // <-- LÍNEA AÑADIDA
             },
             body: JSON.stringify({ code }),
           });
