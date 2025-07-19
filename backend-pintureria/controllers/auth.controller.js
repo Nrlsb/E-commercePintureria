@@ -65,6 +65,7 @@ export const loginUser = async (req, res, next) => {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
             sameSite: 'strict',
+            path: '/', // <-- Añadir path
             maxAge: 7 * 24 * 60 * 60 * 1000 // 7 días
         });
         
@@ -125,7 +126,13 @@ export const logoutUser = async (req, res, next) => {
     try {
         await db.query('UPDATE users SET refresh_token = NULL WHERE refresh_token = $1', [refreshToken]);
         
-        res.clearCookie('jwt', { httpOnly: true, sameSite: 'strict', secure: true });
+        // --- MEJORA: Añadir las mismas opciones que al crear la cookie ---
+        res.clearCookie('jwt', { 
+            httpOnly: true, 
+            sameSite: 'strict', 
+            secure: process.env.NODE_ENV === 'production',
+            path: '/' 
+        });
         res.sendStatus(204);
     } catch (err) {
         next(err);
