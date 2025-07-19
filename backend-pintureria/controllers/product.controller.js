@@ -2,6 +2,8 @@
 import db from '../db.js';
 import logger from '../logger.js';
 
+// --- Controladores de Productos ---
+
 export const getProducts = async (req, res, next) => {
   try {
     const { category, sortBy, brands, minPrice, maxPrice, page = 1, limit = 12 } = req.query;
@@ -67,12 +69,17 @@ export const getProducts = async (req, res, next) => {
     const result = await db.query(baseQuery, queryParams);
     
     const products = result.rows.map(p => ({ 
-      ...p, 
-      imageUrl: p.image_url, 
+      id: p.id,
+      name: p.name,
+      brand: p.brand,
+      category: p.category,
+      price: p.price,
       oldPrice: p.old_price,
+      imageUrl: p.image_url, // CORRECCIÓN: Mapear a camelCase
+      description: p.description,
+      stock: parseInt(p.stock, 10),
       averageRating: parseFloat(p.average_rating),
-      reviewCount: parseInt(p.review_count, 10),
-      stock: parseInt(p.stock, 10)
+      reviewCount: parseInt(p.review_count, 10)
     }));
     
     res.json({
@@ -101,14 +108,19 @@ export const getProductById = async (req, res, next) => {
     `;
     const result = await db.query(query, [productId]);
     if (result.rows.length > 0) {
-      const product = result.rows[0];
+      const p = result.rows[0];
       res.json({ 
-        ...product, 
-        imageUrl: product.image_url, 
-        oldPrice: product.old_price,
-        averageRating: parseFloat(product.average_rating),
-        reviewCount: parseInt(product.review_count, 10),
-        stock: parseInt(product.stock, 10)
+        id: p.id,
+        name: p.name,
+        brand: p.brand,
+        category: p.category,
+        price: p.price,
+        oldPrice: p.old_price,
+        imageUrl: p.image_url, // CORRECCIÓN: Mapear a camelCase
+        description: p.description,
+        stock: parseInt(p.stock, 10),
+        averageRating: parseFloat(p.average_rating),
+        reviewCount: parseInt(p.review_count, 10)
       });
     } else {
       res.status(404).json({ message: 'Producto no encontrado' });

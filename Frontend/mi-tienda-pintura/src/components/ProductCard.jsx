@@ -5,15 +5,31 @@ import Icon from './Icon.jsx';
 import { ICONS } from '../data/icons.js';
 import StarRating from './StarRating.jsx';
 import { useCartStore } from '../stores/useCartStore.js';
+import { useNotificationStore } from '../stores/useNotificationStore.js';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
 const ProductCard = ({ product }) => {
   const addToCart = useCartStore(state => state.addToCart);
+  const showNotification = useNotificationStore(state => state.showNotification);
 
-  const fullImageUrl = product.imageUrl && product.imageUrl.startsWith('http')
-    ? product.imageUrl
-    : `${API_URL}${product.imageUrl}`;
+  // CORRECCIÓN: Lógica mejorada para construir la URL de la imagen
+  const getFullImageUrl = (url) => {
+    if (!url) return 'https://placehold.co/300x224/cccccc/ffffff?text=Imagen+no+disponible';
+    // Si la URL ya es absoluta (comienza con http), la usamos directamente.
+    if (url.startsWith('http')) {
+      return url;
+    }
+    // Si es una ruta relativa (como /uploads/...), la combinamos con la URL del backend.
+    return `${API_URL}${url}`;
+  };
+
+  const fullImageUrl = getFullImageUrl(product.imageUrl);
+
+  const handleAddToCart = () => {
+    addToCart(product);
+    showNotification(`${product.name} ha sido agregado al carrito.`);
+  };
 
   return (
     <div className="bg-white border border-gray-200 rounded-xl shadow-md hover:shadow-xl flex flex-col overflow-hidden transition-all duration-300 ease-in-out transform hover:-translate-y-1 group">
@@ -21,8 +37,6 @@ const ProductCard = ({ product }) => {
         <img 
           src={fullImageUrl} 
           alt={`Imagen de ${product.name}`} 
-          // --- CAMBIO CLAVE: De 'object-cover' a 'object-contain' ---
-          // Esto asegura que toda la imagen sea visible dentro del contenedor.
           className="w-full h-full object-contain"
           loading="lazy"
           width="300"
@@ -50,11 +64,12 @@ const ProductCard = ({ product }) => {
             )}
           </div>
           <button 
-              onClick={() => addToCart(product)}
-              className="w-full flex items-center justify-center bg-[#0F3460] text-white py-2.5 px-4 rounded-lg font-semibold hover:bg-[#1a4a8a] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#0F3460] transition-colors duration-300"
+              onClick={handleAddToCart}
+              disabled={product.stock === 0}
+              className="w-full flex items-center justify-center bg-[#0F3460] text-white py-2.5 px-4 rounded-lg font-semibold hover:bg-[#1a4a8a] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#0F3460] transition-colors duration-300 disabled:bg-gray-400 disabled:cursor-not-allowed"
           >
               <Icon path={ICONS.shoppingCart} className="w-5 h-5 mr-2" />
-              Agregar al Carrito
+              {product.stock > 0 ? 'Agregar al Carrito' : 'Sin stock'}
           </button>
         </div>
       </div>
