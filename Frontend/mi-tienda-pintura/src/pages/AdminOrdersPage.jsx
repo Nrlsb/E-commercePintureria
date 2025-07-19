@@ -5,6 +5,8 @@ import { useAuthStore } from '../stores/useAuthStore';
 import { useNotificationStore } from '../stores/useNotificationStore';
 import OrderDetailModal from '../components/OrderDetailModal';
 import Spinner from '../components/Spinner';
+import ConfirmationModal from '../components/ConfirmationModal'; // 1. Importar el modal
+import Icon from '../components/Icon';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
@@ -30,6 +32,10 @@ const AdminOrdersPage = () => {
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [filters, setFilters] = useState({ status: '', search: '' });
   
+  // --- 2. Añadir estados para manejar el modal ---
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [actionToConfirm, setActionToConfirm] = useState(null);
+
   const navigate = useNavigate();
   const token = useAuthStore(state => state.token);
   const showNotification = useNotificationStore(state => state.showNotification);
@@ -83,36 +89,80 @@ const AdminOrdersPage = () => {
     }
   };
 
-  const handleAction = async (action, orderId) => {
-    const confirmMessages = {
-      cancel: `¿Estás seguro de que quieres cancelar la orden #${orderId}? Esta acción es irreversible.`,
-      confirm: `¿Confirmas que has recibido el pago para la orden #${orderId}?`
-    };
+  // --- 3. Función para abrir el modal en lugar de ejecutar la acción directamente ---
+  const openConfirmationModal = (action, orderId) => {
+    setActionToConfirm({ action, orderId });
+    setIsModalOpen(true);
+  };
+
+  // --- 4. Función que se ejecuta al confirmar en el modal ---
+  const handleConfirmAction = async () => {
+    if (!actionToConfirm) return;
+
+    const { action, orderId } = actionToConfirm;
+    
     const urls = {
       cancel: `${API_URL}/api/orders/${orderId}/cancel`,
       confirm: `${API_URL}/api/orders/${orderId}/confirm-payment`
     };
 
-    if (window.confirm(confirmMessages[action])) {
-      try {
-        const response = await fetch(urls[action], {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${token}` },
-        });
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.message || 'Error al procesar la acción.');
-        
-        showNotification(data.message, 'success');
-        fetchOrders(); // Recargar las órdenes para ver el estado actualizado
-      } catch (err) {
-        showNotification(`Error: ${err.message}`, 'error');
-      }
+    setIsModalOpen(false);
+
+    try {
+      const response = await fetch(urls[action], {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'Error al procesar la acción.');
+      
+      showNotification(data.message, 'success');
+      fetchOrders(); // Recargar las órdenes
+    } catch (err) {
+      showNotification(`Error: ${err.message}`, 'error');
+    } finally {
+      setActionToConfirm(null);
     }
+  };
+
+  // --- 5. Lógica para configurar el texto y estilo del modal dinámicamente ---
+  const getModalProps = () => {
+    if (!actionToConfirm) return {};
+    const { action, orderId } = actionToConfirm;
+
+    if (action === 'cancel') {
+      return {
+        title: 'Cancelar Orden',
+        message: `¿Estás seguro de que quieres cancelar la orden #${orderId}? Esta acción es irreversible y procesará un reembolso si corresponde.`,
+        confirmText: 'Sí, Cancelar',
+        iconPath: "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z",
+        iconColor: "text-red-500"
+      };
+    }
+
+    if (action === 'confirm') {
+      return {
+        title: 'Confirmar Pago',
+        message: `¿Confirmas que has recibido el pago por transferencia para la orden #${orderId}? Esto cambiará el estado a "Aprobado".`,
+        confirmText: 'Sí, Confirmar',
+        iconPath: "M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z",
+        iconColor: "text-green-500"
+      };
+    }
+    return {};
   };
 
   return (
     <div className="container mx-auto px-4 py-8">
       {selectedOrder && <OrderDetailModal order={selectedOrder} onClose={() => setSelectedOrder(null)} />}
+      
+      {/* --- 6. Renderizar el modal --- */}
+      <ConfirmationModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onConfirm={handleConfirmAction}
+        {...getModalProps()}
+      />
       
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-3xl font-bold text-gray-800">Gestión de Órdenes</h1>
@@ -168,13 +218,14 @@ const AdminOrdersPage = () => {
                   <td className="p-4">${new Intl.NumberFormat('es-AR').format(order.total_amount)}</td>
                   <td className="p-4"><StatusBadge status={order.status} /></td>
                   <td className="p-4 text-center space-x-2" onClick={(e) => e.stopPropagation()}>
+                    {/* --- 7. Modificar los botones para que abran el modal --- */}
                     {order.status === 'approved' && (
-                      <button onClick={() => handleAction('cancel', order.id)} className="bg-red-500 text-white text-xs font-bold py-1 px-2 rounded hover:bg-red-600">
+                      <button onClick={() => openConfirmationModal('cancel', order.id)} className="bg-red-500 text-white text-xs font-bold py-1 px-2 rounded hover:bg-red-600">
                         Cancelar
                       </button>
                     )}
                     {order.status === 'pending_transfer' && (
-                      <button onClick={() => handleAction('confirm', order.id)} className="bg-green-500 text-white text-xs font-bold py-1 px-2 rounded hover:bg-green-600">
+                      <button onClick={() => openConfirmationModal('confirm', order.id)} className="bg-green-500 text-white text-xs font-bold py-1 px-2 rounded hover:bg-green-600">
                         Confirmar Pago
                       </button>
                     )}
