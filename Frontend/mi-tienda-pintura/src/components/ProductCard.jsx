@@ -13,14 +13,12 @@ const ProductCard = ({ product }) => {
   const addToCart = useCartStore(state => state.addToCart);
   const showNotification = useNotificationStore(state => state.showNotification);
 
-  // CORRECCIÓN: Lógica mejorada para construir la URL de la imagen
+  // Lógica mejorada para construir la URL de la imagen
   const getFullImageUrl = (url) => {
     if (!url) return 'https://placehold.co/300x224/cccccc/ffffff?text=Imagen+no+disponible';
-    // Si la URL ya es absoluta (comienza con http), la usamos directamente.
     if (url.startsWith('http')) {
       return url;
     }
-    // Si es una ruta relativa (como /uploads/...), la combinamos con la URL del backend.
     return `${API_URL}${url}`;
   };
 

@@ -8,7 +8,7 @@ import ReviewForm from '../components/ReviewForm.jsx';
 import { useProductStore } from '../stores/useProductStore.js';
 import { useCartStore } from '../stores/useCartStore.js';
 import { useAuthStore } from '../stores/useAuthStore.js';
-import { useNotificationStore } from '../stores/useNotificationStore.js'; // Importar store de notificaciones
+import { useNotificationStore } from '../stores/useNotificationStore.js';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
@@ -18,7 +18,7 @@ const ProductDetailPage = () => {
   const { products } = useProductStore();
   const { addToCart } = useCartStore();
   const { user, token } = useAuthStore();
-  const showNotification = useNotificationStore(state => state.showNotification); // Obtener la función de notificación
+  const showNotification = useNotificationStore(state => state.showNotification);
 
   const [product, setProduct] = useState(null);
   const [reviews, setReviews] = useState([]);
@@ -77,20 +77,27 @@ const ProductDetailPage = () => {
           },
         });
 
-        // --- CORRECCIÓN EN EL MANEJO DE LA RESPUESTA ---
         if (!response.ok) {
-          // Si la respuesta no es OK, intentamos leerla como JSON para obtener el mensaje de error.
           const errorData = await response.json().catch(() => ({ message: 'Error al eliminar la reseña' }));
           throw new Error(errorData.message);
         }
         
         showNotification('Reseña eliminada con éxito', 'success');
-        fetchProductAndReviews(); // Recargar reseñas y producto
+        fetchProductAndReviews();
 
       } catch (err) {
         showNotification(err.message, 'error');
       }
     }
+  };
+
+  // --- LÓGICA PARA CONSTRUIR URL DE IMAGEN ---
+  const getFullImageUrl = (url) => {
+    if (!url) return 'https://placehold.co/500x500/cccccc/ffffff?text=Imagen+no+disponible';
+    if (url.startsWith('http')) {
+      return url;
+    }
+    return `${API_URL}${url}`;
   };
 
   const relatedProducts = product 
@@ -100,10 +107,11 @@ const ProductDetailPage = () => {
   if (loading) return <div className="text-center p-10">Cargando...</div>;
   if (error) return <div className="text-center p-10 text-red-500">Error: {error}</div>;
   if (!product) return null;
+  
+  const fullImageUrl = getFullImageUrl(product.imageUrl);
 
   return (
     <div className="container mx-auto px-4 py-8">
-      {/* ... resto del JSX (sin cambios) ... */}
       <div className="text-sm text-gray-500 mb-6">
         <Link to="/" className="hover:text-[#0F3460]">Inicio</Link>
         <span className="mx-2">&gt;</span>
@@ -115,12 +123,13 @@ const ProductDetailPage = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
         <div className="bg-white p-4 rounded-lg shadow-md flex items-center justify-center">
           <img 
-            src={product.imageUrl} 
+            src={fullImageUrl} 
             alt={`Imagen de ${product.name}`} 
             className="max-w-full h-auto max-h-[500px] object-contain"
             loading="lazy"
             width="500"
             height="500"
+            onError={(e) => { e.target.onerror = null; e.target.src='https://placehold.co/500x500/cccccc/ffffff?text=Imagen+no+disponible'; }}
           />
         </div>
         
