@@ -2,7 +2,74 @@
 import db from '../db.js';
 import logger from '../logger.js';
 
-// --- Controladores de Productos ---
+// --- (Las funciones existentes como getProducts, getProductById, etc., permanecen aquí sin cambios) ---
+
+// ... (código de las funciones anteriores)
+
+// --- NUEVA FUNCIÓN PARA LA PÁGINA DE DETALLES ---
+export const getProductDetailsPageData = async (req, res, next) => {
+  const { productId } = req.params;
+  try {
+    // 1. Obtener el producto principal
+    const productQuery = `
+      SELECT 
+        p.id, p.name, p.brand, p.category, p.price,
+        p.old_price AS "oldPrice",
+        p.image_url AS "imageUrl",
+        p.description, p.stock,
+        COALESCE(AVG(r.rating), 0) as "averageRating", 
+        COUNT(r.id) as "reviewCount"
+      FROM products p
+      LEFT JOIN reviews r ON p.id = r.product_id
+      WHERE p.id = $1
+      GROUP BY p.id;
+    `;
+    const productResult = await db.query(productQuery, [productId]);
+
+    if (productResult.rows.length === 0) {
+      return res.status(404).json({ message: 'Producto no encontrado' });
+    }
+    const product = productResult.rows[0];
+
+    // 2. Obtener reseñas y productos relacionados en paralelo
+    const reviewsQuery = `
+      SELECT r.id, r.rating, r.comment, r.created_at, r.user_id, u.first_name, u.last_name 
+      FROM reviews r
+      JOIN users u ON r.user_id = u.id
+      WHERE r.product_id = $1
+      ORDER BY r.created_at DESC;
+    `;
+    const relatedProductsQuery = `
+      SELECT 
+        p.id, p.name, p.brand, p.price, p.old_price AS "oldPrice", p.image_url AS "imageUrl", p.stock,
+        COALESCE(AVG(r.rating), 0) as "averageRating", 
+        COUNT(r.id) as "reviewCount"
+      FROM products p
+      LEFT JOIN reviews r ON p.id = r.product_id
+      WHERE p.category = $1 AND p.id != $2
+      GROUP BY p.id
+      LIMIT 4;
+    `;
+
+    const [reviewsResult, relatedProductsResult] = await Promise.all([
+      db.query(reviewsQuery, [productId]),
+      db.query(relatedProductsQuery, [product.category, productId])
+    ]);
+
+    // 3. Enviar toda la data junta
+    res.json({
+      product,
+      reviews: reviewsResult.rows,
+      relatedProducts: relatedProductsResult.rows
+    });
+
+  } catch (err) {
+    next(err);
+  }
+};
+
+
+// --- (Las demás funciones como createProduct, updateProduct, etc., continúan aquí) ---
 
 export const getProducts = async (req, res, next) => {
   try {
@@ -37,7 +104,6 @@ export const getProducts = async (req, res, next) => {
     const totalProducts = parseInt(totalResult.rows[0].count, 10);
     const totalPages = Math.ceil(totalProducts / limit);
 
-    // --- MEJORA: Se usan alias en la consulta SQL para obtener camelCase directamente ---
     let baseQuery = `
       SELECT 
         p.id,
@@ -66,7 +132,7 @@ export const getProducts = async (req, res, next) => {
         orderByClause = ' ORDER BY p.price DESC';
         break;
       case 'rating_desc':
-        orderByClause = ' ORDER BY "averageRating" DESC'; // Usar el alias en el ORDER BY
+        orderByClause = ' ORDER BY "averageRating" DESC';
         break;
     }
     baseQuery += orderByClause;
@@ -77,8 +143,6 @@ export const getProducts = async (req, res, next) => {
 
     const result = await db.query(baseQuery, queryParams);
     
-    // --- MEJORA: Ya no es necesario el mapeo manual ---
-    // El driver de la base de datos (pg) convierte automáticamente los resultados a camelCase
     const products = result.rows;
     
     res.json({
@@ -95,7 +159,6 @@ export const getProducts = async (req, res, next) => {
 export const getProductById = async (req, res, next) => {
   const { productId } = req.params;
   try {
-    // --- MEJORA: Se usan alias en la consulta SQL ---
     const query = `
       SELECT 
         p.id,
@@ -116,7 +179,6 @@ export const getProductById = async (req, res, next) => {
     `;
     const result = await db.query(query, [productId]);
     if (result.rows.length > 0) {
-      // --- MEJORA: Se devuelve directamente el resultado de la consulta ---
       res.json(result.rows[0]);
     } else {
       res.status(404).json({ message: 'Producto no encontrado' });
