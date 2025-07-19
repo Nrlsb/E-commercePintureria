@@ -33,7 +33,6 @@ export const bulkAssociateImagesWithAI = async (req, res, next) => {
 
     for (const file of req.files) {
         try {
-            // 1. Analizar la imagen con IA
             const base64ImageData = file.buffer.toString('base64');
             const aiData = await getAIDataForImage(base64ImageData, file.mimetype, apiKey);
 
@@ -41,23 +40,32 @@ export const bulkAssociateImagesWithAI = async (req, res, next) => {
                 throw new Error('La IA no pudo identificar un nombre para el producto.');
             }
 
-            // --- INICIO DE LA MEJORA EN LA BÚSQUEDA ---
+            // --- INICIO DE LA BÚSQUEDA DEFINITIVA ---
             
-            // 2. Descomponer el nombre de la IA en palabras clave
-            const keywords = aiData.name.split(' ').filter(kw => kw.length > 2); // Ignorar palabras cortas
+            const keywords = aiData.name.split(' ').filter(kw => kw.length > 2);
             if (keywords.length === 0) {
                 throw new Error('No se generaron suficientes palabras clave a partir del nombre de la IA.');
             }
 
-            // 3. Construir una consulta SQL dinámica que busque productos que contengan TODAS las palabras clave
-            const whereClauses = keywords.map((kw, index) => `name ILIKE $${index + 1}`);
-            const queryParams = keywords.map(kw => `%${kw}%`);
+            // 1. Construir una consulta que busca en el nombre Y en la marca.
+            // Buscamos productos donde (todas las keywords están en el nombre) O (alguna keyword está en la marca Y las demás en el nombre)
+            const nameClauses = keywords.map((_, index) => `p.name ILIKE $${index + 1}`);
+            const brandOrClauses = keywords.map((_, index) => `p.brand ILIKE $${index + 1}`);
             
-            const sqlQuery = `SELECT id, name FROM products WHERE ${whereClauses.join(' AND ')} LIMIT 1`;
+            const sqlQuery = `
+              SELECT id, name, brand 
+              FROM products p
+              WHERE (${nameClauses.join(' AND ')}) 
+                 OR (p.brand ILIKE ANY(ARRAY[${keywords.map((_, index) => `$${index + 1}`).join(', ')}]))
+              ORDER BY SIMILARITY(p.name, $${keywords.length + 1}) DESC
+              LIMIT 1
+            `;
+            
+            const queryParams = [...keywords.map(kw => `%${kw}%`), aiData.name];
 
             const searchResult = await db.query(sqlQuery, queryParams);
             
-            // --- FIN DE LA MEJORA EN LA BÚSQUEDA ---
+            // --- FIN DE LA BÚSQUEDA DEFINITIVA ---
 
             if (searchResult.rows.length === 0) {
                 throw new Error(`No se encontró un producto que coincida con las palabras clave: "${keywords.join(', ')}".`);
@@ -65,7 +73,6 @@ export const bulkAssociateImagesWithAI = async (req, res, next) => {
             
             const matchedProduct = searchResult.rows[0];
 
-            // 4. Procesar y guardar la imagen
             const newFilename = `${matchedProduct.id}-${Date.now()}.webp`;
             const outputPath = path.join(uploadDir, newFilename);
             const imageUrl = `/uploads/${newFilename}`;
@@ -75,7 +82,6 @@ export const bulkAssociateImagesWithAI = async (req, res, next) => {
                 .toFormat('webp', { quality: 80 })
                 .toFile(outputPath);
             
-            // 5. Actualizar el producto encontrado con la nueva URL de la imagen
             await db.query('UPDATE products SET image_url = $1 WHERE id = $2', [imageUrl, matchedProduct.id]);
 
             results.success.push({
@@ -98,7 +104,7 @@ export const bulkAssociateImagesWithAI = async (req, res, next) => {
 
 // --- Función auxiliar para llamar a la IA (sin cambios) ---
 async function getAIDataForImage(imageData, mimeType, apiKey) {
-    const prompt = `Analiza la imagen de un producto de pinturería. Sugiere un nombre de producto conciso y preciso. Responde solo con un JSON válido con la clave "name".`;
+    const prompt = `Analiza la imagen de un producto de pinturería. Sugiere un nombre de producto conciso y preciso, incluyendo la marca si es visible. Responde solo con un JSON válido con la clave "name".`;
     
     const payload = {
         contents: [{ role: "user", parts: [{ text: prompt }, { inlineData: { mimeType, data: imageData } }] }],
