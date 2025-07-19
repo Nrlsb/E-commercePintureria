@@ -33,9 +33,9 @@ const whitelist = [
 
 const corsOptions = {
   origin: (origin, callback) => {
-    if (!origin) {
-      return callback(null, true);
-    }
+    // Permitir peticiones sin origen (como Postman o apps móviles)
+    if (!origin) return callback(null, true);
+    
     if (whitelist.some(allowedOrigin => 
         typeof allowedOrigin === 'string' 
           ? allowedOrigin === origin 
@@ -46,6 +46,7 @@ const corsOptions = {
       callback(new Error('Not allowed by CORS'));
     }
   },
+  credentials: true, // <-- MEJORA: Añadir esta línea
   optionsSuccessStatus: 200
 };
 
