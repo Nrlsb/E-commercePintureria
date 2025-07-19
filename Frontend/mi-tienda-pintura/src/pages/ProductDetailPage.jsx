@@ -91,7 +91,7 @@ const ProductDetailPage = () => {
     }
   };
 
-  // --- LÓGICA PARA CONSTRUIR URL DE IMAGEN ---
+  // Lógica para construir la URL de la imagen
   const getFullImageUrl = (url) => {
     if (!url) return 'https://placehold.co/500x500/cccccc/ffffff?text=Imagen+no+disponible';
     if (url.startsWith('http')) {
