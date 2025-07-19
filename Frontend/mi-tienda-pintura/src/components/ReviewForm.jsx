@@ -1,14 +1,18 @@
 // src/components/ReviewForm.jsx
 import React, { useState } from 'react';
+// --- 1. Importar apiFetch ---
+import { apiFetch } from '../api';
+import { useNotificationStore } from '../stores/useNotificationStore';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
-const ReviewForm = ({ productId, token, onReviewSubmitted }) => {
+const ReviewForm = ({ productId, onReviewSubmitted }) => {
   const [rating, setRating] = useState(0);
   const [hoverRating, setHoverRating] = useState(0);
   const [comment, setComment] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const showNotification = useNotificationStore(state => state.showNotification);
+
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -20,24 +24,26 @@ const ReviewForm = ({ productId, token, onReviewSubmitted }) => {
     setError('');
 
     try {
-      const response = await fetch(`${API_URL}/api/products/${productId}/reviews`, {
+      // --- 2. Usar apiFetch en lugar de fetch ---
+      // Ya no es necesario pasar el token manualmente.
+      const response = await apiFetch(`/api/products/${productId}/reviews`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
         body: JSON.stringify({ rating, comment }),
       });
+
       const data = await response.json();
       if (!response.ok) {
         throw new Error(data.message || 'Error al enviar la reseña');
       }
+      
+      showNotification('¡Gracias por tu reseña!', 'success');
       // Limpiar formulario y notificar al padre para que actualice la lista
       setRating(0);
       setComment('');
       onReviewSubmitted();
     } catch (err) {
       setError(err.message);
+      showNotification(err.message, 'error');
     } finally {
       setLoading(false);
     }
