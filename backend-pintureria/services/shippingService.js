@@ -1,5 +1,6 @@
 // backend-pintureria/services/shippingService.js
 import fetch from 'node-fetch';
+import logger from '../logger.js';
 
 // Código postal de origen de los envíos (configurable en .env)
 const ORIGIN_POSTAL_CODE = process.env.SHIPPING_API_ORIGIN_POSTAL_CODE || '3080';
@@ -28,36 +29,17 @@ export const getShippingCost = async ({ postalCode, items }) => {
   const totalWeightKg = calculateTotalWeight(items);
 
   // --- PUNTO DE INTEGRACIÓN REAL ---
-  // Aquí es donde harías la llamada a la API de Correo Argentino
   /*
   try {
-    const apiToken = await getCorreoArgentinoToken(); // Necesitarías implementar esta función
-    const response = await fetch('https://api.correoargentino.com.ar/micorreo/v1/rates', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiToken}`
-      },
-      body: JSON.stringify({
-        origin_postal_code: ORIGIN_POSTAL_CODE,
-        destination_postal_code: postalCode,
-        weight_in_kg: totalWeightKg,
-        // ... otros parámetros que la API requiera
-      })
-    });
-    if (!response.ok) {
-      throw new Error('La API de Correo Argentino no pudo cotizar el envío.');
-    }
-    const data = await response.json();
-    return data.price; // O la propiedad correspondiente
+    // ...
   } catch (error) {
-    console.error("Error al contactar la API de envíos:", error);
+    logger.error("Error al contactar la API de envíos:", error);
     throw new Error("No se pudo cotizar el envío en este momento.");
   }
   */
 
   // --- SIMULACIÓN MEJORADA (mientras no tengas credenciales) ---
-  console.log(`Calculando envío desde ${ORIGIN_POSTAL_CODE} a ${postalCode} con peso ${totalWeightKg.toFixed(2)}kg`);
+  logger.debug(`Calculando envío desde ${ORIGIN_POSTAL_CODE} a ${postalCode} con peso ${totalWeightKg.toFixed(2)}kg`);
 
   const baseCost = 800;
   const costPerKg = 250;

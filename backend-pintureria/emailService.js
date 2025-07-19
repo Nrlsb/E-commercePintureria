@@ -1,5 +1,6 @@
 // backend-pintureria/emailService.js
 import nodemailer from 'nodemailer';
+import logger from './logger.js';
 
 const transporter = nodemailer.createTransport({
   host: process.env.EMAIL_HOST,
@@ -55,9 +56,9 @@ export const sendOrderConfirmationEmail = async (userEmail, order) => {
 
   try {
     await transporter.sendMail(mailOptions);
-    console.log(`Email de confirmación enviado a ${userEmail} para la orden ${order.id}`);
+    logger.info(`Email de confirmación enviado a ${userEmail} para la orden ${order.id}`);
   } catch (error) {
-    console.error(`Error al enviar email para la orden ${order.id}:`, error);
+    logger.error(`Error al enviar email para la orden ${order.id}:`, error);
   }
 };
 
@@ -107,13 +108,12 @@ export const sendBankTransferInstructionsEmail = async (userEmail, order) => {
 
   try {
     await transporter.sendMail(mailOptions);
-    console.log(`Email con instrucciones de transferencia enviado a ${userEmail} para la orden ${order.id}`);
+    logger.info(`Email con instrucciones de transferencia enviado a ${userEmail} para la orden ${order.id}`);
   } catch (error) {
-    console.error(`Error al enviar email para la orden ${order.id}:`, error);
+    logger.error(`Error al enviar email para la orden ${order.id}:`, error);
   }
 };
 
-// --- NUEVA FUNCIÓN ---
 export const sendPaymentReminderEmail = async (userEmail, order) => {
   const emailHtml = `
     <div style="font-family: Arial, sans-serif; color: #333;">
@@ -132,10 +132,9 @@ export const sendPaymentReminderEmail = async (userEmail, order) => {
     html: emailHtml,
   };
   await transporter.sendMail(mailOptions);
-  console.log(`Email de recordatorio enviado a ${userEmail} para la orden ${order.id}`);
+  logger.info(`Email de recordatorio enviado a ${userEmail} para la orden ${order.id}`);
 };
 
-// --- NUEVA FUNCIÓN ---
 export const sendOrderCancelledEmail = async (userEmail, order) => {
   const emailHtml = `
     <div style="font-family: Arial, sans-serif; color: #333;">
@@ -152,7 +151,7 @@ export const sendOrderCancelledEmail = async (userEmail, order) => {
     html: emailHtml,
   };
   await transporter.sendMail(mailOptions);
-  console.log(`Email de cancelación enviado a ${userEmail} para la orden ${order.id}`);
+  logger.info(`Email de cancelación enviado a ${userEmail} para la orden ${order.id}`);
 };
 
 export const sendPasswordResetEmail = async (userEmail, token) => {
@@ -178,9 +177,9 @@ export const sendPasswordResetEmail = async (userEmail, token) => {
   };
   try {
     await transporter.sendMail(mailOptions);
-    console.log(`Email de reseteo de contraseña enviado a ${userEmail}`);
+    logger.info(`Email de reseteo de contraseña enviado a ${userEmail}`);
   } catch (error) {
-    console.error(`Error al enviar email de reseteo a ${userEmail}:`, error);
+    logger.error(`Error al enviar email de reseteo a ${userEmail}:`, error);
     throw new Error('No se pudo enviar el correo de restablecimiento.');
   }
 };

@@ -1,9 +1,7 @@
 // backend-pintureria/controllers/product.controller.js
 import db from '../db.js';
+import logger from '../logger.js';
 
-// --- Controladores de Productos ---
-
-// Cada función ahora recibe 'next' para pasar los errores al middleware central.
 export const getProducts = async (req, res, next) => {
   try {
     const { category, sortBy, brands, minPrice, maxPrice, page = 1, limit = 12 } = req.query;
@@ -84,7 +82,6 @@ export const getProducts = async (req, res, next) => {
     });
 
   } catch (err) {
-    // En lugar de responder aquí, pasamos el error al manejador central.
     next(err);
   }
 };
@@ -138,6 +135,7 @@ export const createProduct = async (req, res, next) => {
       'INSERT INTO products (name, brand, category, price, old_price, image_url, description, stock) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *',
       [name, brand, category, price, old_price, image_url, description, stock]
     );
+    logger.info(`Producto creado con ID: ${result.rows[0].id}`);
     res.status(201).json(result.rows[0]);
   } catch (err) {
     next(err);
@@ -155,6 +153,7 @@ export const updateProduct = async (req, res, next) => {
     if (result.rows.length === 0) {
       return res.status(404).json({ message: 'Producto no encontrado' });
     }
+    logger.info(`Producto actualizado con ID: ${id}`);
     res.json(result.rows[0]);
   } catch (err) {
     next(err);
@@ -177,14 +176,12 @@ export const deleteProduct = async (req, res, next) => {
     if (result.rowCount === 0) {
       return res.status(404).json({ message: 'Producto no encontrado' });
     }
+    logger.info(`Producto eliminado con ID: ${id}`);
     res.status(200).json({ message: 'Producto eliminado con éxito' });
   } catch (err) {
     next(err);
   }
 };
-
-
-// --- Controladores de Reseñas ---
 
 export const getProductReviews = async (req, res, next) => {
   const { productId } = req.params;
@@ -215,6 +212,7 @@ export const createProductReview = async (req, res, next) => {
       RETURNING *;
     `;
     const result = await db.query(query, [rating, comment, productId, userId]);
+    logger.info(`Nueva reseña creada para el producto ID: ${productId} por el usuario ID: ${userId}`);
     res.status(201).json(result.rows[0]);
   } catch (err) {
     if (err.code === '23505') { 
@@ -242,7 +240,7 @@ export const deleteReview = async (req, res, next) => {
     }
 
     await db.query('DELETE FROM reviews WHERE id = $1', [reviewId]);
-    
+    logger.info(`Reseña ID: ${reviewId} eliminada por el usuario ID: ${userId}`);
     res.status(204).send();
 
   } catch (err) {

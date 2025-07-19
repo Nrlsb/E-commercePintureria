@@ -1,6 +1,8 @@
+// backend-pintureria/controllers/payment.controller.js
 import db from '../db.js';
 import mercadopago from 'mercadopago';
 import { sendOrderConfirmationEmail } from '../emailService.js';
+import logger from '../logger.js';
 
 const { MercadoPagoConfig, Payment } = mercadopago;
 const client = new MercadoPagoConfig({ accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN });
@@ -10,7 +12,7 @@ export const handlePaymentNotification = async (req, res) => {
   const { query } = req;
   const topic = query.topic || query.type;
   
-  console.log('Notificación recibida:', { topic, id: query.id });
+  logger.info('Notificación de Mercado Pago recibida:', { topic, id: query.id });
 
   const dbClient = await db.connect();
 
@@ -61,12 +63,13 @@ export const handlePaymentNotification = async (req, res) => {
         }
         
         await dbClient.query('COMMIT');
+        logger.info(`Webhook procesado: Orden #${orderId} aprobada y stock actualizado.`);
       }
     }
     res.sendStatus(200);
   } catch (error) {
     await dbClient.query('ROLLBACK');
-    console.error('Error en el webhook de Mercado Pago:', error);
+    logger.error('Error en el webhook de Mercado Pago:', error);
     res.sendStatus(500);
   } finally {
     dbClient.release();

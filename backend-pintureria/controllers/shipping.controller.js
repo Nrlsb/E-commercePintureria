@@ -1,7 +1,8 @@
 // backend-pintureria/controllers/shipping.controller.js
 import { getShippingCost } from '../services/shippingService.js';
+import logger from '../logger.js';
 
-export const calculateShipping = async (req, res, next) => { // Añadimos 'next' para el manejo de errores
+export const calculateShipping = async (req, res, next) => {
   const { postalCode, items } = req.body;
 
   if (!postalCode || !/^\d{4}$/.test(postalCode)) {
@@ -16,9 +17,6 @@ export const calculateShipping = async (req, res, next) => { // Añadimos 'next'
     const shippingCost = await getShippingCost({ postalCode, items });
     res.json({ postalCode, cost: shippingCost });
   } catch (error) {
-    // Pasamos el error al middleware centralizado (si lo implementas)
-    // o lo manejamos aquí directamente.
-    console.error('Error en el controlador de cálculo de envío:', error);
-    res.status(500).json({ message: error.message || 'Error interno al calcular el envío.' });
+    next(error);
   }
 };

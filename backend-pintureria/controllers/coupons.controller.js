@@ -1,11 +1,12 @@
 // backend-pintureria/controllers/coupons.controller.js
 import db from '../db.js';
+import logger from '../logger.js';
 
 /**
  * Valida un código de cupón.
  * Verifica si existe, si está activo y si no ha expirado.
  */
-export const validateCoupon = async (req, res) => {
+export const validateCoupon = async (req, res, next) => {
   const { code } = req.body;
 
   if (!code) {
@@ -24,6 +25,7 @@ export const validateCoupon = async (req, res) => {
     }
 
     const coupon = result.rows[0];
+    logger.info(`Cupón '${code}' validado exitosamente para el usuario ID: ${req.user.userId}`);
     res.status(200).json({
       message: 'Cupón aplicado con éxito.',
       coupon: {
@@ -34,7 +36,6 @@ export const validateCoupon = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error al validar el cupón:', error);
-    res.status(500).json({ message: 'Error interno del servidor.' });
+    next(error);
   }
 };

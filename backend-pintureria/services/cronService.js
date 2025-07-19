@@ -2,6 +2,7 @@
 import cron from 'node-cron';
 import db from '../db.js';
 import { sendPaymentReminderEmail, sendOrderCancelledEmail } from '../emailService.js';
+import logger from '../logger.js';
 
 const getOrderDetailsForEmail = async (orderId, dbClient) => {
   const orderQuery = `
@@ -16,7 +17,7 @@ const getOrderDetailsForEmail = async (orderId, dbClient) => {
 
 export const startCancelPendingOrdersJob = () => {
   cron.schedule('0 * * * *', async () => {
-    console.log('Ejecutando tarea: Cancelar y recordar órdenes pendientes...');
+    logger.info('Ejecutando tarea: Cancelar y recordar órdenes pendientes...');
     const dbClient = await db.connect();
     try {
       await dbClient.query('BEGIN');
@@ -33,7 +34,7 @@ export const startCancelPendingOrdersJob = () => {
         }
         await dbClient.query("UPDATE orders SET status = 'cancelled' WHERE id = $1", [order.id]);
         await sendOrderCancelledEmail(orderDetails.email, orderDetails);
-        console.log(`Orden #${order.id} cancelada y email enviado.`);
+        logger.info(`Orden #${order.id} cancelada y email enviado.`);
       }
 
       // 2. Enviar recordatorio para órdenes entre 24 y 25 horas de antigüedad
@@ -43,13 +44,13 @@ export const startCancelPendingOrdersJob = () => {
       for (const order of reminderOrdersResult.rows) {
         const orderDetails = await getOrderDetailsForEmail(order.id, dbClient);
         await sendPaymentReminderEmail(orderDetails.email, orderDetails);
-        console.log(`Recordatorio de pago enviado para la orden #${order.id}.`);
+        logger.info(`Recordatorio de pago enviado para la orden #${order.id}.`);
       }
 
       await dbClient.query('COMMIT');
     } catch (error) {
       await dbClient.query('ROLLBACK');
-      console.error('Error en la tarea de cancelación/recordatorio de órdenes:', error);
+      logger.error('Error en la tarea de cancelación/recordatorio de órdenes:', error);
     } finally {
       dbClient.release();
     }

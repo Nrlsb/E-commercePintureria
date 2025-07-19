@@ -5,6 +5,9 @@ dotenv.config();
 import express from 'express';
 import cors from 'cors';
 import { startCancelPendingOrdersJob } from './services/cronService.js';
+import winston from 'winston';
+import expressWinston from 'express-winston';
+import logger from './logger.js'; // Importamos nuestro logger configurado
 
 // Importadores de Rutas
 import productRoutes from './routes/product.routes.js';
@@ -48,12 +51,18 @@ const corsOptions = {
 app.use(cors(corsOptions));
 
 // --- Middlewares Globales ---
-
-// --- CORRECCIÓN: Aumentamos el límite del tamaño del payload ---
-// Esto permite que el servidor acepte las imágenes en formato Base64 para el análisis de IA.
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
+// --- Middleware de Logging de Peticiones (antes de las rutas) ---
+app.use(expressWinston.logger({
+  winstonInstance: logger,
+  meta: true,
+  msg: "HTTP {{req.method}} {{req.url}}",
+  expressFormat: true,
+  colorize: true,
+  ignoreRoute: function (req, res) { return false; }
+}));
 
 // --- Servir archivos estáticos ---
 app.use(express.static('public'));
@@ -71,10 +80,15 @@ app.use('/api/uploads', uploadRoutes);
 // --- Inicio de Tareas Programadas ---
 startCancelPendingOrdersJob();
 
+// --- Middleware de Logging de Errores (después de las rutas y antes del manejador de errores) ---
+app.use(expressWinston.errorLogger({
+  winstonInstance: logger
+}));
+
 // --- Middleware de Manejo de Errores ---
 app.use(errorHandler);
 
 // --- Inicio del Servidor ---
 app.listen(PORT, () => {
-  console.log(`Servidor corriendo en el puerto ${PORT}`);
+  logger.info(`Servidor corriendo en el puerto ${PORT}`);
 });

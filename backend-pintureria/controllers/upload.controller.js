@@ -5,21 +5,62 @@ import db from '../db.js';
 import fs from 'fs';
 import sharp from 'sharp';
 import fetch from 'node-fetch';
+import logger from '../logger.js';
 
-// ... (código existente de configuración y otras funciones)
 const uploadDir = 'public/uploads/';
 if (!fs.existsSync(uploadDir)){ fs.mkdirSync(uploadDir, { recursive: true }); }
+
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
+
 export const uploadMultipleImages = upload.array('productImages', 50);
 export const uploadSingleImage = upload.single('productImage');
-export const processAndAssociateImages = async (req, res, next) => { /* ... */ };
-export const handleSingleImageUpload = async (req, res, next) => { /* ... */ };
-export const analyzeImageWithAI = async (req, res, next) => { /* ... */ };
-export const bulkCreateProductsWithAI = async (req, res, next) => { /* ... */ };
 
+async function getAIDataForImage(imageData, mimeType, apiKey) {
+    const prompt = `Analiza la imagen de un producto de pinturería. Sugiere un nombre de producto conciso y preciso, incluyendo la marca si es visible. Responde solo con un JSON válido con la clave "name".`;
+    
+    const payload = {
+        contents: [{ role: "user", parts: [{ text: prompt }, { inlineData: { mimeType, data: imageData } }] }],
+        generationConfig: { responseMimeType: "application/json" }
+    };
+    
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+    const apiResponse = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    });
 
-// --- Controlador para Asociación Masiva con IA (Búsqueda Flexible) ---
+    if (!apiResponse.ok) {
+        const errorBody = await apiResponse.text();
+        logger.error("Error from Gemini API:", errorBody);
+        throw new Error(`Error de la API de IA: ${apiResponse.statusText}`);
+    }
+
+    const result = await apiResponse.json();
+    if (result.candidates?.[0]?.content?.parts?.[0]?.text) {
+        return JSON.parse(result.candidates[0].content.parts[0].text);
+    } else {
+        throw new Error('La respuesta de la IA no tuvo el formato esperado.');
+    }
+}
+
+export const processAndAssociateImages = async (req, res, next) => {
+    // Implementación completa si existiera...
+};
+
+export const handleSingleImageUpload = async (req, res, next) => {
+    // Implementación completa si existiera...
+};
+
+export const analyzeImageWithAI = async (req, res, next) => {
+    // Implementación completa si existiera...
+};
+
+export const bulkCreateProductsWithAI = async (req, res, next) => {
+    // Implementación completa si existiera...
+};
+
 export const bulkAssociateImagesWithAI = async (req, res, next) => {
     if (!req.files || req.files.length === 0) {
         return res.status(400).json({ message: 'No se subieron archivos.' });
@@ -60,7 +101,6 @@ export const bulkAssociateImagesWithAI = async (req, res, next) => {
                     throw new Error(`La IA no pudo extraer palabras clave del nombre: "${aiData.name}"`);
                 }
 
-                // --- INICIO DE LA BÚSQUEDA FLEXIBLE ---
                 const queryParams = [];
                 const whereClauses = [];
                 let paramIndex = 1;
@@ -70,7 +110,6 @@ export const bulkAssociateImagesWithAI = async (req, res, next) => {
                     queryParams.push(brandKeyword);
                 }
                 
-                // Buscamos que el nombre contenga AL MENOS UNA de las palabras clave
                 if (nameKeywords.length > 0) {
                     const nameConditions = nameKeywords.map(() => `p.name ILIKE $${paramIndex++}`);
                     whereClauses.push(`(${nameConditions.join(' OR ')})`);
@@ -85,7 +124,6 @@ export const bulkAssociateImagesWithAI = async (req, res, next) => {
                 `;
 
                 const searchResult = await db.query(sqlQuery, queryParams);
-                // --- FIN DE LA BÚSQUEDA FLEXIBLE ---
 
                 if (searchResult.rows.length === 0) {
                     throw new Error(`No se encontró un producto que coincida con la marca "${brandKeyword || 'N/A'}" y las palabras clave: "${nameKeywords.join(', ')}".`);
@@ -109,8 +147,9 @@ export const bulkAssociateImagesWithAI = async (req, res, next) => {
                     matchedProductId: matchedProduct.id,
                     matchedProductName: matchedProduct.name
                 });
-
+                logger.info(`Imagen ${file.originalname} asociada al producto ID ${matchedProduct.id}`);
             } catch (error) {
+                logger.warn(`Fallo al asociar imagen ${file.originalname}: ${error.message}`);
                 results.failed.push({ file: file.originalname, reason: error.message });
             }
         }
@@ -124,34 +163,3 @@ export const bulkAssociateImagesWithAI = async (req, res, next) => {
         next(err);
     }
 };
-
-
-// --- Función auxiliar para llamar a la IA (sin cambios) ---
-async function getAIDataForImage(imageData, mimeType, apiKey) {
-    const prompt = `Analiza la imagen de un producto de pinturería. Sugiere un nombre de producto conciso y preciso, incluyendo la marca si es visible. Responde solo con un JSON válido con la clave "name".`;
-    
-    const payload = {
-        contents: [{ role: "user", parts: [{ text: prompt }, { inlineData: { mimeType, data: imageData } }] }],
-        generationConfig: { responseMimeType: "application/json" }
-    };
-    
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
-    const apiResponse = await fetch(apiUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-    });
-
-    if (!apiResponse.ok) {
-        const errorBody = await apiResponse.text();
-        console.error("Error from Gemini API:", errorBody);
-        throw new Error(`Error de la API de IA: ${apiResponse.statusText}`);
-    }
-
-    const result = await apiResponse.json();
-    if (result.candidates?.[0]?.content?.parts?.[0]?.text) {
-        return JSON.parse(result.candidates[0].content.parts[0].text);
-    } else {
-        throw new Error('La respuesta de la IA no tuvo el formato esperado.');
-    }
-}
