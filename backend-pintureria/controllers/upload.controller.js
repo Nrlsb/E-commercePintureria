@@ -46,15 +46,104 @@ async function getAIDataForImage(imageData, mimeType, apiKey) {
 }
 
 export const processAndAssociateImages = async (req, res, next) => {
-    // Implementación completa si existiera...
+    if (!req.files || req.files.length === 0) {
+        return res.status(400).json({ message: 'No se subieron archivos.' });
+    }
+
+    const results = { success: [], failed: [] };
+
+    for (const file of req.files) {
+        const baseName = path.parse(file.originalname).name;
+        const productId = parseInt(baseName.split('_')[0], 10);
+
+        if (isNaN(productId)) {
+            results.failed.push({ file: file.originalname, reason: 'Nombre de archivo no contiene un ID de producto válido.' });
+            continue;
+        }
+
+        try {
+            const newFilename = `${productId}-${Date.now()}.webp`;
+            const outputPath = path.join(uploadDir, newFilename);
+            const imageUrl = `/uploads/${newFilename}`;
+
+            await sharp(file.buffer)
+                .resize(800, 800, { fit: 'inside', withoutEnlargement: true })
+                .toFormat('webp', { quality: 80 })
+                .toFile(outputPath);
+
+            const productResult = await db.query('SELECT image_url FROM products WHERE id = $1', [productId]);
+            if (productResult.rows.length > 0 && !productResult.rows[0].image_url) {
+                await db.query('UPDATE products SET image_url = $1 WHERE id = $2', [imageUrl, productId]);
+            }
+            
+            results.success.push(file.originalname);
+        } catch (error) {
+            logger.error(`Error procesando el archivo ${file.originalname}:`, error);
+            results.failed.push({ file: file.originalname, reason: 'Error interno del servidor al procesar la imagen.' });
+        }
+    }
+    res.status(200).json(results);
 };
 
 export const handleSingleImageUpload = async (req, res, next) => {
-    // Implementación completa si existiera...
+    if (!req.file) {
+        return res.status(400).json({ message: 'No se subió ningún archivo.' });
+    }
+
+    try {
+        const newFilename = `prod-${Date.now()}.webp`;
+        const outputPath = path.join(uploadDir, newFilename);
+        const imageUrl = `/uploads/${newFilename}`;
+
+        await sharp(req.file.buffer)
+            .resize(800, 800, { fit: 'inside', withoutEnlargement: true })
+            .toFormat('webp', { quality: 80 })
+            .toFile(outputPath);
+        
+        res.status(201).json({ imageUrl });
+    } catch (err) {
+        next(err);
+    }
 };
 
 export const analyzeImageWithAI = async (req, res, next) => {
-    // Implementación completa si existiera...
+    const { imageData, mimeType } = req.body;
+    const apiKey = process.env.GEMINI_API_KEY;
+
+    if (!imageData || !mimeType || !apiKey) {
+        return res.status(400).json({ message: 'Faltan datos para el análisis de IA.' });
+    }
+
+    try {
+        const prompt = `Analiza esta imagen de un producto de pinturería. Describe el producto, sugiere un nombre comercial y una categoría. Responde solo con un JSON válido con las claves "name", "description" y "category".`;
+        const payload = {
+            contents: [{ role: "user", parts: [{ text: prompt }, { inlineData: { mimeType, data: imageData } }] }],
+            generationConfig: { responseMimeType: "application/json" }
+        };
+        
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+        const apiResponse = await fetch(apiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (!apiResponse.ok) {
+            const errorBody = await apiResponse.text();
+            logger.error("Error from Gemini API:", errorBody);
+            throw new Error(`Error de la API de IA: ${apiResponse.statusText}`);
+        }
+
+        const result = await apiResponse.json();
+        if (result.candidates?.[0]?.content?.parts?.[0]?.text) {
+            const aiData = JSON.parse(result.candidates[0].content.parts[0].text);
+            res.status(200).json(aiData);
+        } else {
+            throw new Error('La respuesta de la IA no tuvo el formato esperado.');
+        }
+    } catch(err) {
+        next(err);
+    }
 };
 
 export const bulkCreateProductsWithAI = async (req, res, next) => {
