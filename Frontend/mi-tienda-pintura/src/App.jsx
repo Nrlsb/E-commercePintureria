@@ -6,7 +6,7 @@ import { initMercadoPago } from '@mercadopago/sdk-react';
 import { useProductStore } from './stores/useProductStore';
 import { useNotificationStore } from './stores/useNotificationStore';
 
-// Componentes principales que se cargan de inmediato
+// Componentes principales
 import Header from './components/Header.jsx';
 import Navbar from './components/Navbar.jsx';
 import Footer from './components/Footer.jsx';
@@ -15,7 +15,7 @@ import Spinner from './components/Spinner.jsx';
 import AdminRoute from './components/AdminRoute.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
 
-// --- IMPLEMENTACIÓN DE LAZY LOADING ---
+// --- Lazy Loading de Páginas ---
 const HomePage = lazy(() => import('./pages/HomePage.jsx'));
 const ProductDetailPage = lazy(() => import('./pages/ProductDetailPage.jsx'));
 const CartPage = lazy(() => import('./pages/CartPage.jsx'));
@@ -32,7 +32,9 @@ const OrderHistoryPage = lazy(() => import('./pages/OrderHistoryPage.jsx'));
 const AdminOrdersPage = lazy(() => import('./pages/AdminOrdersPage.jsx'));
 const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage.jsx'));
 const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage.jsx'));
-const BulkUploadPage = lazy(() => import('./pages/BulkUploadPage.jsx')); // <-- AÑADIDO
+const BulkUploadPage = lazy(() => import('./pages/BulkUploadPage.jsx'));
+// --- Se importa la nueva página ---
+const BulkCreateAIPage = lazy(() => import('./pages/BulkCreateAIPage.jsx'));
 
 
 const MERCADOPAGO_PUBLIC_KEY = import.meta.env.VITE_MERCADOPAGO_PUBLIC_KEY;
@@ -44,13 +46,10 @@ if (MERCADOPAGO_PUBLIC_KEY) {
 }
 
 export default function App() {
-  // Se elimina la llamada a fetchProducts de aquí.
   const fetchAvailableBrands = useProductStore(state => state.fetchAvailableBrands);
   const { message: notificationMessage, show: showNotification, type: notificationType } = useNotificationStore();
 
   useEffect(() => {
-    // La responsabilidad de cargar los productos ahora recae en cada página (HomePage, CategoryPage, etc.)
-    // Mantenemos la carga de las marcas aquí, ya que es un dato más global.
     fetchAvailableBrands();
   }, [fetchAvailableBrands]);
 
@@ -65,6 +64,7 @@ export default function App() {
             </div>
           }>
           <Routes>
+            {/* Rutas Públicas */}
             <Route path="/" element={<HomePage />} />
             <Route path="/product/:productId" element={<ProductDetailPage />} />
             <Route path="/cart" element={<CartPage />} />
@@ -76,18 +76,22 @@ export default function App() {
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
 
+            {/* Rutas Protegidas para Usuarios Logueados */}
             <Route element={<ProtectedRoute />}>
               <Route path="/checkout" element={<CheckoutPage />} />
               <Route path="/my-orders" element={<OrderHistoryPage />} />
               <Route path="/order-pending/:orderId" element={<OrderPendingPage />} />
             </Route>
 
+            {/* Rutas Protegidas para Administradores */}
             <Route element={<AdminRoute />}>
               <Route path="/admin" element={<AdminDashboardPage />} />
               <Route path="/admin/orders" element={<AdminOrdersPage />} />
               <Route path="/admin/product/new" element={<ProductFormPage />} />
               <Route path="/admin/product/edit/:productId" element={<ProductFormPage />} />
-              <Route path="/admin/product/bulk-upload" element={<BulkUploadPage />} /> {/* <-- AÑADIDO */}
+              <Route path="/admin/product/bulk-upload" element={<BulkUploadPage />} />
+              {/* --- Se añade la nueva ruta --- */}
+              <Route path="/admin/product/bulk-create-ai" element={<BulkCreateAIPage />} />
             </Route>
           </Routes>
         </Suspense>
