@@ -19,7 +19,7 @@ export const analyzeImageWithAI = async (req, res, next) => { /* ... */ };
 export const bulkCreateProductsWithAI = async (req, res, next) => { /* ... */ };
 
 
-// --- Controlador para Asociación Masiva con IA (Búsqueda Mejorada) ---
+// --- Controlador para Asociación Masiva con IA (Corrección Final) ---
 export const bulkAssociateImagesWithAI = async (req, res, next) => {
     if (!req.files || req.files.length === 0) {
         return res.status(400).json({ message: 'No se subieron archivos.' });
@@ -39,33 +39,26 @@ export const bulkAssociateImagesWithAI = async (req, res, next) => {
             if (!aiData.name) {
                 throw new Error('La IA no pudo identificar un nombre para el producto.');
             }
-
-            // --- INICIO DE LA BÚSQUEDA DEFINITIVA ---
             
             const keywords = aiData.name.split(' ').filter(kw => kw.length > 2);
             if (keywords.length === 0) {
                 throw new Error('No se generaron suficientes palabras clave a partir del nombre de la IA.');
             }
 
-            // 1. Construir una consulta que busca en el nombre Y en la marca.
-            // Buscamos productos donde (todas las keywords están en el nombre) O (alguna keyword está en la marca Y las demás en el nombre)
+            // --- CORRECCIÓN: Se elimina la cláusula ORDER BY que usa SIMILARITY ---
             const nameClauses = keywords.map((_, index) => `p.name ILIKE $${index + 1}`);
-            const brandOrClauses = keywords.map((_, index) => `p.brand ILIKE $${index + 1}`);
             
             const sqlQuery = `
               SELECT id, name, brand 
               FROM products p
               WHERE (${nameClauses.join(' AND ')}) 
                  OR (p.brand ILIKE ANY(ARRAY[${keywords.map((_, index) => `$${index + 1}`).join(', ')}]))
-              ORDER BY SIMILARITY(p.name, $${keywords.length + 1}) DESC
               LIMIT 1
             `;
             
-            const queryParams = [...keywords.map(kw => `%${kw}%`), aiData.name];
+            const queryParams = keywords.map(kw => `%${kw}%`);
 
             const searchResult = await db.query(sqlQuery, queryParams);
-            
-            // --- FIN DE LA BÚSQUEDA DEFINITIVA ---
 
             if (searchResult.rows.length === 0) {
                 throw new Error(`No se encontró un producto que coincida con las palabras clave: "${keywords.join(', ')}".`);
