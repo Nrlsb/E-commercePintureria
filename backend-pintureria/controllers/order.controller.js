@@ -92,31 +92,85 @@ export const createBankTransferOrder = async (req, res, next) => {
 };
 
 export const processPayment = async (req, res, next) => {
-    const { token, issuer_id, payment_method_id, transaction_amount, installments, payer, cart } = req.body;
+    const { token, issuer_id, payment_method_id, transaction_amount, installments, payer, cart, shippingCost, postalCode } = req.body;
     const { userId } = req.user;
     const dbClient = await db.connect();
+    let orderId; // Declarar orderId aquí para que sea accesible en todo el scope
+
     try {
+        await dbClient.query('BEGIN');
+
+        // 1. Verificar el stock DENTRO de la transacción
+        for (const item of cart) {
+            const stockResult = await dbClient.query('SELECT stock FROM products WHERE id = $1 FOR UPDATE', [item.id]);
+            if (stockResult.rows.length === 0 || item.quantity > stockResult.rows[0].stock) {
+                throw new Error(`Stock insuficiente para "${item.name}".`);
+            }
+        }
+
+        // 2. Crear la orden con estado 'pending'
+        const orderResult = await dbClient.query(
+            'INSERT INTO orders (user_id, total_amount, status, shipping_cost, postal_code) VALUES ($1, $2, $3, $4, $5) RETURNING id',
+            [userId, transaction_amount, 'pending', shippingCost, postalCode]
+        );
+        orderId = orderResult.rows[0].id;
+
+        // 3. Insertar los items de la orden
+        for (const item of cart) {
+            await dbClient.query(
+                'INSERT INTO order_items (order_id, product_id, quantity, price) VALUES ($1, $2, $3, $4)',
+                [orderId, item.id, item.quantity, item.price]
+            );
+        }
+
+        // 4. Realizar el intento de pago
         const payment = new Payment(client);
         const payment_data = {
-            transaction_amount: Number(transaction_amount), token, description: `Compra en Pinturerías Mercurio - Orden #${orderId}`,
-            installments, payment_method_id, issuer_id,
-            payer: { email: payer.email, identification: { type: payer.identification.type, number: payer.identification.number }, first_name: payer.firstName, last_name: payer.lastName },
-            external_reference: orderId.toString(), notification_url: `${process.env.BACKEND_URL}/api/payment/notification`,
+            transaction_amount: Number(transaction_amount),
+            token,
+            description: `Compra en Pinturerías Mercurio - Orden #${orderId}`,
+            installments,
+            payment_method_id,
+            issuer_id,
+            payer: {
+                email: payer.email,
+                identification: {
+                    type: payer.identification.type,
+                    number: payer.identification.number
+                },
+                first_name: payer.firstName,
+                last_name: payer.lastName
+            },
+            external_reference: orderId.toString(),
+            notification_url: `${process.env.BACKEND_URL}/api/payment/notification`,
         };
+
         const paymentResult = await payment.create({ body: payment_data });
 
+        // 5. Si el pago es aprobado, actualizar stock y estado de la orden
         if (paymentResult.status === 'approved') {
-            await sendOrderConfirmationEmail(payer.email, orderDataForEmail);
+            for (const item of cart) {
+                await dbClient.query('UPDATE products SET stock = stock - $1 WHERE id = $2', [item.quantity, item.id]);
+            }
+            await dbClient.query("UPDATE orders SET status = 'approved', mercadopago_transaction_id = $1 WHERE id = $2", [paymentResult.id, orderId]);
+            
+            // Lógica para enviar email de confirmación
+            // ...
+
             await dbClient.query('COMMIT');
             logger.info(`Pago aprobado por Mercado Pago para la orden #${orderId}`);
             res.status(201).json({ status: 'approved', orderId: orderId, paymentId: paymentResult.id });
         } else {
+            // Si el pago es rechazado, revertir todo
             await dbClient.query('ROLLBACK');
-            logger.warn(`Pago rechazado por Mercado Pago para la orden #${orderId}. Estado: ${paymentResult.status_detail}`);
+            logger.warn(`Pago rechazado por Mercado Pago. Orden #${orderId} revertida. Motivo: ${paymentResult.status_detail}`);
             res.status(400).json({ status: paymentResult.status, message: paymentResult.status_detail || 'El pago no pudo ser procesado.' });
         }
+
     } catch (error) {
+        // Si ocurre cualquier error, revertir la transacción
         await dbClient.query('ROLLBACK');
+        logger.error(`Error procesando el pago para la orden #${orderId}:`, error);
         next(error);
     } finally {
         dbClient.release();
