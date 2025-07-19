@@ -8,6 +8,49 @@ const { MercadoPagoConfig, Payment, PaymentRefund } = mercadopago;
 const client = new MercadoPagoConfig({ accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN });
 const MIN_TRANSACTION_AMOUNT = 100;
 
+
+export const getAllOrders = async (req, res, next) => {
+    const { status, search } = req.query;
+    let query = `
+        SELECT o.id, o.total_amount, o.status, o.created_at, u.email as user_email 
+        FROM orders o
+        JOIN users u ON o.user_id = u.id
+    `;
+    const queryParams = [];
+    let paramIndex = 1;
+    const whereClauses = [];
+
+    if (status) {
+        whereClauses.push(`o.status = $${paramIndex++}`);
+        queryParams.push(status);
+    }
+
+    // --- CORRECCIÓN: Lógica de búsqueda mejorada ---
+    if (search) {
+        // Usamos dos placeholders diferentes para los dos campos de búsqueda
+        whereClauses.push(`(u.email ILIKE $${paramIndex++} OR o.id::text ILIKE $${paramIndex++})`);
+        // Y añadimos el valor de búsqueda dos veces al array de parámetros
+        queryParams.push(`%${search}%`);
+        queryParams.push(`%${search}%`);
+    }
+
+    if (whereClauses.length > 0) {
+        query += ` WHERE ${whereClauses.join(' AND ')}`;
+    }
+
+    query += ' ORDER BY o.created_at DESC';
+    try {
+        const result = await db.query(query, queryParams);
+        res.json(result.rows);
+    } catch (error) {
+        // Si hay un error en la consulta, lo pasamos al manejador de errores
+        next(error);
+    }
+};
+
+
+// ... (El resto de las funciones del controlador no cambian)
+
 export const confirmTransferPayment = async (req, res, next) => {
   const { orderId } = req.params;
   try {
@@ -95,12 +138,11 @@ export const processPayment = async (req, res, next) => {
     const { token, issuer_id, payment_method_id, transaction_amount, installments, payer, cart, shippingCost, postalCode } = req.body;
     const { userId } = req.user;
     const dbClient = await db.connect();
-    let orderId; // Declarar orderId aquí para que sea accesible en todo el scope
+    let orderId; 
 
     try {
         await dbClient.query('BEGIN');
 
-        // 1. Verificar el stock DENTRO de la transacción
         for (const item of cart) {
             const stockResult = await dbClient.query('SELECT stock FROM products WHERE id = $1 FOR UPDATE', [item.id]);
             if (stockResult.rows.length === 0 || item.quantity > stockResult.rows[0].stock) {
@@ -108,14 +150,12 @@ export const processPayment = async (req, res, next) => {
             }
         }
 
-        // 2. Crear la orden con estado 'pending'
         const orderResult = await dbClient.query(
             'INSERT INTO orders (user_id, total_amount, status, shipping_cost, postal_code) VALUES ($1, $2, $3, $4, $5) RETURNING id',
             [userId, transaction_amount, 'pending', shippingCost, postalCode]
         );
         orderId = orderResult.rows[0].id;
 
-        // 3. Insertar los items de la orden
         for (const item of cart) {
             await dbClient.query(
                 'INSERT INTO order_items (order_id, product_id, quantity, price) VALUES ($1, $2, $3, $4)',
@@ -123,7 +163,6 @@ export const processPayment = async (req, res, next) => {
             );
         }
 
-        // 4. Realizar el intento de pago
         const payment = new Payment(client);
         const payment_data = {
             transaction_amount: Number(transaction_amount),
@@ -147,28 +186,22 @@ export const processPayment = async (req, res, next) => {
 
         const paymentResult = await payment.create({ body: payment_data });
 
-        // 5. Si el pago es aprobado, actualizar stock y estado de la orden
         if (paymentResult.status === 'approved') {
             for (const item of cart) {
                 await dbClient.query('UPDATE products SET stock = stock - $1 WHERE id = $2', [item.quantity, item.id]);
             }
             await dbClient.query("UPDATE orders SET status = 'approved', mercadopago_transaction_id = $1 WHERE id = $2", [paymentResult.id, orderId]);
             
-            // Lógica para enviar email de confirmación
-            // ...
-
             await dbClient.query('COMMIT');
             logger.info(`Pago aprobado por Mercado Pago para la orden #${orderId}`);
             res.status(201).json({ status: 'approved', orderId: orderId, paymentId: paymentResult.id });
         } else {
-            // Si el pago es rechazado, revertir todo
             await dbClient.query('ROLLBACK');
             logger.warn(`Pago rechazado por Mercado Pago. Orden #${orderId} revertida. Motivo: ${paymentResult.status_detail}`);
             res.status(400).json({ status: paymentResult.status, message: paymentResult.status_detail || 'El pago no pudo ser procesado.' });
         }
 
     } catch (error) {
-        // Si ocurre cualquier error, revertir la transacción
         await dbClient.query('ROLLBACK');
         logger.error(`Error procesando el pago para la orden #${orderId}:`, error);
         next(error);
@@ -233,41 +266,6 @@ export const getOrderHistory = async (req, res, next) => {
         `;
         const ordersResult = await db.query(query, [userId]);
         res.json(ordersResult.rows);
-    } catch (error) {
-        next(error);
-    }
-};
-
-export const getAllOrders = async (req, res, next) => {
-    const { status, search } = req.query;
-    let query = `
-        SELECT o.id, o.total_amount, o.status, o.created_at, u.email as user_email 
-        FROM orders o
-        JOIN users u ON o.user_id = u.id
-    `;
-    const queryParams = [];
-    let paramIndex = 1;
-    const whereClauses = [];
-
-    if (status) {
-        whereClauses.push(`o.status = $${paramIndex++}`);
-        queryParams.push(status);
-    }
-
-    if (search) {
-        whereClauses.push(`(u.email ILIKE $${paramIndex} OR o.id::text ILIKE $${paramIndex})`);
-        queryParams.push(`%${search}%`);
-        paramIndex++;
-    }
-
-    if (whereClauses.length > 0) {
-        query += ` WHERE ${whereClauses.join(' AND ')}`;
-    }
-
-    query += ' ORDER BY o.created_at DESC';
-    try {
-        const result = await db.query(query, queryParams);
-        res.json(result.rows);
     } catch (error) {
         next(error);
     }
