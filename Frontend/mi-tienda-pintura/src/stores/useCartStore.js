@@ -11,8 +11,8 @@ export const useCartStore = create(
       cart: [],
       shippingCost: 0,
       postalCode: '',
-      appliedCoupon: null, // <-- NUEVO ESTADO
-      discountAmount: 0,   // <-- NUEVO ESTADO
+      appliedCoupon: null,
+      discountAmount: 0,
 
       addToCart: (product, quantity = 1) => {
         const { cart, postalCode } = get();
@@ -37,7 +37,7 @@ export const useCartStore = create(
         }
         
         set({ cart: updatedCart });
-        get().recalculateDiscount(); // Recalcular descuento si cambia el carrito
+        get().recalculateDiscount();
         showNotification('¡Añadido al carrito!');
 
         if (postalCode) {
@@ -103,10 +103,10 @@ export const useCartStore = create(
           console.error("Error calculating shipping:", error);
           useNotificationStore.getState().showNotification('Error al calcular el envío.', 'error');
           set({ shippingCost: 0, postalCode: postalCode });
+          throw error; // <-- MEJORA: Relanzar el error
         }
       },
 
-      // --- CORRECCIÓN: Se añade el token a las cabeceras de la petición ---
       applyCoupon: async (code, token) => {
         const showNotification = useNotificationStore.getState().showNotification;
         try {
@@ -114,7 +114,7 @@ export const useCartStore = create(
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`, // <-- LÍNEA AÑADIDA
+              'Authorization': `Bearer ${token}`,
             },
             body: JSON.stringify({ code }),
           });
@@ -147,7 +147,6 @@ export const useCartStore = create(
         } else if (appliedCoupon.discountType === 'fixed') {
           discount = appliedCoupon.discountValue;
         }
-        // El descuento no puede ser mayor que el subtotal
         set({ discountAmount: Math.min(discount, subtotal) });
       },
     }),

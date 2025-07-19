@@ -17,14 +17,22 @@ const CartPage = () => {
   const cartSubtotal = cart.reduce((total, item) => total + calculateSubtotal(item), 0);
   const cartTotal = (cartSubtotal - discountAmount) + shippingCost;
 
+  // --- MEJORA: Se usa try...finally para asegurar que el spinner se detenga ---
   const handleShippingCalculation = async () => {
     if (!localPostalCode || !/^\d{4}$/.test(localPostalCode)) {
       alert('Por favor, ingresa un código postal válido de 4 dígitos.');
       return;
     }
     setLoadingShipping(true);
-    await calculateShipping(localPostalCode);
-    setLoadingShipping(false);
+    try {
+      await calculateShipping(localPostalCode);
+    } catch (error) {
+      // El store ya se encarga de mostrar la notificación de error.
+      // Aquí solo nos aseguramos de que el error no detenga la ejecución.
+      console.error("Shipping calculation failed:", error);
+    } finally {
+      setLoadingShipping(false);
+    }
   };
 
   const handleApplyCoupon = () => {
