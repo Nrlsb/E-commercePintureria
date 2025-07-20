@@ -5,9 +5,12 @@ import crypto from 'crypto';
 import db from '../db.js';
 import { sendPasswordResetEmail } from '../emailService.js';
 import logger from '../logger.js';
+import config from '../config/index.js'; // Importamos la configuración
 
-const JWT_SECRET = process.env.JWT_SECRET;
+// Usamos el secreto JWT desde el objeto de configuración
+const JWT_SECRET = config.jwtSecret;
 
+// ... (el resto del código del servicio de autenticación no necesita cambios)
 /**
  * Registra un nuevo usuario en la base de datos.
  * @param {object} userData - Datos del usuario (email, password, firstName, lastName, phone).
@@ -102,7 +105,6 @@ export const login = async (email, password) => {
 export const forgotPassword = async (email) => {
     const userResult = await db.query('SELECT * FROM users WHERE email = $1', [email]);
     if (userResult.rows.length === 0) {
-      // Devolvemos un mensaje genérico para no revelar si un email existe o no.
       return 'Si el correo electrónico está registrado, recibirás un enlace para restablecer tu contraseña.';
     }
 
