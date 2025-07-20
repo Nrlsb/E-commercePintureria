@@ -63,42 +63,45 @@ const UserMenuDesktop = () => {
 // --- Componente Principal del Header (con Debounce) ---
 const Header = () => {
   const navigate = useNavigate();
-  const location = useLocation(); // Hook para saber la ruta actual
+  const location = useLocation();
   
-  // Sincronizamos el estado local del input con el estado global del store
   const { fetchProducts, setSearchQuery, searchQuery } = useProductStore();
   const [localQuery, setLocalQuery] = useState(searchQuery);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
-  // --- MEJORA: LÓGICA DE DEBOUNCING ---
   useEffect(() => {
-    // Si el usuario borra la búsqueda, limpiamos el estado global
     if (localQuery.trim() === '' && searchQuery !== '') {
         setSearchQuery('');
     }
 
-    // 1. Inicia un temporizador cada vez que `localQuery` cambia.
     const timerId = setTimeout(() => {
-      // 2. Solo ejecuta la búsqueda si el texto no está vacío y es diferente a la última búsqueda realizada.
       if (localQuery.trim() !== '' && localQuery !== searchQuery) {
-        // 3. Si ya estamos en la página de búsqueda, actualiza los resultados automáticamente.
         if (location.pathname === '/search') {
-          fetchProducts({ search: localQuery.trim() });
+          // --- CORRECCIÓN SUTIL ---
+          // Ahora llamamos a setSearchQuery aquí también para que el estado global esté siempre sincronizado.
+          setSearchQuery(localQuery.trim());
+          fetchProducts(null, 1); // Pasamos null como categoría para que busque en todos los productos.
         }
       }
-    }, 500); // Espera 500ms después de la última pulsación de tecla
+    }, 500);
 
-    // 4. Limpia el temporizador anterior si el usuario sigue escribiendo.
     return () => clearTimeout(timerId);
-  }, [localQuery, searchQuery, location.pathname, fetchProducts, setSearchQuery]);
+  // --- CORRECCIÓN DE DEPENDENCIA ---
+  // El fetchProducts del store no necesita ser una dependencia aquí, evitamos ejecuciones innecesarias.
+  }, [localQuery, searchQuery, location.pathname, setSearchQuery]);
 
 
-  // La búsqueda explícita al presionar Enter o hacer clic en el botón
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (localQuery.trim()) {
-      // Actualiza el estado global y navega a la página de resultados
-      fetchProducts({ search: localQuery.trim() });
+    const trimmedQuery = localQuery.trim();
+    if (trimmedQuery) {
+      // --- CORRECCIÓN CLAVE ---
+      // Aquí es donde faltaba actualizar el estado global.
+      // 1. Actualizamos el `searchQuery` en el store.
+      setSearchQuery(trimmedQuery);
+      // 2. Llamamos a `fetchProducts` (ahora sin argumentos, tomará el `searchQuery` del store).
+      fetchProducts(null, 1);
+      // 3. Navegamos a la página de resultados.
       navigate('/search');
       if (isMenuOpen) setIsMenuOpen(false);
     }
