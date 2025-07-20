@@ -1,5 +1,5 @@
 // src/components/ProductCard.jsx
-import React from 'react';
+import React from 'react'; // Importamos React para usar React.memo
 import { Link } from 'react-router-dom';
 import Icon from './Icon.jsx';
 import { ICONS } from '../data/icons.js';
@@ -9,30 +9,27 @@ import { useNotificationStore } from '../stores/useNotificationStore.js';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
-const ProductCard = ({ product }) => {
+// --- MEJORA: MEMOIZACIÓN DE COMPONENTES ---
+// Envolvemos todo el componente en React.memo.
+// Ahora, este componente solo se volverá a renderizar si la prop `product` cambia.
+const ProductCard = React.memo(({ product }) => {
   const addToCart = useCartStore(state => state.addToCart);
   const showNotification = useNotificationStore(state => state.showNotification);
 
-  // --- MEJORA: OPTIMIZACIÓN DE IMÁGENES ---
+  // La lógica interna del componente no necesita cambios.
+  // React se encargará de comparar las props por nosotros.
+  console.log(`Renderizando ProductCard: ${product.name}`); // Puedes usar este log para ver en la consola cuándo se renderiza.
 
-  // 1. Función para obtener la URL base de la imagen.
   const getBaseImageUrl = (url) => {
     if (!url) return null;
-    // Si la URL ya es absoluta (comienza con http), la usamos directamente.
     if (url.startsWith('http')) {
       return url;
     }
-    // Si no, la construimos a partir de la URL del backend.
     return `${API_URL}${url}`;
   };
 
-  // 2. Generamos el `srcset` para diferentes tamaños de pantalla.
   const generateSrcSet = (baseUrl) => {
     if (!baseUrl) return null;
-    // Creamos un string con URLs para diferentes anchos de imagen.
-    // El navegador elegirá la más adecuada. Ej: "url?w=300 300w, url?w=600 600w"
-    // Nota: Esto asume que tu backend puede procesar el parámetro `?w=`.
-    // Si no es así, necesitarías tener las imágenes pre-redimensionadas (ej. image-300.webp).
     const sizes = [300, 400, 600];
     return sizes.map(size => `${baseUrl}?w=${size} ${size}w`).join(', ');
   };
@@ -50,9 +47,9 @@ const ProductCard = ({ product }) => {
       <Link to={`/product/${product.id}`} className="relative w-full h-56 cursor-pointer block bg-white p-2">
         {baseImageUrl ? (
           <img 
-            src={`${baseImageUrl}?w=400`} // Imagen por defecto
-            srcSet={imageSrcSet} // Set de imágenes para diferentes resoluciones
-            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw" // Le dice al navegador qué tamaño tendrá la imagen en diferentes breakpoints
+            src={`${baseImageUrl}?w=400`}
+            srcSet={imageSrcSet}
+            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
             alt={`Imagen de ${product.name}`} 
             className="w-full h-full object-contain"
             loading="lazy"
@@ -99,6 +96,6 @@ const ProductCard = ({ product }) => {
       </div>
     </div>
   );
-};
+});
 
 export default ProductCard;
