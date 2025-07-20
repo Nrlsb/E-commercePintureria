@@ -9,8 +9,9 @@ export const getProducts = async (req, res, next) => {
     const { category, sortBy, brands, minPrice, maxPrice, page = 1, limit = 12 } = req.query;
 
     const queryParams = [];
+    // --- MEJORA: Se añade el filtro de `is_active` por defecto ---
+    let whereClauses = ['p.is_active = true'];
     let paramIndex = 1;
-    let whereClauses = [];
 
     if (category) {
       whereClauses.push(`p.category = $${paramIndex++}`);
@@ -30,25 +31,18 @@ export const getProducts = async (req, res, next) => {
       queryParams.push(maxPrice);
     }
 
-    const whereString = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
+    const whereString = `WHERE ${whereClauses.join(' AND ')}`;
 
     const countQuery = `SELECT COUNT(*) FROM products p ${whereString}`;
     const totalResult = await db.query(countQuery, queryParams);
     const totalProducts = parseInt(totalResult.rows[0].count, 10);
     const totalPages = Math.ceil(totalProducts / limit);
 
-    // --- MEJORA: Se usan alias en la consulta SQL para obtener camelCase directamente ---
     let baseQuery = `
       SELECT 
-        p.id,
-        p.name,
-        p.brand,
-        p.category,
-        p.price,
-        p.old_price AS "oldPrice",
-        p.image_url AS "imageUrl",
-        p.description,
-        p.stock,
+        p.id, p.name, p.brand, p.category, p.price,
+        p.old_price AS "oldPrice", p.image_url AS "imageUrl",
+        p.description, p.stock,
         COALESCE(AVG(r.rating), 0) as "averageRating", 
         COUNT(r.id) as "reviewCount"
       FROM products p
@@ -59,15 +53,9 @@ export const getProducts = async (req, res, next) => {
     
     let orderByClause = ' ORDER BY p.id ASC';
     switch (sortBy) {
-      case 'price_asc':
-        orderByClause = ' ORDER BY p.price ASC';
-        break;
-      case 'price_desc':
-        orderByClause = ' ORDER BY p.price DESC';
-        break;
-      case 'rating_desc':
-        orderByClause = ' ORDER BY "averageRating" DESC'; // Usar el alias en el ORDER BY
-        break;
+      case 'price_asc': orderByClause = ' ORDER BY p.price ASC'; break;
+      case 'price_desc': orderByClause = ' ORDER BY p.price DESC'; break;
+      case 'rating_desc': orderByClause = ' ORDER BY "averageRating" DESC'; break;
     }
     baseQuery += orderByClause;
 
@@ -77,12 +65,8 @@ export const getProducts = async (req, res, next) => {
 
     const result = await db.query(baseQuery, queryParams);
     
-    // --- MEJORA: Ya no es necesario el mapeo manual ---
-    // El driver de la base de datos (pg) convierte automáticamente los resultados a camelCase
-    const products = result.rows;
-    
     res.json({
-      products,
+      products: result.rows,
       currentPage: parseInt(page, 10),
       totalPages,
     });
@@ -95,31 +79,24 @@ export const getProducts = async (req, res, next) => {
 export const getProductById = async (req, res, next) => {
   const { productId } = req.params;
   try {
-    // --- MEJORA: Se usan alias en la consulta SQL ---
+    // --- MEJORA: Se añade la comprobación de `is_active` ---
     const query = `
       SELECT 
-        p.id,
-        p.name,
-        p.brand,
-        p.category,
-        p.price,
-        p.old_price AS "oldPrice",
-        p.image_url AS "imageUrl",
-        p.description,
-        p.stock,
+        p.id, p.name, p.brand, p.category, p.price,
+        p.old_price AS "oldPrice", p.image_url AS "imageUrl",
+        p.description, p.stock,
         COALESCE(AVG(r.rating), 0) as "averageRating", 
         COUNT(r.id) as "reviewCount"
       FROM products p
       LEFT JOIN reviews r ON p.id = r.product_id
-      WHERE p.id = $1
+      WHERE p.id = $1 AND p.is_active = true
       GROUP BY p.id;
     `;
     const result = await db.query(query, [productId]);
     if (result.rows.length > 0) {
-      // --- MEJORA: Se devuelve directamente el resultado de la consulta ---
       res.json(result.rows[0]);
     } else {
-      res.status(404).json({ message: 'Producto no encontrado' });
+      res.status(404).json({ message: 'Producto no encontrado o no está activo.' });
     }
   } catch (err) {
     next(err);
@@ -128,7 +105,8 @@ export const getProductById = async (req, res, next) => {
 
 export const getProductBrands = async (req, res, next) => {
   try {
-    const result = await db.query('SELECT DISTINCT brand FROM products ORDER BY brand ASC');
+    // --- MEJORA: Solo se muestran marcas de productos activos ---
+    const result = await db.query('SELECT DISTINCT brand FROM products WHERE is_active = true ORDER BY brand ASC');
     const brands = result.rows.map(row => row.brand);
     res.json(brands);
   } catch (err) {
@@ -168,24 +146,22 @@ export const updateProduct = async (req, res, next) => {
   }
 };
 
+// --- MEJORA: Se implementa el borrado lógico (Soft Delete) ---
 export const deleteProduct = async (req, res, next) => {
   const { id } = req.params;
   try {
-    const orderItemsCheck = await db.query(
-      'SELECT 1 FROM order_items WHERE product_id = $1 LIMIT 1',
+    // Ya no se borra la fila, solo se actualiza el campo `is_active` a `false`.
+    const result = await db.query(
+      'UPDATE products SET is_active = false WHERE id = $1 RETURNING *',
       [id]
     );
-
-    if (orderItemsCheck.rows.length > 0) {
-      return res.status(409).json({ message: 'No se puede eliminar el producto porque está asociado a órdenes existentes. Considere desactivarlo.' });
-    }
-
-    const result = await db.query('DELETE FROM products WHERE id = $1 RETURNING *', [id]);
+    
     if (result.rowCount === 0) {
       return res.status(404).json({ message: 'Producto no encontrado' });
     }
-    logger.info(`Producto eliminado con ID: ${id}`);
-    res.status(200).json({ message: 'Producto eliminado con éxito' });
+    
+    logger.info(`Producto DESACTIVADO con ID: ${id}`);
+    res.status(200).json({ message: 'Producto desactivado con éxito' });
   } catch (err) {
     next(err);
   }
