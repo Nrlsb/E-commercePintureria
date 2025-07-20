@@ -4,7 +4,7 @@ dotenv.config();
 
 import express from 'express';
 import cors from 'cors';
-import cookieParser from 'cookie-parser'; // 1. Importar cookie-parser
+import cookieParser from 'cookie-parser';
 import { startCancelPendingOrdersJob } from './services/cronService.js';
 import expressWinston from 'express-winston';
 import logger from './logger.js';
@@ -22,6 +22,10 @@ import errorHandler from './middlewares/errorHandler.js';
 
 const app = express();
 const PORT = process.env.PORT || 5001;
+
+// --- NUEVO: Confiar en el proxy de Render ---
+// Esto es crucial para que express-rate-limit y las cookies seguras funcionen correctamente.
+app.set('trust proxy', 1);
 
 // --- Configuración de CORS ---
 const whitelist = [
@@ -43,7 +47,7 @@ const corsOptions = {
     }
   },
   optionsSuccessStatus: 200,
-  credentials: true // 2. Permitir el envío de cookies
+  credentials: true 
 };
 
 app.use(cors(corsOptions));
@@ -51,9 +55,7 @@ app.use(cors(corsOptions));
 // --- Middlewares Globales ---
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
-app.use(cookieParser()); // 3. Usar cookie-parser
-
-// ... (el resto del archivo permanece igual)
+app.use(cookieParser());
 
 // --- Middleware de Logging de Peticiones (antes de las rutas) ---
 app.use(expressWinston.logger({
