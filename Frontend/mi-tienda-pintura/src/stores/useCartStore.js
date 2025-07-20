@@ -11,9 +11,10 @@ export const useCartStore = create(
       cart: [],
       shippingCost: 0,
       postalCode: '',
-      appliedCoupon: null, // <-- NUEVO ESTADO
-      discountAmount: 0,   // <-- NUEVO ESTADO
+      appliedCoupon: null,
+      discountAmount: 0,
 
+      // --- MEJORA: OPTIMISTIC UI UPDATE ---
       addToCart: (product, quantity = 1) => {
         const { cart, postalCode } = get();
         const showNotification = useNotificationStore.getState().showNotification;
@@ -26,6 +27,10 @@ export const useCartStore = create(
           return;
         }
 
+        // 1. Guardar el estado anterior del carrito por si necesitamos revertir
+        const previousCart = [...cart];
+
+        // 2. Crear el nuevo estado del carrito
         let updatedCart;
         const existingProduct = cart.find(item => item.id === product.id);
         if (existingProduct) {
@@ -36,17 +41,42 @@ export const useCartStore = create(
           updatedCart = [...cart, { ...product, quantity }];
         }
         
+        // 3. Actualizar la UI inmediatamente con el nuevo estado (actualización optimista)
         set({ cart: updatedCart });
-        get().recalculateDiscount(); // Recalcular descuento si cambia el carrito
+        get().recalculateDiscount();
         showNotification('¡Añadido al carrito!');
 
+        // 4. Realizar la operación asíncrona (recalcular envío)
         if (postalCode) {
-          get().calculateShipping(postalCode, updatedCart);
+          (async () => {
+            try {
+              await get().calculateShipping(postalCode, updatedCart);
+            } catch (error) {
+              // 5. Si la operación falla, revertir al estado anterior y notificar
+              console.error("Fallo en la actualización optimista (addToCart):", error);
+              set({ cart: previousCart });
+              get().recalculateDiscount();
+              showNotification('Hubo un problema al actualizar el carrito.', 'error');
+            }
+          })();
         }
       },
 
+      // --- MEJORA: OPTIMISTIC UI UPDATE ---
       updateQuantity: (productId, newQuantity) => {
         const { postalCode, cart } = get();
+        const showNotification = useNotificationStore.getState().showNotification;
+        
+        const product = cart.find(item => item.id === productId);
+        if (product && newQuantity > product.stock) {
+            showNotification(`No puedes añadir más. Stock máximo: ${product.stock}`, 'error');
+            return;
+        }
+
+        // 1. Guardar el estado anterior
+        const previousCart = [...cart];
+
+        // 2. Crear el nuevo estado del carrito
         let updatedCart;
         if (newQuantity <= 0) {
           updatedCart = cart.filter(item => item.id !== productId);
@@ -55,26 +85,57 @@ export const useCartStore = create(
             item.id === productId ? { ...item, quantity: newQuantity } : item
           );
         }
+        
+        // 3. Actualizar la UI inmediatamente
         set({ cart: updatedCart });
         get().recalculateDiscount();
 
+        // 4. Realizar la operación asíncrona
         if (postalCode) {
-          get().calculateShipping(postalCode, updatedCart);
+          (async () => {
+            try {
+              await get().calculateShipping(postalCode, updatedCart);
+            } catch (error) {
+              // 5. Si falla, revertir
+              console.error("Fallo en la actualización optimista (updateQuantity):", error);
+              set({ cart: previousCart });
+              get().recalculateDiscount();
+              showNotification('Hubo un problema al actualizar el carrito.', 'error');
+            }
+          })();
         }
       },
 
+      // --- MEJORA: OPTIMISTIC UI UPDATE ---
       removeItem: (productId) => {
         const { postalCode, cart } = get();
+        const showNotification = useNotificationStore.getState().showNotification;
+
+        // 1. Guardar el estado anterior
+        const previousCart = [...cart];
+        
+        // 2. Crear el nuevo estado y actualizar la UI inmediatamente
         const updatedCart = cart.filter(item => item.id !== productId);
         set({ cart: updatedCart });
         get().recalculateDiscount();
         
+        // 3. Realizar la operación asíncrona
         if (postalCode) {
-          if (updatedCart.length > 0) {
-            get().calculateShipping(postalCode, updatedCart);
-          } else {
-            set({ shippingCost: 0, postalCode: '' });
-          }
+          (async () => {
+            try {
+              if (updatedCart.length > 0) {
+                await get().calculateShipping(postalCode, updatedCart);
+              } else {
+                set({ shippingCost: 0, postalCode: '' });
+              }
+            } catch (error) {
+              // 4. Si falla, revertir
+              console.error("Fallo en la actualización optimista (removeItem):", error);
+              set({ cart: previousCart });
+              get().recalculateDiscount();
+              showNotification('Hubo un problema al eliminar el producto.', 'error');
+            }
+          })();
         }
       },
 
@@ -103,10 +164,11 @@ export const useCartStore = create(
           console.error("Error calculating shipping:", error);
           useNotificationStore.getState().showNotification('Error al calcular el envío.', 'error');
           set({ shippingCost: 0, postalCode: postalCode });
+          // Lanzamos el error para que la actualización optimista pueda capturarlo
+          throw error;
         }
       },
 
-      // --- CORRECCIÓN: Se añade el token a las cabeceras de la petición ---
       applyCoupon: async (code, token) => {
         const showNotification = useNotificationStore.getState().showNotification;
         try {
@@ -114,7 +176,7 @@ export const useCartStore = create(
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`, // <-- LÍNEA AÑADIDA
+              'Authorization': `Bearer ${token}`,
             },
             body: JSON.stringify({ code }),
           });
@@ -147,7 +209,6 @@ export const useCartStore = create(
         } else if (appliedCoupon.discountType === 'fixed') {
           discount = appliedCoupon.discountValue;
         }
-        // El descuento no puede ser mayor que el subtotal
         set({ discountAmount: Math.min(discount, subtotal) });
       },
     }),
