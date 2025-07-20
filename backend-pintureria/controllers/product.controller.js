@@ -1,76 +1,14 @@
 // backend-pintureria/controllers/product.controller.js
 import db from '../db.js';
 import logger from '../logger.js';
+import * as productService from '../services/product.service.js';
 
 // --- Controladores de Productos ---
 
 export const getProducts = async (req, res, next) => {
   try {
-    const { category, sortBy, brands, minPrice, maxPrice, page = 1, limit = 12 } = req.query;
-
-    const queryParams = [];
-    // --- MEJORA: Se añade el filtro de `is_active` por defecto ---
-    let whereClauses = ['p.is_active = true'];
-    let paramIndex = 1;
-
-    if (category) {
-      whereClauses.push(`p.category = $${paramIndex++}`);
-      queryParams.push(category);
-    }
-    if (brands) {
-      const brandList = brands.split(',');
-      whereClauses.push(`p.brand = ANY($${paramIndex++})`);
-      queryParams.push(brandList);
-    }
-    if (minPrice) {
-      whereClauses.push(`p.price >= $${paramIndex++}`);
-      queryParams.push(minPrice);
-    }
-    if (maxPrice) {
-      whereClauses.push(`p.price <= $${paramIndex++}`);
-      queryParams.push(maxPrice);
-    }
-
-    const whereString = `WHERE ${whereClauses.join(' AND ')}`;
-
-    const countQuery = `SELECT COUNT(*) FROM products p ${whereString}`;
-    const totalResult = await db.query(countQuery, queryParams);
-    const totalProducts = parseInt(totalResult.rows[0].count, 10);
-    const totalPages = Math.ceil(totalProducts / limit);
-
-    let baseQuery = `
-      SELECT 
-        p.id, p.name, p.brand, p.category, p.price,
-        p.old_price AS "oldPrice", p.image_url AS "imageUrl",
-        p.description, p.stock,
-        COALESCE(AVG(r.rating), 0) as "averageRating", 
-        COUNT(r.id) as "reviewCount"
-      FROM products p
-      LEFT JOIN reviews r ON p.id = r.product_id
-      ${whereString}
-      GROUP BY p.id
-    `;
-    
-    let orderByClause = ' ORDER BY p.id ASC';
-    switch (sortBy) {
-      case 'price_asc': orderByClause = ' ORDER BY p.price ASC'; break;
-      case 'price_desc': orderByClause = ' ORDER BY p.price DESC'; break;
-      case 'rating_desc': orderByClause = ' ORDER BY "averageRating" DESC'; break;
-    }
-    baseQuery += orderByClause;
-
-    const offset = (page - 1) * limit;
-    baseQuery += ` LIMIT $${paramIndex++} OFFSET $${paramIndex++}`;
-    queryParams.push(limit, offset);
-
-    const result = await db.query(baseQuery, queryParams);
-    
-    res.json({
-      products: result.rows,
-      currentPage: parseInt(page, 10),
-      totalPages,
-    });
-
+    const result = await productService.getActiveProducts(req.query);
+    res.json(result);
   } catch (err) {
     next(err);
   }
@@ -79,22 +17,9 @@ export const getProducts = async (req, res, next) => {
 export const getProductById = async (req, res, next) => {
   const { productId } = req.params;
   try {
-    // --- MEJORA: Se añade la comprobación de `is_active` ---
-    const query = `
-      SELECT 
-        p.id, p.name, p.brand, p.category, p.price,
-        p.old_price AS "oldPrice", p.image_url AS "imageUrl",
-        p.description, p.stock,
-        COALESCE(AVG(r.rating), 0) as "averageRating", 
-        COUNT(r.id) as "reviewCount"
-      FROM products p
-      LEFT JOIN reviews r ON p.id = r.product_id
-      WHERE p.id = $1 AND p.is_active = true
-      GROUP BY p.id;
-    `;
-    const result = await db.query(query, [productId]);
-    if (result.rows.length > 0) {
-      res.json(result.rows[0]);
+    const product = await productService.getActiveProductById(productId);
+    if (product) {
+      res.json(product);
     } else {
       res.status(404).json({ message: 'Producto no encontrado o no está activo.' });
     }
@@ -103,9 +28,12 @@ export const getProductById = async (req, res, next) => {
   }
 };
 
+// --- El resto de los controladores (create, update, delete, reviews) permanecen aquí por ahora ---
+// --- ya que la lógica está muy ligada a la base de datos y al request. ---
+// --- Se podrían mover a servicios si la lógica de negocio crece. ---
+
 export const getProductBrands = async (req, res, next) => {
   try {
-    // --- MEJORA: Solo se muestran marcas de productos activos ---
     const result = await db.query('SELECT DISTINCT brand FROM products WHERE is_active = true ORDER BY brand ASC');
     const brands = result.rows.map(row => row.brand);
     res.json(brands);
@@ -146,11 +74,9 @@ export const updateProduct = async (req, res, next) => {
   }
 };
 
-// --- MEJORA: Se implementa el borrado lógico (Soft Delete) ---
 export const deleteProduct = async (req, res, next) => {
   const { id } = req.params;
   try {
-    // Ya no se borra la fila, solo se actualiza el campo `is_active` a `false`.
     const result = await db.query(
       'UPDATE products SET is_active = false WHERE id = $1 RETURNING *',
       [id]
