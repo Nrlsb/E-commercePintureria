@@ -13,24 +13,21 @@ const ProductCard = React.memo(({ product }) => {
   const addToCart = useCartStore(state => state.addToCart);
   const showNotification = useNotificationStore(state => state.showNotification);
 
-  // El console.log de depuración ha sido eliminado de aquí.
-
-  const getBaseImageUrl = (url) => {
-    if (!url) return null;
+  // --- CORRECCIÓN: Simplificación de la carga de imágenes para evitar errores CORB ---
+  const getFullImageUrl = (url) => {
+    // Si la URL es nula o indefinida, usamos un placeholder.
+    if (!url) {
+      return `https://placehold.co/300x224/cccccc/ffffff?text=${encodeURIComponent(product.name)}`;
+    }
+    // Si la URL ya es absoluta (ej. de un servicio externo), la usamos directamente.
     if (url.startsWith('http')) {
       return url;
     }
+    // Si es una ruta relativa (ej. /uploads/imagen.webp), la completamos con la URL del backend.
     return `${API_URL}${url}`;
   };
 
-  const generateSrcSet = (baseUrl) => {
-    if (!baseUrl) return null;
-    const sizes = [300, 400, 600];
-    return sizes.map(size => `${baseUrl}?w=${size} ${size}w`).join(', ');
-  };
-
-  const baseImageUrl = getBaseImageUrl(product.imageUrl);
-  const imageSrcSet = generateSrcSet(baseImageUrl);
+  const imageUrl = getFullImageUrl(product.imageUrl);
 
   const handleAddToCart = () => {
     addToCart(product);
@@ -40,25 +37,16 @@ const ProductCard = React.memo(({ product }) => {
   return (
     <div className="bg-white border border-gray-200 rounded-xl shadow-md hover:shadow-xl flex flex-col overflow-hidden transition-all duration-300 ease-in-out transform hover:-translate-y-1 group">
       <Link to={`/product/${product.id}`} className="relative w-full h-56 cursor-pointer block bg-white p-2">
-        {baseImageUrl ? (
-          <img 
-            src={`${baseImageUrl}?w=400`}
-            srcSet={imageSrcSet}
-            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
-            alt={`Imagen de ${product.name}`} 
-            className="w-full h-full object-contain"
-            loading="lazy"
-            width="300"
-            height="224"
-            onError={(e) => { e.target.onerror = null; e.target.src='https://placehold.co/300x224/cccccc/ffffff?text=Imagen+no+disponible'; }}
-          />
-        ) : (
-          <img 
-            src='https://placehold.co/300x224/cccccc/ffffff?text=Imagen+no+disponible'
-            alt={`Imagen de ${product.name}`} 
-            className="w-full h-full object-contain"
-          />
-        )}
+        <img 
+          src={imageUrl} // Usamos la URL simple y directa.
+          alt={`Imagen de ${product.name}`} 
+          className="w-full h-full object-contain"
+          loading="lazy"
+          width="300"
+          height="224"
+          // El onError sigue siendo una buena práctica por si una imagen específica está rota.
+          onError={(e) => { e.target.onerror = null; e.target.src=`https://placehold.co/300x224/cccccc/ffffff?text=Imagen+no+disponible`; }}
+        />
       </Link>
       <div className="p-4 flex flex-col flex-grow">
         <h3 className="text-gray-500 text-xs uppercase tracking-widest mb-1">{product.brand}</h3>
