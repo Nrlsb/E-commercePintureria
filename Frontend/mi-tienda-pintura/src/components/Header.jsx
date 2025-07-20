@@ -1,18 +1,18 @@
 // src/components/Header.jsx
 import React, { useState, useEffect, useRef } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import Icon from './Icon.jsx';
 import { ICONS } from '../data/icons.js';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useCartStore } from '../stores/useCartStore';
 import { useProductStore } from '../stores/useProductStore';
 
-// --- Componente de Menú de Usuario para Escritorio ---
+// --- Componente de Menú de Usuario para Escritorio (sin cambios) ---
 const UserMenuDesktop = () => {
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef(null);
   const { user, logout } = useAuthStore();
-  const { clearCart } = useCartStore(); // 1. Obtenemos la acción para limpiar el carrito
+  const { clearCart } = useCartStore();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -27,7 +27,7 @@ const UserMenuDesktop = () => {
 
   const handleLogout = () => {
     logout();
-    clearCart(); // 2. Llamamos a clearCart() para vaciar el carrito al cerrar sesión
+    clearCart();
     setIsOpen(false);
     navigate('/');
   };
@@ -60,34 +60,58 @@ const UserMenuDesktop = () => {
 };
 
 
-// --- Componente Principal del Header ---
+// --- Componente Principal del Header (con Debounce) ---
 const Header = () => {
-  const [query, setQuery] = useState('');
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation(); // Hook para saber la ruta actual
+  
+  // Sincronizamos el estado local del input con el estado global del store
+  const { fetchProducts, setSearchQuery, searchQuery } = useProductStore();
+  const [localQuery, setLocalQuery] = useState(searchQuery);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
-  const { user, logout } = useAuthStore();
-  const { cart, clearCart } = useCartStore(); // 3. Obtenemos la acción aquí también para el menú móvil
-  const setSearchQuery = useProductStore(state => state.setSearchQuery);
-  const cartItemCount = cart.reduce((total, item) => total + item.quantity, 0);
+  // --- MEJORA: LÓGICA DE DEBOUNCING ---
+  useEffect(() => {
+    // Si el usuario borra la búsqueda, limpiamos el estado global
+    if (localQuery.trim() === '' && searchQuery !== '') {
+        setSearchQuery('');
+    }
 
+    // 1. Inicia un temporizador cada vez que `localQuery` cambia.
+    const timerId = setTimeout(() => {
+      // 2. Solo ejecuta la búsqueda si el texto no está vacío y es diferente a la última búsqueda realizada.
+      if (localQuery.trim() !== '' && localQuery !== searchQuery) {
+        // 3. Si ya estamos en la página de búsqueda, actualiza los resultados automáticamente.
+        if (location.pathname === '/search') {
+          fetchProducts({ search: localQuery.trim() });
+        }
+      }
+    }, 500); // Espera 500ms después de la última pulsación de tecla
+
+    // 4. Limpia el temporizador anterior si el usuario sigue escribiendo.
+    return () => clearTimeout(timerId);
+  }, [localQuery, searchQuery, location.pathname, fetchProducts, setSearchQuery]);
+
+
+  // La búsqueda explícita al presionar Enter o hacer clic en el botón
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (query.trim()) {
-      setSearchQuery(query.trim());
+    if (localQuery.trim()) {
+      // Actualiza el estado global y navega a la página de resultados
+      fetchProducts({ search: localQuery.trim() });
       navigate('/search');
-      setQuery('');
       if (isMenuOpen) setIsMenuOpen(false);
     }
   };
 
-  const handleMobileLinkClick = () => {
-    setIsMenuOpen(false);
-  };
-
+  const { user, logout } = useAuthStore();
+  const { cart, clearCart } = useCartStore();
+  const cartItemCount = cart.reduce((total, item) => total + item.quantity, 0);
+  
+  const handleMobileLinkClick = () => setIsMenuOpen(false);
   const handleMobileLogout = () => {
     logout();
-    clearCart(); // 4. Y la llamamos aquí para el logout en móvil
+    clearCart();
     handleMobileLinkClick();
     navigate('/');
   };
@@ -109,8 +133,8 @@ const Header = () => {
               <input 
                 type="search" 
                 placeholder="Buscar productos, marcas y más..."
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
+                value={localQuery}
+                onChange={(e) => setLocalQuery(e.target.value)}
                 className="w-full py-2 pl-4 pr-10 text-gray-900 bg-gray-100 border-transparent rounded-full focus:outline-none focus:ring-2 focus:ring-[#E9D502]"
               />
               <button type="submit" className="absolute inset-y-0 right-0 flex items-center pr-4">
@@ -119,7 +143,7 @@ const Header = () => {
             </div>
           </form>
 
-          {/* --- Menú para Escritorio --- */}
+          {/* Menú para Escritorio */}
           <div className="hidden md:flex items-center space-x-4">
             {user ? (
               <UserMenuDesktop />
@@ -141,7 +165,7 @@ const Header = () => {
             </Link>
           </div>
 
-          {/* --- Botones para Móvil --- */}
+          {/* Botones para Móvil */}
           <div className="md:hidden flex items-center space-x-4">
             <Link to="/cart" className="text-white relative">
               <Icon path={ICONS.shoppingCart} className="w-6 h-6" />
@@ -158,7 +182,7 @@ const Header = () => {
         </div>
       </div>
 
-      {/* --- Panel Lateral para Móvil (Rediseñado) --- */}
+      {/* Panel Lateral para Móvil (sin cambios) */}
       {isMenuOpen && (
         <div className={`fixed top-0 left-0 w-full h-full bg-black bg-opacity-50 z-40 transition-opacity duration-300`} onClick={() => setIsMenuOpen(false)}>
           <div className={`fixed top-0 right-0 w-4/5 max-w-sm h-full bg-[#0F3460] shadow-xl z-50 transform transition-transform duration-300 ease-in-out ${isMenuOpen ? 'translate-x-0' : 'translate-x-full'}`} onClick={(e) => e.stopPropagation()}>
@@ -168,10 +192,9 @@ const Header = () => {
               </button>
               
               <form onSubmit={handleSubmit} className="mb-8">
-                <input type="search" placeholder="Buscar..." value={query} onChange={(e) => setQuery(e.target.value)} className="w-full py-2 px-4 text-gray-900 bg-gray-100 rounded-full focus:outline-none focus:ring-2 focus:ring-[#E9D502]"/>
+                <input type="search" placeholder="Buscar..." value={localQuery} onChange={(e) => setLocalQuery(e.target.value)} className="w-full py-2 px-4 text-gray-900 bg-gray-100 rounded-full focus:outline-none focus:ring-2 focus:ring-[#E9D502]"/>
               </form>
 
-              {/* --- CAMBIO CLAVE: Enlaces de navegación directos --- */}
               <nav className="flex flex-col space-y-4 text-lg text-gray-200">
                 {user ? (
                   <>
