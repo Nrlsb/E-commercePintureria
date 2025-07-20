@@ -1,6 +1,6 @@
 // src/App.jsx
 import React, { Suspense, lazy, useEffect } from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, useLocation } from 'react-router-dom';
 import { initMercadoPago } from '@mercadopago/sdk-react';
 
 import { useProductStore } from './stores/useProductStore';
@@ -14,6 +14,20 @@ import Notification from './components/Notification.jsx';
 import Spinner from './components/Spinner.jsx';
 import AdminRoute from './components/AdminRoute.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
+
+// --- NUEVO: Componente para manejar el scroll ---
+// Este componente utiliza el hook `useLocation` para detectar cambios en la URL.
+// Cada vez que la ruta cambia, el `useEffect` se dispara y mueve el scroll a la parte superior de la página.
+const ScrollToTop = () => {
+  const { pathname } = useLocation();
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+
+  return null; // Este componente no renderiza nada en la UI.
+};
+
 
 // --- Lazy Loading de Páginas ---
 const HomePage = lazy(() => import('./pages/HomePage.jsx'));
@@ -34,7 +48,6 @@ const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage.jsx'));
 const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage.jsx'));
 const BulkUploadPage = lazy(() => import('./pages/BulkUploadPage.jsx'));
 const BulkCreateAIPage = lazy(() => import('./pages/BulkCreateAIPage.jsx'));
-// --- Se importa la nueva página ---
 const BulkAssociateAIPage = lazy(() => import('./pages/BulkAssociateAIPage.jsx'));
 
 
@@ -58,6 +71,9 @@ export default function App() {
     <div className="bg-gray-50 min-h-screen font-sans flex flex-col relative">
       <Header />
       <Navbar />
+      {/* --- NUEVO: Añadimos el componente ScrollToTop aquí --- */}
+      {/* Al estar dentro del Router (en main.jsx) pero fuera del <Routes>, se ejecutará en cada cambio de página */}
+      <ScrollToTop />
       <main className="flex-grow container mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col">
         <Suspense fallback={
             <div className="flex-grow flex items-center justify-center">
@@ -92,7 +108,6 @@ export default function App() {
               <Route path="/admin/product/edit/:productId" element={<ProductFormPage />} />
               <Route path="/admin/product/bulk-upload" element={<BulkUploadPage />} />
               <Route path="/admin/product/bulk-create-ai" element={<BulkCreateAIPage />} />
-              {/* --- Se añade la nueva ruta --- */}
               <Route path="/admin/product/bulk-associate-ai" element={<BulkAssociateAIPage />} />
             </Route>
           </Routes>
