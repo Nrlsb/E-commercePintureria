@@ -5,9 +5,8 @@ import { initMercadoPago } from '@mercadopago/sdk-react';
 
 import { useProductStore } from './stores/useProductStore';
 import { useNotificationStore } from './stores/useNotificationStore';
-import { useAuthStore } from './stores/useAuthStore'; // 1. Importar useAuthStore
 
-// ... (importaciones de componentes y páginas)
+// Componentes principales
 import Header from './components/Header.jsx';
 import Navbar from './components/Navbar.jsx';
 import Footer from './components/Footer.jsx';
@@ -16,14 +15,21 @@ import Spinner from './components/Spinner.jsx';
 import AdminRoute from './components/AdminRoute.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
 
+// --- NUEVO: Componente para manejar el scroll ---
+// Este componente utiliza el hook `useLocation` para detectar cambios en la URL.
+// Cada vez que la ruta cambia, el `useEffect` se dispara y mueve el scroll a la parte superior de la página.
 const ScrollToTop = () => {
   const { pathname } = useLocation();
+
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [pathname]);
-  return null;
+
+  return null; // Este componente no renderiza nada en la UI.
 };
 
+
+// --- Lazy Loading de Páginas ---
 const HomePage = lazy(() => import('./pages/HomePage.jsx'));
 const ProductDetailPage = lazy(() => import('./pages/ProductDetailPage.jsx'));
 const CartPage = lazy(() => import('./pages/CartPage.jsx'));
@@ -56,17 +62,17 @@ if (MERCADOPAGO_PUBLIC_KEY) {
 export default function App() {
   const fetchAvailableBrands = useProductStore(state => state.fetchAvailableBrands);
   const { message: notificationMessage, show: showNotification, type: notificationType } = useNotificationStore();
-  const checkAuthStatus = useAuthStore(state => state.checkAuthStatus); // 2. Obtener la acción
 
   useEffect(() => {
     fetchAvailableBrands();
-    checkAuthStatus(); // 3. Verificar la sesión al cargar la app
-  }, [fetchAvailableBrands, checkAuthStatus]);
+  }, [fetchAvailableBrands]);
 
   return (
     <div className="bg-gray-50 min-h-screen font-sans flex flex-col relative">
       <Header />
       <Navbar />
+      {/* --- NUEVO: Añadimos el componente ScrollToTop aquí --- */}
+      {/* Al estar dentro del Router (en main.jsx) pero fuera del <Routes>, se ejecutará en cada cambio de página */}
       <ScrollToTop />
       <main className="flex-grow container mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col">
         <Suspense fallback={
@@ -75,7 +81,7 @@ export default function App() {
             </div>
           }>
           <Routes>
-            {/* ... (Rutas sin cambios) ... */}
+            {/* Rutas Públicas */}
             <Route path="/" element={<HomePage />} />
             <Route path="/product/:productId" element={<ProductDetailPage />} />
             <Route path="/cart" element={<CartPage />} />
@@ -86,11 +92,15 @@ export default function App() {
             <Route path="/register" element={<RegisterPage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
+
+            {/* Rutas Protegidas para Usuarios Logueados */}
             <Route element={<ProtectedRoute />}>
               <Route path="/checkout" element={<CheckoutPage />} />
               <Route path="/my-orders" element={<OrderHistoryPage />} />
               <Route path="/order-pending/:orderId" element={<OrderPendingPage />} />
             </Route>
+
+            {/* Rutas Protegidas para Administradores */}
             <Route element={<AdminRoute />}>
               <Route path="/admin" element={<AdminDashboardPage />} />
               <Route path="/admin/orders" element={<AdminOrdersPage />} />

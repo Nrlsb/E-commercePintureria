@@ -4,10 +4,10 @@ dotenv.config();
 
 import express from 'express';
 import cors from 'cors';
-import cookieParser from 'cookie-parser';
 import { startCancelPendingOrdersJob } from './services/cronService.js';
+import winston from 'winston';
 import expressWinston from 'express-winston';
-import logger from './logger.js';
+import logger from './logger.js'; // Importamos nuestro logger configurado
 
 // Importadores de Rutas
 import productRoutes from './routes/product.routes.js';
@@ -23,10 +23,6 @@ import errorHandler from './middlewares/errorHandler.js';
 const app = express();
 const PORT = process.env.PORT || 5001;
 
-// --- NUEVO: Confiar en el proxy de Render ---
-// Esto es crucial para que express-rate-limit y las cookies seguras funcionen correctamente.
-app.set('trust proxy', 1);
-
 // --- Configuración de CORS ---
 const whitelist = [
   'http://localhost:5173',
@@ -36,7 +32,10 @@ const whitelist = [
 
 const corsOptions = {
   origin: (origin, callback) => {
-    if (!origin || whitelist.some(allowedOrigin => 
+    if (!origin) {
+      return callback(null, true);
+    }
+    if (whitelist.some(allowedOrigin => 
         typeof allowedOrigin === 'string' 
           ? allowedOrigin === origin 
           : allowedOrigin.test(origin)
@@ -46,8 +45,7 @@ const corsOptions = {
       callback(new Error('Not allowed by CORS'));
     }
   },
-  optionsSuccessStatus: 200,
-  credentials: true 
+  optionsSuccessStatus: 200
 };
 
 app.use(cors(corsOptions));
@@ -55,7 +53,6 @@ app.use(cors(corsOptions));
 // --- Middlewares Globales ---
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
-app.use(cookieParser());
 
 // --- Middleware de Logging de Peticiones (antes de las rutas) ---
 app.use(expressWinston.logger({

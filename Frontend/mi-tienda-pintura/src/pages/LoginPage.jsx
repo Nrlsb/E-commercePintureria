@@ -3,7 +3,8 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/useAuthStore';
 import Spinner from '../components/Spinner.jsx';
-import { api } from '../api'; // 1. Importar el wrapper de la API
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
 const LoginPage = () => {
   const [email, setEmail] = useState('');
@@ -19,16 +20,21 @@ const LoginPage = () => {
     setError('');
     setLoading(true);
     try {
-      // 2. Usar el wrapper de la API para la petición de login
-      const data = await api.post('/auth/login', { email, password });
+      const response = await fetch(`${API_URL}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || 'Error al iniciar sesión');
+      }
       
-      // 3. El store de auth ahora espera el objeto de usuario, no el token
-      login(data.user);
+      login(data.token);
       
       navigate('/');
     } catch (err) {
-      // El wrapper de la API ya formatea el error correctamente
-      setError(err.message || 'Error al iniciar sesión');
+      setError(err.message);
     } finally {
       setLoading(false);
     }
@@ -40,6 +46,7 @@ const LoginPage = () => {
         <div className="bg-white p-8 rounded-lg shadow-md">
           <h1 className="text-2xl font-bold text-gray-800 mb-6 border-b pb-4">Iniciar sesión</h1>
           <form onSubmit={handleSubmit} className="space-y-6">
+            {/* --- CORRECCIÓN: Se añade 'id' y 'htmlFor' --- */}
             <div>
               <label htmlFor="email" className="block mb-1 font-medium text-gray-600">Su E-Mail: <span className="text-red-500">*</span></label>
               <input id="email" name="email" type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#0F3460]" required />

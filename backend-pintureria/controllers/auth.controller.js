@@ -4,12 +4,15 @@ import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import db from '../db.js';
 import { sendPasswordResetEmail } from '../emailService.js';
-import logger from '../logger.js';
+import logger from '../logger.js'; // Importar logger
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
-export const registerUser = async (req, res, next) => {
+export const registerUser = async (req, res, next) => { // Añadir next
   const { email, password, firstName, lastName, phone } = req.body;
+  if (!email || !password || !firstName || !lastName) {
+    return res.status(400).json({ message: 'Nombre, apellido, email y contraseña son requeridos.' });
+  }
   try {
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(password, salt);
@@ -23,13 +26,15 @@ export const registerUser = async (req, res, next) => {
     if (err.code === '23505') {
         return res.status(409).json({ message: 'El email ya está registrado.' });
     }
-    next(err);
+    next(err); // Pasar error al middleware
   }
 };
 
-
-export const loginUser = async (req, res, next) => {
+export const loginUser = async (req, res, next) => { // Añadir next
     const { email, password } = req.body;
+    if (!email || !password) {
+        return res.status(400).json({ message: 'Email y contraseña son requeridos.' });
+    }
     try {
         const result = await db.query('SELECT * FROM users WHERE email = $1', [email]);
         const user = result.rows[0];
@@ -53,22 +58,9 @@ export const loginUser = async (req, res, next) => {
             { expiresIn: '1h' }
         );
         
-        // --- CORRECCIÓN DE COOKIE PARA PRODUCCIÓN CROSS-SITE ---
-        const cookieOptions = {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            // 'sameSite: none' es requerido para cookies cross-site (Vercel -> Render)
-            // y exige que 'secure' sea true.
-            // 'lax' es un buen default para desarrollo si no se usa HTTPS local.
-            sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-            maxAge: 60 * 60 * 1000, // 1 hora
-        };
-
-        res.cookie('token', token, cookieOptions);
-
         logger.info(`Inicio de sesión exitoso para el usuario: ${user.email}`);
-        
         res.json({ 
+            token, 
             user: { 
                 id: user.id, 
                 email: user.email, 
@@ -78,35 +70,11 @@ export const loginUser = async (req, res, next) => {
             } 
         });
     } catch (err) {
-        next(err);
+        next(err); // Pasar error al middleware
     }
 };
 
-export const logoutUser = (req, res) => {
-    // Usar las mismas opciones para limpiar la cookie es crucial
-    const cookieOptions = {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-    };
-    res.clearCookie('token', cookieOptions);
-    res.status(200).json({ message: 'Sesión cerrada exitosamente.' });
-};
-
-export const getMe = (req, res) => {
-    const { userId, email, role, firstName, lastName } = req.user;
-    res.json({
-        user: {
-            id: userId,
-            email,
-            role,
-            firstName,
-            lastName
-        }
-    });
-};
-
-export const forgotPassword = async (req, res, next) => {
+export const forgotPassword = async (req, res, next) => { // Añadir next
   const { email } = req.body;
   try {
     const userResult = await db.query('SELECT * FROM users WHERE email = $1', [email]);
@@ -128,17 +96,21 @@ export const forgotPassword = async (req, res, next) => {
       res.status(200).json({ message: 'Se ha enviado un correo para restablecer la contraseña.' });
     } catch (emailError) {
       logger.error('Error específico del servicio de email:', emailError.message);
-      next(new Error('Error interno del servidor al intentar enviar el correo.'));
+      next(new Error('Error interno del servidor al intentar enviar el correo.')); // Pasar error
     }
 
   } catch (error) {
-    next(error);
+    next(error); // Pasar error
   }
 };
 
-export const resetPassword = async (req, res, next) => {
+export const resetPassword = async (req, res, next) => { // Añadir next
   const { token } = req.params;
   const { password } = req.body;
+
+  if (!password || password.length < 6) {
+    return res.status(400).json({ message: 'La contraseña debe tener al menos 6 caracteres.' });
+  }
 
   const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
 
@@ -166,6 +138,23 @@ export const resetPassword = async (req, res, next) => {
     res.status(200).json({ message: 'Contraseña actualizada con éxito.' });
 
   } catch (error) {
-    next(error);
+    next(error); // Pasar error
+  }
+};
+
+// --- emailService.js ---
+// (Solo se muestra un ejemplo, se deben reemplazar todos los console.log/error)
+import nodemailer from 'nodemailer';
+// import logger from './logger.js'; // Asegúrate de importar el logger aquí también
+
+// ...
+
+export const sendOrderConfirmationEmail = async (userEmail, order) => {
+  // ... (código de generación de HTML)
+  try {
+    await transporter.sendMail(mailOptions);
+    logger.info(`Email de confirmación enviado a ${userEmail} para la orden ${order.id}`);
+  } catch (error) {
+    logger.error(`Error al enviar email para la orden ${order.id}:`, error);
   }
 };
