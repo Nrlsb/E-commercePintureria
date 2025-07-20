@@ -6,7 +6,6 @@ import { ICONS } from '../data/icons.js';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useCartStore } from '../stores/useCartStore';
 import { useProductStore } from '../stores/useProductStore';
-import { apiFetch } from '../api.js';
 
 // --- Componente de Menú de Usuario para Escritorio ---
 const UserMenuDesktop = () => {
@@ -26,8 +25,7 @@ const UserMenuDesktop = () => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [menuRef]);
 
-  const handleLogout = async () => {
-    await apiFetch('/api/auth/logout', { method: 'POST' });
+  const handleLogout = () => {
     logout();
     clearCart();
     setIsOpen(false);
@@ -38,7 +36,7 @@ const UserMenuDesktop = () => {
     <div className="relative" ref={menuRef}>
       <button onClick={() => setIsOpen(!isOpen)} className="flex items-center text-gray-300 hover:text-white transition-colors">
         <Icon path={ICONS.user} />
-        <span className="hidden md:block ml-2">Hola, {user.firstName || user.email.split('@')[0]}</span>
+        <span className="hidden md:block ml-2">Hola, {user.email.split('@')[0]}</span>
         <Icon path={ICONS.chevronDown} className="hidden md:block w-4 h-4 ml-1" />
       </button>
 
@@ -87,8 +85,7 @@ const Header = () => {
     setIsMenuOpen(false);
   };
 
-  const handleMobileLogout = async () => {
-    await apiFetch('/api/auth/logout', { method: 'POST' });
+  const handleMobileLogout = () => {
     logout();
     clearCart();
     handleMobileLinkClick();
@@ -174,7 +171,7 @@ const Header = () => {
               <nav className="flex flex-col space-y-4 text-lg text-gray-200">
                 {user ? (
                   <>
-                    <div className="px-4 py-2 text-white font-semibold">Hola, {user.firstName || user.email.split('@')[0]}</div>
+                    <div className="px-4 py-2 text-white font-semibold">Hola, {user.email.split('@')[0]}</div>
                     <hr className="border-gray-500"/>
                     {user.role === 'admin' && (
                       <Link to="/admin" onClick={handleMobileLinkClick} className="px-4 py-2 hover:bg-[#1a4a8a] rounded-md">Panel Admin</Link>

@@ -1,8 +1,6 @@
-// backend-pintureria/middlewares/auth.middleware.js
 import jwt from 'jsonwebtoken';
 
-// --- CORRECCIÓN: Usar la variable específica para el token de acceso ---
-const JWT_ACCESS_SECRET = process.env.JWT_ACCESS_SECRET || 'access-secret-default';
+const JWT_SECRET = process.env.JWT_SECRET;
 
 /**
  * Middleware para verificar el token JWT en las cabeceras de autorización.
@@ -16,10 +14,8 @@ export const authenticateToken = (req, res, next) => {
     return res.status(401).json({ message: 'Token no proporcionado.' });
   }
 
-  // --- CORRECCIÓN: Verificar el token con el secreto correcto ---
-  jwt.verify(token, JWT_ACCESS_SECRET, (err, user) => {
+  jwt.verify(token, JWT_SECRET, (err, user) => {
     if (err) {
-      // Devolvemos 403 para que el frontend sepa que debe intentar refrescar el token
       return res.status(403).json({ message: 'Token inválido o expirado.' });
     }
     req.user = user;

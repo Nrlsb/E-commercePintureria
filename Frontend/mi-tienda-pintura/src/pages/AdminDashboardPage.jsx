@@ -5,7 +5,7 @@ import { useNotificationStore } from '../stores/useNotificationStore';
 import Icon from '../components/Icon';
 import Spinner from '../components/Spinner';
 import ConfirmationModal from '../components/ConfirmationModal';
-import { apiFetch } from '../api';
+import { apiFetch } from '../api'; // 1. Importar apiFetch
 
 const StatCard = ({ title, value, icon, color }) => (
   <div className="bg-white p-6 rounded-lg shadow-md flex items-center space-x-4">
@@ -45,44 +45,28 @@ const AdminDashboardPage = () => {
 
   useEffect(() => {
     const fetchData = async () => {
-      setLoading(true);
-      setError(null);
       try {
-        // --- CORRECCIÓN: Separar las llamadas a la API ---
+        // 2. Usar apiFetch en lugar de fetch
+        const [productsResponse, ordersResponse] = await Promise.all([
+          apiFetch('/api/products?page=1&limit=100'), // Esta es pública, pero usar apiFetch es seguro
+          apiFetch('/api/orders/admin') // Esta llamada requiere autenticación
+        ]);
+        if (!productsResponse.ok) throw new Error('Error al cargar los productos');
+        if (!ordersResponse.ok) throw new Error('Error al cargar las órdenes');
         
-        // 1. Primero, obtenemos los productos. Esta llamada es pública y debería funcionar.
-        const productsResponse = await apiFetch('/api/products?page=1&limit=100');
-        if (!productsResponse.ok) {
-            throw new Error('Error al cargar los productos');
-        }
         const productsData = await productsResponse.json();
+        const ordersData = await ordersResponse.json();
+        
         setProducts(productsData.products);
-
-        // 2. Luego, intentamos obtener las órdenes (ruta protegida).
-        const ordersResponse = await apiFetch('/api/orders/admin');
-        if (!ordersResponse.ok) {
-            // Si esta llamada falla, no lanzamos un error que detenga todo.
-            // En su lugar, mostramos una notificación y continuamos.
-            const errorData = await ordersResponse.json();
-            setError(errorData.message || 'No se pudieron cargar las órdenes.');
-            showNotification('No se pudieron cargar las órdenes. La sesión puede haber expirado.', 'error');
-            setOrders([]); // Dejamos las órdenes como un array vacío.
-        } else {
-            const ordersData = await ordersResponse.json();
-            setOrders(ordersData);
-        }
-
+        setOrders(ordersData);
       } catch (err) {
-        // Este catch ahora solo se activará si la llamada a productos falla.
         setError(err.message);
-        showNotification(err.message, 'error');
       } finally {
         setLoading(false);
       }
     };
     fetchData();
-  }, [showNotification]);
-
+  }, []);
 
   const openDeleteModal = (product) => {
     setProductToDelete(product);
@@ -101,6 +85,7 @@ const AdminDashboardPage = () => {
     closeDeleteModal();
 
     try {
+      // 3. Usar apiFetch para la operación de borrado
       const response = await apiFetch(`/api/products/${productToDelete.id}`, {
         method: 'DELETE',
       });
@@ -118,9 +103,7 @@ const AdminDashboardPage = () => {
   };
 
   if (loading) return <div className="text-center p-10"><Spinner className="w-12 h-12 text-[#0F3460] mx-auto" /></div>;
-  
-  // No mostramos un error de página completa si solo fallan las órdenes.
-  // El error se mostrará como una notificación.
+  if (error) return <div className="text-center p-10 text-red-500">Error: {error}</div>;
 
   return (
     <div className="container mx-auto px-4 py-8">

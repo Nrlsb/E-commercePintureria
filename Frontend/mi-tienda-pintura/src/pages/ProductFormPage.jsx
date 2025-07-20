@@ -5,13 +5,11 @@ import { useAuthStore } from '../stores/useAuthStore';
 import { useNotificationStore } from '../stores/useNotificationStore';
 import Spinner from '../components/Spinner';
 import Icon from '../components/Icon';
-// --- 1. Importar apiFetch ---
-import { apiFetch } from '../api';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
-// --- Componente para la subida de imagen (Modificado para usar apiFetch) ---
-const ImageUploader = ({ imageUrl, onUploadSuccess, onFileSelect }) => {
+// --- Componente para la subida de imagen (Modificado para pasar el archivo) ---
+const ImageUploader = ({ imageUrl, onUploadSuccess, onFileSelect, token }) => {
   const [uploading, setUploading] = useState(false);
   const showNotification = useNotificationStore(state => state.showNotification);
 
@@ -19,17 +17,18 @@ const ImageUploader = ({ imageUrl, onUploadSuccess, onFileSelect }) => {
     const file = e.target.files[0];
     if (!file) return;
 
+    // Pasamos el archivo al componente padre para el análisis de IA
     onFileSelect(file);
+
     setUploading(true);
     const formData = new FormData();
     formData.append('productImage', file);
 
     try {
-      // --- 2. Usar apiFetch en lugar de fetch ---
-      // No es necesario pasar el token, apiFetch lo maneja.
-      const response = await apiFetch('/api/uploads/single', {
+      const response = await fetch(`${API_URL}/api/uploads/single`, {
         method: 'POST',
-        body: formData, // apiFetch se encargará de los headers y credenciales
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: formData,
       });
 
       const data = await response.json();
@@ -105,8 +104,7 @@ const ProductFormPage = () => {
   useEffect(() => {
     if (isEditing) {
       setLoading(true);
-      // Usamos apiFetch para consistencia, aunque esta ruta es pública
-      apiFetch(`/api/products/${productId}`)
+      fetch(`${API_URL}/api/products/${productId}`)
         .then(res => res.ok ? res.json() : Promise.reject(new Error('No se pudo cargar el producto.')))
         .then(data => setProduct({
             name: data.name || '', brand: data.brand || '', category: data.category || '',
@@ -145,8 +143,12 @@ const ProductFormPage = () => {
     setIsAiLoading(true);
     try {
         const base64ImageData = await fileToBase64(uploadedImageFile);
-        const response = await apiFetch(`/api/uploads/analyze-image`, {
+        const response = await fetch(`${API_URL}/api/uploads/analyze-image`, {
             method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
             body: JSON.stringify({ imageData: base64ImageData, mimeType: uploadedImageFile.type })
         });
         const data = await response.json();
@@ -177,12 +179,13 @@ const ProductFormPage = () => {
     setLoading(true);
     setError(null);
 
-    const url = isEditing ? `/api/products/${productId}` : `/api/products`;
+    const url = isEditing ? `${API_URL}/api/products/${productId}` : `${API_URL}/api/products`;
     const method = isEditing ? 'PUT' : 'POST';
 
     try {
-      const response = await apiFetch(url, {
+      const response = await fetch(url, {
         method,
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({
             ...product,
             price: parseFloat(product.price) || 0,
@@ -230,6 +233,7 @@ const ProductFormPage = () => {
               imageUrl={product.image_url} 
               onUploadSuccess={handleImageUploadSuccess}
               onFileSelect={setUploadedImageFile}
+              token={token}
             />
             
             <button

@@ -15,30 +15,25 @@ const parseJwt = (token) => {
 export const useAuthStore = create(
   persist(
     (set) => ({
-      accessToken: null,
+      token: null,
       user: null,
 
-      // La acción de login ahora guarda el accessToken y el usuario
-      login: (newAccessToken, userData) => {
+      login: (newToken) => {
         set({
-          accessToken: newAccessToken,
-          user: userData || parseJwt(newAccessToken),
+          token: newToken,
+          user: parseJwt(newToken),
         });
       },
 
-      // La acción de logout limpia el estado local
-      // El borrado de la cookie y el token en BD se hace en el backend
       logout: () => {
         set({
-          accessToken: null,
+          token: null,
           user: null,
         });
       },
     }),
     {
       name: 'auth-storage',
-      // Solo persistimos el usuario, el accessToken es volátil
-      partialize: (state) => ({ user: state.user }),
     }
   )
 );

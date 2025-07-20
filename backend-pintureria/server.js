@@ -4,7 +4,6 @@ dotenv.config();
 
 import express from 'express';
 import cors from 'cors';
-import cookieParser from 'cookie-parser';
 import { startCancelPendingOrdersJob } from './services/cronService.js';
 import winston from 'winston';
 import expressWinston from 'express-winston';
@@ -33,8 +32,9 @@ const whitelist = [
 
 const corsOptions = {
   origin: (origin, callback) => {
-    if (!origin) return callback(null, true);
-    
+    if (!origin) {
+      return callback(null, true);
+    }
     if (whitelist.some(allowedOrigin => 
         typeof allowedOrigin === 'string' 
           ? allowedOrigin === origin 
@@ -45,7 +45,6 @@ const corsOptions = {
       callback(new Error('Not allowed by CORS'));
     }
   },
-  credentials: true,
   optionsSuccessStatus: 200
 };
 
@@ -54,7 +53,6 @@ app.use(cors(corsOptions));
 // --- Middlewares Globales ---
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
-app.use(cookieParser());
 
 // --- Middleware de Logging de Peticiones (antes de las rutas) ---
 app.use(expressWinston.logger({

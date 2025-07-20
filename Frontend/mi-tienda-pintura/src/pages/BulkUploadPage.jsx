@@ -1,15 +1,17 @@
 // Frontend/mi-tienda-pintura/src/pages/BulkUploadPage.jsx
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useAuthStore } from '../stores/useAuthStore';
 import { useNotificationStore } from '../stores/useNotificationStore';
 import Spinner from '../components/Spinner';
-// --- 1. Importar apiFetch ---
-import { apiFetch } from '../api';
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
 const BulkUploadPage = () => {
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(false);
   const [uploadResult, setUploadResult] = useState(null);
+  const token = useAuthStore(state => state.token);
   const showNotification = useNotificationStore(state => state.showNotification);
 
   const handleFileChange = (e) => {
@@ -31,9 +33,11 @@ const BulkUploadPage = () => {
     });
 
     try {
-      // --- 2. Usar apiFetch en lugar de fetch ---
-      const response = await apiFetch('/api/uploads', {
+      const response = await fetch(`${API_URL}/api/uploads`, {
         method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
         body: formData,
       });
 
@@ -47,6 +51,7 @@ const BulkUploadPage = () => {
       showNotification(err.message, 'error');
     } finally {
       setLoading(false);
+      // Limpiar el input de archivos
       document.getElementById('file-upload').value = '';
       setFiles([]);
     }
