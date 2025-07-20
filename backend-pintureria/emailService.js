@@ -12,12 +12,6 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-// --- MEJORA: Usar una variable de entorno para el email del remitente ---
-// Asegúrate de añadir EMAIL_FROM a tus variables de entorno en Render.
-// Ejemplo: EMAIL_FROM="Pinturerías Mercurio <ventas@tu-dominio-verificado.com>"
-const EMAIL_FROM = process.env.EMAIL_FROM || '"Pinturerías Mercurio" <onboarding@resend.dev>';
-
-
 const formatCurrency = (amount) => new Intl.NumberFormat('es-AR').format(amount);
 
 const generateItemsHtml = (items) => items.map(item => `
@@ -54,7 +48,7 @@ export const sendOrderConfirmationEmail = async (userEmail, order) => {
   `;
 
   const mailOptions = {
-    from: EMAIL_FROM,
+    from: `"Pinturerías Mercurio" <onboarding@resend.dev>`,
     to: userEmail,
     subject: `Confirmación de tu pedido #${order.id}`,
     html: emailHtml,
@@ -106,7 +100,7 @@ export const sendBankTransferInstructionsEmail = async (userEmail, order) => {
   `;
 
   const mailOptions = {
-    from: EMAIL_FROM,
+    from: `"Pinturerías Mercurio" <onboarding@resend.dev>`,
     to: userEmail,
     subject: `Instrucciones de pago para tu pedido #${order.id}`,
     html: emailHtml,
@@ -132,7 +126,7 @@ export const sendPaymentReminderEmail = async (userEmail, order) => {
     </div>
   `;
   const mailOptions = {
-    from: EMAIL_FROM,
+    from: `"Pinturerías Mercurio" <onboarding@resend.dev>`,
     to: userEmail,
     subject: `Recordatorio de pago para tu pedido #${order.id}`,
     html: emailHtml,
@@ -151,7 +145,7 @@ export const sendOrderCancelledEmail = async (userEmail, order) => {
     </div>
   `;
   const mailOptions = {
-    from: EMAIL_FROM,
+    from: `"Pinturerías Mercurio" <onboarding@resend.dev>`,
     to: userEmail,
     subject: `Tu pedido #${order.id} ha sido cancelado`,
     html: emailHtml,
@@ -176,7 +170,7 @@ export const sendPasswordResetEmail = async (userEmail, token) => {
     </div>
   `;
   const mailOptions = {
-    from: EMAIL_FROM,
+    from: `"Pinturerías Mercurio" <onboarding@resend.dev>`,
     to: userEmail,
     subject: 'Restablecimiento de Contraseña',
     html: emailHtml,

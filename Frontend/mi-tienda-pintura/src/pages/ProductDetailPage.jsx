@@ -5,6 +5,7 @@ import ProductCard from '../components/ProductCard.jsx';
 import StarRating from '../components/StarRating.jsx';
 import ReviewList from '../components/ReviewList.jsx';
 import ReviewForm from '../components/ReviewForm.jsx';
+import { useProductStore } from '../stores/useProductStore.js';
 import { useCartStore } from '../stores/useCartStore.js';
 import { useAuthStore } from '../stores/useAuthStore.js';
 import { useNotificationStore } from '../stores/useNotificationStore.js';
@@ -14,31 +15,30 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 const ProductDetailPage = () => {
   const { productId } = useParams();
   
+  const { products } = useProductStore();
   const { addToCart } = useCartStore();
   const { user, token } = useAuthStore();
   const showNotification = useNotificationStore(state => state.showNotification);
 
   const [product, setProduct] = useState(null);
   const [reviews, setReviews] = useState([]);
-  const [relatedProducts, setRelatedProducts] = useState([]); // <-- Nuevo estado para productos relacionados
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [quantity, setQuantity] = useState(1);
   const [activeTab, setActiveTab] = useState('description');
 
-  // --- MEJORA: `useCallback` para la función de recarga de datos ---
-  const fetchPageData = useCallback(async () => {
+  const fetchProductAndReviews = useCallback(async () => {
     try {
       setLoading(true);
-      // --- MEJORA: Una sola llamada a la API ---
-      const response = await fetch(`${API_URL}/api/products/${productId}/details`);
-      if (!response.ok) throw new Error('Producto no encontrado');
-      
-      const data = await response.json();
-      
-      setProduct(data.product);
-      setReviews(data.reviews);
-      setRelatedProducts(data.relatedProducts);
+      const productResponse = await fetch(`${API_URL}/api/products/${productId}`);
+      if (!productResponse.ok) throw new Error('Producto no encontrado');
+      const productData = await productResponse.json();
+      setProduct(productData);
+
+      const reviewsResponse = await fetch(`${API_URL}/api/products/${productId}/reviews`);
+      if (!reviewsResponse.ok) throw new Error('Error al cargar las reseñas');
+      const reviewsData = await reviewsResponse.json();
+      setReviews(reviewsData);
 
     } catch (err) {
       setError(err.message);
@@ -48,11 +48,11 @@ const ProductDetailPage = () => {
   }, [productId]);
 
   useEffect(() => {
-    fetchPageData();
+    fetchProductAndReviews();
     setQuantity(1);
     setActiveTab('description');
     window.scrollTo(0, 0);
-  }, [productId, fetchPageData]);
+  }, [productId, fetchProductAndReviews]);
 
   const handleQuantityChange = (amount) => {
     setQuantity(prev => {
@@ -83,7 +83,7 @@ const ProductDetailPage = () => {
         }
         
         showNotification('Reseña eliminada con éxito', 'success');
-        fetchPageData(); // Recargar todos los datos de la página
+        fetchProductAndReviews();
 
       } catch (err) {
         showNotification(err.message, 'error');
@@ -91,6 +91,7 @@ const ProductDetailPage = () => {
     }
   };
 
+  // Lógica para construir la URL de la imagen
   const getFullImageUrl = (url) => {
     if (!url) return 'https://placehold.co/500x500/cccccc/ffffff?text=Imagen+no+disponible';
     if (url.startsWith('http')) {
@@ -98,6 +99,10 @@ const ProductDetailPage = () => {
     }
     return `${API_URL}${url}`;
   };
+
+  const relatedProducts = product 
+    ? products.filter(p => p.category === product.category && p.id !== product.id).slice(0, 4)
+    : [];
 
   if (loading) return <div className="text-center p-10">Cargando...</div>;
   if (error) return <div className="text-center p-10 text-red-500">Error: {error}</div>;
@@ -107,7 +112,6 @@ const ProductDetailPage = () => {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      {/* ... (El resto del JSX permanece igual) ... */}
       <div className="text-sm text-gray-500 mb-6">
         <Link to="/" className="hover:text-[#0F3460]">Inicio</Link>
         <span className="mx-2">&gt;</span>
@@ -203,7 +207,7 @@ const ProductDetailPage = () => {
           {activeTab === 'reviews' && (
             <div>
               {user ? (
-                <ReviewForm productId={productId} token={token} onReviewSubmitted={fetchPageData} />
+                <ReviewForm productId={productId} token={token} onReviewSubmitted={fetchProductAndReviews} />
               ) : (
                 <p className="text-center bg-gray-100 p-4 rounded-lg">
                   <Link to="/login" className="font-bold text-[#0F3460] hover:underline">Inicia sesión</Link> para dejar una reseña.
@@ -215,7 +219,6 @@ const ProductDetailPage = () => {
         </div>
       </div>
 
-      {/* --- MEJORA: Usar el nuevo estado `relatedProducts` --- */}
       {relatedProducts.length > 0 && (
         <div className="mt-16">
           <h2 className="text-2xl font-bold text-gray-800 mb-6">También te puede interesar</h2>

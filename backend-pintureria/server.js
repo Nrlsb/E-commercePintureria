@@ -7,7 +7,7 @@ import cors from 'cors';
 import { startCancelPendingOrdersJob } from './services/cronService.js';
 import winston from 'winston';
 import expressWinston from 'express-winston';
-import logger from './logger.js';
+import logger from './logger.js'; // Importamos nuestro logger configurado
 
 // Importadores de Rutas
 import productRoutes from './routes/product.routes.js';

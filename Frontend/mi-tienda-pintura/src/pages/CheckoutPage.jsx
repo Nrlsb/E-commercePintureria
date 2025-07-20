@@ -1,37 +1,25 @@
 // src/pages/CheckoutPage.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { CardPayment, initMercadoPago } from '@mercadopago/sdk-react';
+import { CardPayment } from '@mercadopago/sdk-react';
 import { useCartStore } from '../stores/useCartStore';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useNotificationStore } from '../stores/useNotificationStore';
 import Spinner from '../components/Spinner.jsx';
 import CopyButton from '../components/CopyButton.jsx';
-import { apiFetch } from '../api'; // Importar apiFetch
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 const MIN_TRANSACTION_AMOUNT = 100;
-const MERCADOPAGO_PUBLIC_KEY = import.meta.env.VITE_MERCADOPAGO_PUBLIC_KEY;
 
 const CheckoutPage = () => {
   const { cart, shippingCost, postalCode, clearCart } = useCartStore();
-  const { user } = useAuthStore();
+  const { user, token } = useAuthStore();
   const showNotification = useNotificationStore(state => state.showNotification);
   
   const [paymentMethod, setPaymentMethod] = useState('mercado_pago');
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState('');
-  const [isMercadoPagoReady, setIsMercadoPagoReady] = useState(false);
   const navigate = useNavigate();
-
-  useEffect(() => {
-    if (MERCADOPAGO_PUBLIC_KEY) {
-      initMercadoPago(MERCADOPAGO_PUBLIC_KEY, { locale: 'es-AR' });
-      setIsMercadoPagoReady(true);
-    } else {
-      console.error("Error: La Public Key de Mercado Pago no está configurada.");
-      setError("La configuración de pagos no está disponible en este momento.");
-    }
-  }, []);
 
   const subtotal = cart.reduce((total, item) => total + item.price * item.quantity, 0);
   const total = subtotal + shippingCost;
@@ -40,9 +28,10 @@ const CheckoutPage = () => {
     setIsProcessing(true);
     setError('');
     try {
-      const response = await apiFetch('/api/orders/process-payment', {
+      const response = await fetch(`${API_URL}/api/orders/process-payment`, {
         method: 'POST',
-        body: JSON.stringify({ ...formData, cart, transaction_amount: total, shippingCost, postalCode, payer: { ...formData.payer, email: user.email } }),
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ ...formData, cart, transaction_amount: total, payer: { ...formData.payer, email: user.email } }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || 'El pago fue rechazado.');
@@ -60,8 +49,9 @@ const CheckoutPage = () => {
     setIsProcessing(true);
     setError('');
     try {
-        const response = await apiFetch('/api/orders/bank-transfer', {
+        const response = await fetch(`${API_URL}/api/orders/bank-transfer`, {
             method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
             body: JSON.stringify({ cart, total, shippingCost, postalCode }),
         });
         const data = await response.json();
@@ -86,9 +76,7 @@ const CheckoutPage = () => {
   const handleOnError = (err) => {
     console.error('Error en el brick de pago:', err);
     let friendlyMessage = 'Error en el formulario de pago. Por favor, revisa los datos ingresados.';
-    if (err.cause?.includes('fields_setup_failed')) {
-        friendlyMessage = 'Hubo un problema al cargar el formulario de pago. Por favor, recarga la página.';
-    } else if (err.message?.includes('empty_installments') || err.message?.includes('higher amount')) {
+    if (err.message?.includes('empty_installments') || err.message?.includes('higher amount')) {
       friendlyMessage = 'No hay cuotas disponibles para este monto o tarjeta. El monto puede ser muy bajo.';
     }
     setError(friendlyMessage);
@@ -96,7 +84,6 @@ const CheckoutPage = () => {
   };
 
   return (
-    // ... El JSX de este componente no cambia
     <div className="container mx-auto px-4 py-8">
       <h1 className="text-3xl font-bold text-gray-800 mb-8">Finalizar Compra</h1>
       
@@ -115,16 +102,12 @@ const CheckoutPage = () => {
 
           {paymentMethod === 'mercado_pago' && (
             <>
-              {isMercadoPagoReady && total >= MIN_TRANSACTION_AMOUNT ? (
+              {total >= MIN_TRANSACTION_AMOUNT ? (
                 <CardPayment initialization={initialization} customization={customization} onSubmit={handlePayment} onReady={() => console.log('Brick de tarjeta listo')} onError={handleOnError} />
               ) : (
                 <div className="text-center p-6 bg-yellow-50 border border-yellow-200 rounded-lg">
-                  <h3 className="text-xl font-semibold text-yellow-800">
-                    { !isMercadoPagoReady ? "Cargando formulario de pago..." : "Monto mínimo no alcanzado" }
-                  </h3>
-                  <p className="text-yellow-700 mt-2">
-                    { !isMercadoPagoReady ? "Por favor, espera un momento." : `El total de tu compra debe ser de al menos $${MIN_TRANSACTION_AMOUNT} para pagar con este método.` }
-                  </p>
+                  <h3 className="text-xl font-semibold text-yellow-800">Monto mínimo no alcanzado</h3>
+                  <p className="text-yellow-700 mt-2">El total de tu compra debe ser de al menos ${MIN_TRANSACTION_AMOUNT} para pagar con este método.</p>
                 </div>
               )}
             </>

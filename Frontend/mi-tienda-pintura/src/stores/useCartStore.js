@@ -2,7 +2,8 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { useNotificationStore } from './useNotificationStore';
-import { apiFetch } from '../api'; // Importar apiFetch
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
 export const useCartStore = create(
   persist(
@@ -10,10 +11,9 @@ export const useCartStore = create(
       cart: [],
       shippingCost: 0,
       postalCode: '',
-      appliedCoupon: null,
-      discountAmount: 0,
+      appliedCoupon: null, // <-- NUEVO ESTADO
+      discountAmount: 0,   // <-- NUEVO ESTADO
 
-      // ... (addToCart, updateQuantity, removeItem, clearCart no cambian)
       addToCart: (product, quantity = 1) => {
         const { cart, postalCode } = get();
         const showNotification = useNotificationStore.getState().showNotification;
@@ -37,7 +37,7 @@ export const useCartStore = create(
         }
         
         set({ cart: updatedCart });
-        get().recalculateDiscount();
+        get().recalculateDiscount(); // Recalcular descuento si cambia el carrito
         showNotification('¡Añadido al carrito!');
 
         if (postalCode) {
@@ -91,8 +91,7 @@ export const useCartStore = create(
           return;
         }
         try {
-          // Esta llamada no requiere autenticación, así que puede seguir usando fetch.
-          const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5001'}/api/shipping/calculate`, {
+          const response = await fetch(`${API_URL}/api/shipping/calculate`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ postalCode, items }),
@@ -104,15 +103,19 @@ export const useCartStore = create(
           console.error("Error calculating shipping:", error);
           useNotificationStore.getState().showNotification('Error al calcular el envío.', 'error');
           set({ shippingCost: 0, postalCode: postalCode });
-          throw error;
         }
       },
 
-      applyCoupon: async (code) => { // Ya no necesita el token como argumento
+      // --- CORRECCIÓN: Se añade el token a las cabeceras de la petición ---
+      applyCoupon: async (code, token) => {
         const showNotification = useNotificationStore.getState().showNotification;
         try {
-          const response = await apiFetch('/api/coupons/validate', { // Usar apiFetch
+          const response = await fetch(`${API_URL}/api/coupons/validate`, {
             method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`, // <-- LÍNEA AÑADIDA
+            },
             body: JSON.stringify({ code }),
           });
           const data = await response.json();
@@ -144,6 +147,7 @@ export const useCartStore = create(
         } else if (appliedCoupon.discountType === 'fixed') {
           discount = appliedCoupon.discountValue;
         }
+        // El descuento no puede ser mayor que el subtotal
         set({ discountAmount: Math.min(discount, subtotal) });
       },
     }),

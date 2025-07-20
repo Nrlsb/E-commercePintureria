@@ -4,11 +4,11 @@ import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import db from '../db.js';
 import { sendPasswordResetEmail } from '../emailService.js';
-import logger from '../logger.js';
+import logger from '../logger.js'; // Importar logger
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
-export const registerUser = async (req, res, next) => {
+export const registerUser = async (req, res, next) => { // Añadir next
   const { email, password, firstName, lastName, phone } = req.body;
   if (!email || !password || !firstName || !lastName) {
     return res.status(400).json({ message: 'Nombre, apellido, email y contraseña son requeridos.' });
@@ -26,11 +26,11 @@ export const registerUser = async (req, res, next) => {
     if (err.code === '23505') {
         return res.status(409).json({ message: 'El email ya está registrado.' });
     }
-    next(err);
+    next(err); // Pasar error al middleware
   }
 };
 
-export const loginUser = async (req, res, next) => {
+export const loginUser = async (req, res, next) => { // Añadir next
     const { email, password } = req.body;
     if (!email || !password) {
         return res.status(400).json({ message: 'Email y contraseña son requeridos.' });
@@ -70,11 +70,11 @@ export const loginUser = async (req, res, next) => {
             } 
         });
     } catch (err) {
-        next(err);
+        next(err); // Pasar error al middleware
     }
 };
 
-export const forgotPassword = async (req, res, next) => {
+export const forgotPassword = async (req, res, next) => { // Añadir next
   const { email } = req.body;
   try {
     const userResult = await db.query('SELECT * FROM users WHERE email = $1', [email]);
@@ -96,15 +96,15 @@ export const forgotPassword = async (req, res, next) => {
       res.status(200).json({ message: 'Se ha enviado un correo para restablecer la contraseña.' });
     } catch (emailError) {
       logger.error('Error específico del servicio de email:', emailError.message);
-      next(new Error('Error interno del servidor al intentar enviar el correo.'));
+      next(new Error('Error interno del servidor al intentar enviar el correo.')); // Pasar error
     }
 
   } catch (error) {
-    next(error);
+    next(error); // Pasar error
   }
 };
 
-export const resetPassword = async (req, res, next) => {
+export const resetPassword = async (req, res, next) => { // Añadir next
   const { token } = req.params;
   const { password } = req.body;
 
@@ -138,6 +138,23 @@ export const resetPassword = async (req, res, next) => {
     res.status(200).json({ message: 'Contraseña actualizada con éxito.' });
 
   } catch (error) {
-    next(error);
+    next(error); // Pasar error
+  }
+};
+
+// --- emailService.js ---
+// (Solo se muestra un ejemplo, se deben reemplazar todos los console.log/error)
+import nodemailer from 'nodemailer';
+// import logger from './logger.js'; // Asegúrate de importar el logger aquí también
+
+// ...
+
+export const sendOrderConfirmationEmail = async (userEmail, order) => {
+  // ... (código de generación de HTML)
+  try {
+    await transporter.sendMail(mailOptions);
+    logger.info(`Email de confirmación enviado a ${userEmail} para la orden ${order.id}`);
+  } catch (error) {
+    logger.error(`Error al enviar email para la orden ${order.id}:`, error);
   }
 };

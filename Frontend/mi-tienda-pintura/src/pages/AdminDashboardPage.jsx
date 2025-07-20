@@ -1,12 +1,16 @@
 // src/pages/AdminDashboardPage.jsx
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { useAuthStore } from '../stores/useAuthStore';
 import { useNotificationStore } from '../stores/useNotificationStore';
 import Icon from '../components/Icon';
 import Spinner from '../components/Spinner';
+// --- NUEVO: Importamos el modal de confirmación ---
 import ConfirmationModal from '../components/ConfirmationModal';
-import { apiFetch } from '../api'; // 1. Importar apiFetch
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+
+// ... (Componente StatCard y objeto ICONS sin cambios)
 const StatCard = ({ title, value, icon, color }) => (
   <div className="bg-white p-6 rounded-lg shadow-md flex items-center space-x-4">
     <div className={`rounded-full p-3 ${color}`}>
@@ -38,25 +42,25 @@ const AdminDashboardPage = () => {
   const [error, setError] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
   
+  // --- NUEVO: Estado para manejar el modal ---
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [productToDelete, setProductToDelete] = useState(null);
 
+  const token = useAuthStore(state => state.token);
   const showNotification = useNotificationStore(state => state.showNotification);
 
   useEffect(() => {
+    // ... (lógica de fetch sin cambios)
     const fetchData = async () => {
       try {
-        // 2. Usar apiFetch en lugar de fetch
         const [productsResponse, ordersResponse] = await Promise.all([
-          apiFetch('/api/products?page=1&limit=100'), // Esta es pública, pero usar apiFetch es seguro
-          apiFetch('/api/orders/admin') // Esta llamada requiere autenticación
+          fetch(`${API_URL}/api/products?page=1&limit=100`),
+          fetch(`${API_URL}/api/orders/admin`, { headers: { 'Authorization': `Bearer ${token}` } })
         ]);
         if (!productsResponse.ok) throw new Error('Error al cargar los productos');
         if (!ordersResponse.ok) throw new Error('Error al cargar las órdenes');
-        
         const productsData = await productsResponse.json();
         const ordersData = await ordersResponse.json();
-        
         setProducts(productsData.products);
         setOrders(ordersData);
       } catch (err) {
@@ -66,28 +70,31 @@ const AdminDashboardPage = () => {
       }
     };
     fetchData();
-  }, []);
+  }, [token]);
 
+  // --- NUEVO: Función para abrir el modal ---
   const openDeleteModal = (product) => {
     setProductToDelete(product);
     setIsModalOpen(true);
   };
 
+  // --- NUEVO: Función para cerrar el modal ---
   const closeDeleteModal = () => {
     setProductToDelete(null);
     setIsModalOpen(false);
   };
 
+  // --- MODIFICADO: La lógica de eliminación ahora se llama desde el modal ---
   const handleDeleteConfirm = async () => {
     if (!productToDelete) return;
     
     setDeletingId(productToDelete.id);
-    closeDeleteModal();
+    closeDeleteModal(); // Cierra el modal inmediatamente
 
     try {
-      // 3. Usar apiFetch para la operación de borrado
-      const response = await apiFetch(`/api/products/${productToDelete.id}`, {
+      const response = await fetch(`${API_URL}/api/products/${productToDelete.id}`, {
         method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` },
       });
       if (!response.ok) {
           const data = await response.json();
@@ -102,11 +109,12 @@ const AdminDashboardPage = () => {
     }
   };
 
-  if (loading) return <div className="text-center p-10"><Spinner className="w-12 h-12 text-[#0F3460] mx-auto" /></div>;
+  if (loading) return <div className="text-center p-10"><Icon path={ICONS.box} className="w-12 h-12 animate-spin mx-auto text-[#0F3460]" /></div>;
   if (error) return <div className="text-center p-10 text-red-500">Error: {error}</div>;
 
   return (
     <div className="container mx-auto px-4 py-8">
+      {/* --- NUEVO: Renderizamos el modal de confirmación --- */}
       <ConfirmationModal
         isOpen={isModalOpen}
         onClose={closeDeleteModal}
@@ -166,6 +174,7 @@ const AdminDashboardPage = () => {
                   <Link to={`/admin/product/edit/${product.id}`} className="p-2 text-blue-600 hover:bg-blue-100 rounded-full transition-colors">
                     <Icon path={ICONS.edit} className="w-5 h-5" />
                   </Link>
+                  {/* --- MODIFICADO: El botón ahora abre el modal --- */}
                   <button onClick={() => openDeleteModal(product)} disabled={deletingId === product.id} className="p-2 text-red-600 hover:bg-red-100 rounded-full transition-colors disabled:opacity-50 disabled:cursor-wait">
                     {deletingId === product.id ? (
                       <Spinner className="w-5 h-5 text-red-500" />

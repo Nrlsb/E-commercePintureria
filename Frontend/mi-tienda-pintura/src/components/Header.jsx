@@ -12,7 +12,7 @@ const UserMenuDesktop = () => {
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef(null);
   const { user, logout } = useAuthStore();
-  const { clearCart } = useCartStore();
+  const { clearCart } = useCartStore(); // 1. Obtenemos la acción para limpiar el carrito
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -27,7 +27,7 @@ const UserMenuDesktop = () => {
 
   const handleLogout = () => {
     logout();
-    clearCart();
+    clearCart(); // 2. Llamamos a clearCart() para vaciar el carrito al cerrar sesión
     setIsOpen(false);
     navigate('/');
   };
@@ -67,7 +67,7 @@ const Header = () => {
   const navigate = useNavigate();
 
   const { user, logout } = useAuthStore();
-  const { cart, clearCart } = useCartStore();
+  const { cart, clearCart } = useCartStore(); // 3. Obtenemos la acción aquí también para el menú móvil
   const setSearchQuery = useProductStore(state => state.setSearchQuery);
   const cartItemCount = cart.reduce((total, item) => total + item.quantity, 0);
 
@@ -87,7 +87,7 @@ const Header = () => {
 
   const handleMobileLogout = () => {
     logout();
-    clearCart();
+    clearCart(); // 4. Y la llamamos aquí para el logout en móvil
     handleMobileLinkClick();
     navigate('/');
   };
@@ -119,6 +119,7 @@ const Header = () => {
             </div>
           </form>
 
+          {/* --- Menú para Escritorio --- */}
           <div className="hidden md:flex items-center space-x-4">
             {user ? (
               <UserMenuDesktop />
@@ -140,6 +141,7 @@ const Header = () => {
             </Link>
           </div>
 
+          {/* --- Botones para Móvil --- */}
           <div className="md:hidden flex items-center space-x-4">
             <Link to="/cart" className="text-white relative">
               <Icon path={ICONS.shoppingCart} className="w-6 h-6" />
@@ -156,6 +158,7 @@ const Header = () => {
         </div>
       </div>
 
+      {/* --- Panel Lateral para Móvil (Rediseñado) --- */}
       {isMenuOpen && (
         <div className={`fixed top-0 left-0 w-full h-full bg-black bg-opacity-50 z-40 transition-opacity duration-300`} onClick={() => setIsMenuOpen(false)}>
           <div className={`fixed top-0 right-0 w-4/5 max-w-sm h-full bg-[#0F3460] shadow-xl z-50 transform transition-transform duration-300 ease-in-out ${isMenuOpen ? 'translate-x-0' : 'translate-x-full'}`} onClick={(e) => e.stopPropagation()}>
@@ -168,6 +171,7 @@ const Header = () => {
                 <input type="search" placeholder="Buscar..." value={query} onChange={(e) => setQuery(e.target.value)} className="w-full py-2 px-4 text-gray-900 bg-gray-100 rounded-full focus:outline-none focus:ring-2 focus:ring-[#E9D502]"/>
               </form>
 
+              {/* --- CAMBIO CLAVE: Enlaces de navegación directos --- */}
               <nav className="flex flex-col space-y-4 text-lg text-gray-200">
                 {user ? (
                   <>
