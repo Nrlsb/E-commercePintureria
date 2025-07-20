@@ -5,72 +5,29 @@ import { CardPayment } from '@mercadopago/sdk-react';
 import { useCartStore } from '../stores/useCartStore';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useNotificationStore } from '../stores/useNotificationStore';
+import { usePayment } from '../hooks/usePayment'; // <-- 1. Importamos el nuevo hook
 import Spinner from '../components/Spinner.jsx';
 import CopyButton from '../components/CopyButton.jsx';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 const MIN_TRANSACTION_AMOUNT = 100;
 
 const CheckoutPage = () => {
-  const { cart, shippingCost, postalCode, clearCart } = useCartStore();
-  const { user, token } = useAuthStore();
+  const { cart, shippingCost, postalCode } = useCartStore();
+  const { user } = useAuthStore();
   const showNotification = useNotificationStore(state => state.showNotification);
   
   const [paymentMethod, setPaymentMethod] = useState('mercado_pago');
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [error, setError] = useState('');
-  const navigate = useNavigate();
+  
+  // 2. Usamos el hook para obtener la lógica y el estado del pago
+  const { isProcessing, error, submitCardPayment, submitBankTransfer, setError } = usePayment();
 
   const subtotal = cart.reduce((total, item) => total + item.price * item.quantity, 0);
   const total = subtotal + shippingCost;
 
-  const handlePayment = async (formData) => {
-    setIsProcessing(true);
-    setError('');
-    try {
-      const response = await fetch(`${API_URL}/api/orders/process-payment`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ ...formData, cart, transaction_amount: total, payer: { ...formData.payer, email: user.email } }),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message || 'El pago fue rechazado.');
-      clearCart();
-      navigate(`/success?order_id=${data.orderId}`);
-    } catch (err) {
-      setError(err.message);
-      showNotification(err.message, 'error');
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  const handleBankTransfer = async () => {
-    setIsProcessing(true);
-    setError('');
-    try {
-        const response = await fetch(`${API_URL}/api/orders/bank-transfer`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify({ cart, total, shippingCost, postalCode }),
-        });
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.message || 'No se pudo crear la orden.');
-        
-        clearCart();
-        navigate(`/order-pending/${data.orderId}`);
-    } catch (err) {
-        setError(err.message);
-        showNotification(err.message, 'error');
-    } finally {
-        setIsProcessing(false);
-    }
-  };
-
   const initialization = { amount: total, payer: { email: user?.email } };
   const customization = {
     visual: { style: { theme: 'bootstrap' } },
-    paymentMethods: { maxInstallments: 6, mercadoPago: ['wallet_purchase'] },
+    paymentMethods: { maxInstallments: 6 },
   };
 
   const handleOnError = (err) => {
@@ -103,7 +60,8 @@ const CheckoutPage = () => {
           {paymentMethod === 'mercado_pago' && (
             <>
               {total >= MIN_TRANSACTION_AMOUNT ? (
-                <CardPayment initialization={initialization} customization={customization} onSubmit={handlePayment} onReady={() => console.log('Brick de tarjeta listo')} onError={handleOnError} />
+                // 3. El componente CardPayment ahora llama a la función del hook
+                <CardPayment initialization={initialization} customization={customization} onSubmit={submitCardPayment} onReady={() => console.log('Brick de tarjeta listo')} onError={handleOnError} />
               ) : (
                 <div className="text-center p-6 bg-yellow-50 border border-yellow-200 rounded-lg">
                   <h3 className="text-xl font-semibold text-yellow-800">Monto mínimo no alcanzado</h3>
@@ -125,7 +83,8 @@ const CheckoutPage = () => {
                 <p className="font-bold text-lg mt-2">Monto a transferir: ${new Intl.NumberFormat('es-AR').format(total)}</p>
               </div>
               <p className="text-sm text-gray-600 mt-4">Al confirmar, tu orden quedará pendiente y recibirás un email con estas instrucciones. El stock de tus productos será reservado por 48 horas.</p>
-              <button onClick={handleBankTransfer} disabled={isProcessing} className="w-full mt-6 bg-[#0F3460] text-white font-bold py-3 rounded-lg hover:bg-[#1a4a8a] transition-colors disabled:bg-gray-400">
+              {/* 4. El botón de transferencia ahora llama a la función del hook */}
+              <button onClick={submitBankTransfer} disabled={isProcessing} className="w-full mt-6 bg-[#0F3460] text-white font-bold py-3 rounded-lg hover:bg-[#1a4a8a] transition-colors disabled:bg-gray-400">
                 {isProcessing ? <Spinner /> : 'Confirmar y Finalizar Compra'}
               </button>
             </div>
