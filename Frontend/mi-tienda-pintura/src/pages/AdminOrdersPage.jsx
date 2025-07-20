@@ -5,13 +5,11 @@ import { useAuthStore } from '../stores/useAuthStore';
 import { useNotificationStore } from '../stores/useNotificationStore';
 import OrderDetailModal from '../components/OrderDetailModal';
 import Spinner from '../components/Spinner';
-// --- 1. Importamos el Modal de Confirmación y el componente de Icono ---
 import ConfirmationModal from '../components/ConfirmationModal';
 import Icon from '../components/Icon';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
-// --- Iconos para el modal ---
 const ICONS = {
     cancel: "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z",
     confirm: "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zM9.29 16.29L5.7 12.7c-.39-.39-.39-1.02 0-1.41.39-.39 1.02-.39 1.41 0L10 14.17l6.88-6.88c.39-.39 1.02-.39 1.41 0 .39.39.39 1.02 0 1.41L11.12 16.7c-.38.38-1.02.38-1.41-.01z"
@@ -39,23 +37,47 @@ const AdminOrdersPage = () => {
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [filters, setFilters] = useState({ status: '', search: '' });
   
-  // --- 2. Estados para manejar el modal de confirmación ---
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [actionToConfirm, setActionToConfirm] = useState(null); // { action: 'cancel' | 'confirm', orderId: number }
+  const [actionToConfirm, setActionToConfirm] = useState(null);
 
   const navigate = useNavigate();
   const token = useAuthStore(state => state.token);
   const showNotification = useNotificationStore(state => state.showNotification);
 
+  // --- CORRECCIÓN: Se elimina 'filters' de las dependencias de useCallback ---
   const fetchOrders = useCallback(async () => {
-    // ... (lógica de fetch sin cambios)
-  }, [token, navigate, showNotification, filters]);
+    setLoading(true);
+    const params = new URLSearchParams();
+    // Leemos los filtros directamente del estado más reciente al momento de ejecutar.
+    if (filters.status) params.append('status', filters.status);
+    if (filters.search) params.append('search', filters.search);
 
+    try {
+      const response = await fetch(`${API_URL}/api/orders/admin?${params.toString()}`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (response.status === 403) {
+        showNotification("Acceso denegado.", "error");
+        navigate('/login');
+        return;
+      }
+      if (!response.ok) throw new Error('No se pudieron cargar las órdenes.');
+      const data = await response.json();
+      setOrders(data);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, navigate, showNotification]); // Eliminamos 'filters' de aquí
+
+  // --- CORRECCIÓN: useEffect separado para reaccionar a los cambios de filtros ---
   useEffect(() => {
     if (token) {
-        fetchOrders();
+      fetchOrders();
     }
-  }, [token, fetchOrders]);
+  }, [token, filters, fetchOrders]); // Este effect se ejecuta al inicio y cuando cambian los filtros.
 
   const handleFilterChange = (e) => {
     const { name, value } = e.target;
@@ -63,27 +85,33 @@ const AdminOrdersPage = () => {
   };
   
   const handleRowClick = async (orderId) => {
-    // ... (lógica sin cambios)
+    try {
+      const response = await fetch(`${API_URL}/api/orders/${orderId}`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (!response.ok) throw new Error('No se pudo cargar el detalle de la orden.');
+      const data = await response.json();
+      setSelectedOrder(data);
+    } catch (err) {
+      showNotification(err.message, 'error');
+    }
   };
 
-  // --- 3. Función para ABRIR el modal con la acción correspondiente ---
   const openConfirmationModal = (action, orderId) => {
     setActionToConfirm({ action, orderId });
     setIsModalOpen(true);
   };
 
-  // --- 4. Función para CERRAR el modal ---
   const closeConfirmationModal = () => {
     setActionToConfirm(null);
     setIsModalOpen(false);
   };
 
-  // --- 5. Función que se ejecuta al CONFIRMAR la acción en el modal ---
   const handleActionConfirm = async () => {
     if (!actionToConfirm) return;
 
     const { action, orderId } = actionToConfirm;
-    closeConfirmationModal(); // Se cierra el modal inmediatamente
+    closeConfirmationModal();
 
     const urls = {
       cancel: `${API_URL}/api/orders/${orderId}/cancel`,
@@ -99,13 +127,12 @@ const AdminOrdersPage = () => {
       if (!response.ok) throw new Error(data.message || 'Error al procesar la acción.');
       
       showNotification(data.message, 'success');
-      fetchOrders(); // Recargar las órdenes para ver el estado actualizado
+      fetchOrders();
     } catch (err) {
       showNotification(`Error: ${err.message}`, 'error');
     }
   };
 
-  // --- Lógica para personalizar el contenido del modal ---
   const modalContent = actionToConfirm?.action === 'cancel' ? {
     title: 'Cancelar Orden',
     message: `¿Estás seguro de que quieres cancelar la orden #${actionToConfirm.orderId}? Esta acción es irreversible y procesará un reembolso si corresponde.`,
@@ -124,7 +151,6 @@ const AdminOrdersPage = () => {
     <div className="container mx-auto px-4 py-8">
       {selectedOrder && <OrderDetailModal order={selectedOrder} onClose={() => setSelectedOrder(null)} />}
       
-      {/* --- 6. Renderizamos el modal de confirmación --- */}
       <ConfirmationModal
         isOpen={isModalOpen}
         onClose={closeConfirmationModal}
@@ -142,7 +168,26 @@ const AdminOrdersPage = () => {
       </div>
 
       <div className="bg-white p-4 rounded-lg shadow-md mb-6 flex flex-col md:flex-row gap-4">
-        {/* ... (inputs de filtro sin cambios) ... */}
+        <input
+          type="text"
+          name="search"
+          placeholder="Buscar por ID o Email..."
+          value={filters.search}
+          onChange={handleFilterChange}
+          className="w-full md:w-1/3 p-2 border border-gray-300 rounded-md"
+        />
+        <select
+          name="status"
+          value={filters.status}
+          onChange={handleFilterChange}
+          className="w-full md:w-1/3 p-2 border border-gray-300 rounded-md"
+        >
+          <option value="">Todos los estados</option>
+          <option value="approved">Aprobado</option>
+          <option value="pending_transfer">Pendiente (Transferencia)</option>
+          <option value="pending">Pendiente (Otro)</option>
+          <option value="cancelled">Cancelado</option>
+        </select>
       </div>
       
       <div className="bg-white p-6 rounded-lg shadow-md overflow-x-auto">
@@ -153,14 +198,24 @@ const AdminOrdersPage = () => {
         ) : (
           <table className="w-full text-left">
             <thead>
-              {/* ... (cabecera de la tabla sin cambios) ... */}
+              <tr className="border-b">
+                <th className="p-4">ID Orden</th>
+                <th className="p-4">Cliente</th>
+                <th className="p-4">Fecha</th>
+                <th className="p-4">Total</th>
+                <th className="p-4">Estado</th>
+                <th className="p-4 text-center">Acciones</th>
+              </tr>
             </thead>
             <tbody>
               {orders.map(order => (
                 <tr key={order.id} className="border-b hover:bg-gray-50 cursor-pointer" onClick={() => handleRowClick(order.id)}>
-                  {/* ... (celdas de datos sin cambios) ... */}
+                  <td className="p-4 font-medium">#{order.id}</td>
+                  <td className="p-4">{order.user_email}</td>
+                  <td className="p-4">{new Date(order.created_at).toLocaleDateString('es-AR')}</td>
+                  <td className="p-4">${new Intl.NumberFormat('es-AR').format(order.total_amount)}</td>
+                  <td className="p-4"><StatusBadge status={order.status} /></td>
                   <td className="p-4 text-center space-x-2" onClick={(e) => e.stopPropagation()}>
-                    {/* --- 7. Los botones ahora abren el modal en lugar de usar window.confirm --- */}
                     {order.status === 'approved' && (
                       <button onClick={() => openConfirmationModal('cancel', order.id)} className="bg-red-500 text-white text-xs font-bold py-1 px-2 rounded hover:bg-red-600">
                         Cancelar
