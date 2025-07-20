@@ -1,5 +1,5 @@
 // src/components/ProductCard.jsx
-import React from 'react'; // Importamos React para usar React.memo
+import React from 'react';
 import { Link } from 'react-router-dom';
 import Icon from './Icon.jsx';
 import { ICONS } from '../data/icons.js';
@@ -9,16 +9,11 @@ import { useNotificationStore } from '../stores/useNotificationStore.js';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
-// --- MEJORA: MEMOIZACIÓN DE COMPONENTES ---
-// Envolvemos todo el componente en React.memo.
-// Ahora, este componente solo se volverá a renderizar si la prop `product` cambia.
 const ProductCard = React.memo(({ product }) => {
   const addToCart = useCartStore(state => state.addToCart);
   const showNotification = useNotificationStore(state => state.showNotification);
 
-  // La lógica interna del componente no necesita cambios.
-  // React se encargará de comparar las props por nosotros.
-  console.log(`Renderizando ProductCard: ${product.name}`); // Puedes usar este log para ver en la consola cuándo se renderiza.
+  // El console.log de depuración ha sido eliminado de aquí.
 
   const getBaseImageUrl = (url) => {
     if (!url) return null;
