@@ -8,7 +8,6 @@ import logger from '../logger.js';
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
-// ... (registerUser, forgotPassword, resetPassword permanecen igual)
 export const registerUser = async (req, res, next) => {
   const { email, password, firstName, lastName, phone } = req.body;
   try {
@@ -54,17 +53,21 @@ export const loginUser = async (req, res, next) => {
             { expiresIn: '1h' }
         );
         
-        // 1. Configurar la cookie
-        res.cookie('token', token, {
-            httpOnly: true, // La cookie no es accesible por JavaScript
-            secure: process.env.NODE_ENV === 'production', // Solo se envía sobre HTTPS en producción
-            sameSite: 'strict', // Mitiga ataques CSRF
-            maxAge: 60 * 60 * 1000, // 1 hora de expiración
-        });
+        // --- CORRECCIÓN DE COOKIE PARA PRODUCCIÓN CROSS-SITE ---
+        const cookieOptions = {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            // 'sameSite: none' es requerido para cookies cross-site (Vercel -> Render)
+            // y exige que 'secure' sea true.
+            // 'lax' es un buen default para desarrollo si no se usa HTTPS local.
+            sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+            maxAge: 60 * 60 * 1000, // 1 hora
+        };
+
+        res.cookie('token', token, cookieOptions);
 
         logger.info(`Inicio de sesión exitoso para el usuario: ${user.email}`);
         
-        // 2. Enviar solo la información del usuario en la respuesta
         res.json({ 
             user: { 
                 id: user.id, 
@@ -79,15 +82,18 @@ export const loginUser = async (req, res, next) => {
     }
 };
 
-// 3. NUEVA FUNCIÓN: Logout
 export const logoutUser = (req, res) => {
-    res.clearCookie('token');
+    // Usar las mismas opciones para limpiar la cookie es crucial
+    const cookieOptions = {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+    };
+    res.clearCookie('token', cookieOptions);
     res.status(200).json({ message: 'Sesión cerrada exitosamente.' });
 };
 
-// 4. NUEVA FUNCIÓN: Verificar sesión
 export const getMe = (req, res) => {
-    // El middleware authenticateToken ya ha verificado el token y puesto req.user
     const { userId, email, role, firstName, lastName } = req.user;
     res.json({
         user: {
