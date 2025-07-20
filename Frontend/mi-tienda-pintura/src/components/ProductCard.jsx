@@ -13,16 +13,32 @@ const ProductCard = ({ product }) => {
   const addToCart = useCartStore(state => state.addToCart);
   const showNotification = useNotificationStore(state => state.showNotification);
 
-  // Lógica mejorada para construir la URL de la imagen
-  const getFullImageUrl = (url) => {
-    if (!url) return 'https://placehold.co/300x224/cccccc/ffffff?text=Imagen+no+disponible';
+  // --- MEJORA: OPTIMIZACIÓN DE IMÁGENES ---
+
+  // 1. Función para obtener la URL base de la imagen.
+  const getBaseImageUrl = (url) => {
+    if (!url) return null;
+    // Si la URL ya es absoluta (comienza con http), la usamos directamente.
     if (url.startsWith('http')) {
       return url;
     }
+    // Si no, la construimos a partir de la URL del backend.
     return `${API_URL}${url}`;
   };
 
-  const fullImageUrl = getFullImageUrl(product.imageUrl);
+  // 2. Generamos el `srcset` para diferentes tamaños de pantalla.
+  const generateSrcSet = (baseUrl) => {
+    if (!baseUrl) return null;
+    // Creamos un string con URLs para diferentes anchos de imagen.
+    // El navegador elegirá la más adecuada. Ej: "url?w=300 300w, url?w=600 600w"
+    // Nota: Esto asume que tu backend puede procesar el parámetro `?w=`.
+    // Si no es así, necesitarías tener las imágenes pre-redimensionadas (ej. image-300.webp).
+    const sizes = [300, 400, 600];
+    return sizes.map(size => `${baseUrl}?w=${size} ${size}w`).join(', ');
+  };
+
+  const baseImageUrl = getBaseImageUrl(product.imageUrl);
+  const imageSrcSet = generateSrcSet(baseImageUrl);
 
   const handleAddToCart = () => {
     addToCart(product);
@@ -32,15 +48,25 @@ const ProductCard = ({ product }) => {
   return (
     <div className="bg-white border border-gray-200 rounded-xl shadow-md hover:shadow-xl flex flex-col overflow-hidden transition-all duration-300 ease-in-out transform hover:-translate-y-1 group">
       <Link to={`/product/${product.id}`} className="relative w-full h-56 cursor-pointer block bg-white p-2">
-        <img 
-          src={fullImageUrl} 
-          alt={`Imagen de ${product.name}`} 
-          className="w-full h-full object-contain"
-          loading="lazy"
-          width="300"
-          height="224"
-          onError={(e) => { e.target.onerror = null; e.target.src='https://placehold.co/300x224/cccccc/ffffff?text=Imagen+no+disponible'; }}
-        />
+        {baseImageUrl ? (
+          <img 
+            src={`${baseImageUrl}?w=400`} // Imagen por defecto
+            srcSet={imageSrcSet} // Set de imágenes para diferentes resoluciones
+            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw" // Le dice al navegador qué tamaño tendrá la imagen en diferentes breakpoints
+            alt={`Imagen de ${product.name}`} 
+            className="w-full h-full object-contain"
+            loading="lazy"
+            width="300"
+            height="224"
+            onError={(e) => { e.target.onerror = null; e.target.src='https://placehold.co/300x224/cccccc/ffffff?text=Imagen+no+disponible'; }}
+          />
+        ) : (
+          <img 
+            src='https://placehold.co/300x224/cccccc/ffffff?text=Imagen+no+disponible'
+            alt={`Imagen de ${product.name}`} 
+            className="w-full h-full object-contain"
+          />
+        )}
       </Link>
       <div className="p-4 flex flex-col flex-grow">
         <h3 className="text-gray-500 text-xs uppercase tracking-widest mb-1">{product.brand}</h3>
