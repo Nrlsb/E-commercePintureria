@@ -4,15 +4,13 @@ import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import db from '../db.js';
 import { sendPasswordResetEmail } from '../emailService.js';
-import logger from '../logger.js'; // Importar logger
+import logger from '../logger.js';
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
-export const registerUser = async (req, res, next) => { // Añadir next
+// ... (registerUser, forgotPassword, resetPassword permanecen igual)
+export const registerUser = async (req, res, next) => {
   const { email, password, firstName, lastName, phone } = req.body;
-  if (!email || !password || !firstName || !lastName) {
-    return res.status(400).json({ message: 'Nombre, apellido, email y contraseña son requeridos.' });
-  }
   try {
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(password, salt);
@@ -26,15 +24,13 @@ export const registerUser = async (req, res, next) => { // Añadir next
     if (err.code === '23505') {
         return res.status(409).json({ message: 'El email ya está registrado.' });
     }
-    next(err); // Pasar error al middleware
+    next(err);
   }
 };
 
-export const loginUser = async (req, res, next) => { // Añadir next
+
+export const loginUser = async (req, res, next) => {
     const { email, password } = req.body;
-    if (!email || !password) {
-        return res.status(400).json({ message: 'Email y contraseña son requeridos.' });
-    }
     try {
         const result = await db.query('SELECT * FROM users WHERE email = $1', [email]);
         const user = result.rows[0];
@@ -58,9 +54,18 @@ export const loginUser = async (req, res, next) => { // Añadir next
             { expiresIn: '1h' }
         );
         
+        // 1. Configurar la cookie
+        res.cookie('token', token, {
+            httpOnly: true, // La cookie no es accesible por JavaScript
+            secure: process.env.NODE_ENV === 'production', // Solo se envía sobre HTTPS en producción
+            sameSite: 'strict', // Mitiga ataques CSRF
+            maxAge: 60 * 60 * 1000, // 1 hora de expiración
+        });
+
         logger.info(`Inicio de sesión exitoso para el usuario: ${user.email}`);
+        
+        // 2. Enviar solo la información del usuario en la respuesta
         res.json({ 
-            token, 
             user: { 
                 id: user.id, 
                 email: user.email, 
@@ -70,11 +75,32 @@ export const loginUser = async (req, res, next) => { // Añadir next
             } 
         });
     } catch (err) {
-        next(err); // Pasar error al middleware
+        next(err);
     }
 };
 
-export const forgotPassword = async (req, res, next) => { // Añadir next
+// 3. NUEVA FUNCIÓN: Logout
+export const logoutUser = (req, res) => {
+    res.clearCookie('token');
+    res.status(200).json({ message: 'Sesión cerrada exitosamente.' });
+};
+
+// 4. NUEVA FUNCIÓN: Verificar sesión
+export const getMe = (req, res) => {
+    // El middleware authenticateToken ya ha verificado el token y puesto req.user
+    const { userId, email, role, firstName, lastName } = req.user;
+    res.json({
+        user: {
+            id: userId,
+            email,
+            role,
+            firstName,
+            lastName
+        }
+    });
+};
+
+export const forgotPassword = async (req, res, next) => {
   const { email } = req.body;
   try {
     const userResult = await db.query('SELECT * FROM users WHERE email = $1', [email]);
@@ -96,21 +122,17 @@ export const forgotPassword = async (req, res, next) => { // Añadir next
       res.status(200).json({ message: 'Se ha enviado un correo para restablecer la contraseña.' });
     } catch (emailError) {
       logger.error('Error específico del servicio de email:', emailError.message);
-      next(new Error('Error interno del servidor al intentar enviar el correo.')); // Pasar error
+      next(new Error('Error interno del servidor al intentar enviar el correo.'));
     }
 
   } catch (error) {
-    next(error); // Pasar error
+    next(error);
   }
 };
 
-export const resetPassword = async (req, res, next) => { // Añadir next
+export const resetPassword = async (req, res, next) => {
   const { token } = req.params;
   const { password } = req.body;
-
-  if (!password || password.length < 6) {
-    return res.status(400).json({ message: 'La contraseña debe tener al menos 6 caracteres.' });
-  }
 
   const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
 
@@ -138,23 +160,6 @@ export const resetPassword = async (req, res, next) => { // Añadir next
     res.status(200).json({ message: 'Contraseña actualizada con éxito.' });
 
   } catch (error) {
-    next(error); // Pasar error
-  }
-};
-
-// --- emailService.js ---
-// (Solo se muestra un ejemplo, se deben reemplazar todos los console.log/error)
-import nodemailer from 'nodemailer';
-// import logger from './logger.js'; // Asegúrate de importar el logger aquí también
-
-// ...
-
-export const sendOrderConfirmationEmail = async (userEmail, order) => {
-  // ... (código de generación de HTML)
-  try {
-    await transporter.sendMail(mailOptions);
-    logger.info(`Email de confirmación enviado a ${userEmail} para la orden ${order.id}`);
-  } catch (error) {
-    logger.error(`Error al enviar email para la orden ${order.id}:`, error);
+    next(error);
   }
 };
