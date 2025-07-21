@@ -5,20 +5,44 @@ import { fileURLToPath } from 'url';
 import config from '../config/index.js';
 import logger from '../logger.js';
 
-// Obtener la ruta del directorio actual
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// --- LÓGICA DE INICIALIZACIÓN MEJORADA ---
 
-// Inicializar el cliente de Google Cloud Storage
-const storage = new Storage({
+// Objeto base para las opciones de configuración de Storage
+const storageOptions = {
   projectId: config.gcs.projectId,
-  // Construir la ruta completa al archivo de credenciales
-  keyFilename: path.join(__dirname, '..', config.gcs.keyFilename),
-});
+};
 
-// Obtener el nombre del bucket desde la configuración
-const bucketName = config.gcs.bucketName;
-const bucket = storage.bucket(bucketName);
+// Prioridad 1: Usar el contenido del archivo JSON desde una variable de entorno.
+// Este es el método recomendado para producción en plataformas como Render.
+if (config.gcs.keyFileContent) {
+  try {
+    // Parseamos el contenido JSON de la variable de entorno
+    storageOptions.credentials = JSON.parse(config.gcs.keyFileContent);
+  } catch (e) {
+    logger.error('No se pudo parsear GCS_KEYFILE_CONTENT. Asegúrate de que sea un JSON válido.', e);
+    // Si las credenciales son inválidas en producción, detenemos la aplicación para evitar errores.
+    if (config.nodeEnv === 'production') {
+      process.exit(1);
+    }
+  }
+} 
+// Prioridad 2: Usar una ruta de archivo local.
+// Este es el método para desarrollo local.
+else if (config.gcs.keyFilename) {
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = path.dirname(__filename);
+  storageOptions.keyFilename = path.join(__dirname, '..', config.gcs.keyFilename);
+} else {
+  // Advertencia si no se encuentran credenciales.
+  logger.warn('Credenciales de GCS no encontradas. La aplicación puede fallar si se intentan operaciones de GCS.');
+  if (config.nodeEnv === 'production') {
+    throw new Error('Las credenciales de GCS (GCS_KEYFILE_CONTENT o GCS_KEYFILE) son requeridas en producción.');
+  }
+}
+
+// Inicializamos Storage solo si tenemos la configuración necesaria.
+const storage = config.gcs.projectId ? new Storage(storageOptions) : null;
+const bucket = storage && config.gcs.bucketName ? storage.bucket(config.gcs.bucketName) : null;
 
 /**
  * Sube un buffer de imagen a Google Cloud Storage.
@@ -28,10 +52,15 @@ const bucket = storage.bucket(bucketName);
  */
 export const uploadImageToGCS = (buffer, destination) => {
   return new Promise((resolve, reject) => {
-    // Crear una referencia al archivo en el bucket
+    // Verificamos si el bucket fue configurado correctamente antes de usarlo.
+    if (!bucket) {
+      const errorMessage = 'El bucket de Google Cloud Storage no está configurado.';
+      logger.error(errorMessage);
+      return reject(new Error(errorMessage));
+    }
+
     const file = bucket.file(destination);
 
-    // Crear un stream de escritura para subir el archivo
     const stream = file.createWriteStream({
       metadata: {
         contentType: 'image/webp', // Asumimos que siempre subiremos en formato webp
@@ -45,9 +74,8 @@ export const uploadImageToGCS = (buffer, destination) => {
     });
 
     stream.on('finish', () => {
-      // Hacer el archivo público
       file.makePublic().then(() => {
-        const publicUrl = `https://storage.googleapis.com/${bucketName}/${destination}`;
+        const publicUrl = `https://storage.googleapis.com/${config.gcs.bucketName}/${destination}`;
         logger.info(`Imagen subida exitosamente a GCS: ${publicUrl}`);
         resolve(publicUrl);
       }).catch(err => {
@@ -56,7 +84,6 @@ export const uploadImageToGCS = (buffer, destination) => {
       });
     });
 
-    // Enviar el buffer al stream
     stream.end(buffer);
   });
 };
