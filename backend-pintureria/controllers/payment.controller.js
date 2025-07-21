@@ -36,7 +36,7 @@ export const handlePaymentNotification = async (req, res) => {
             [item.quantity, item.product_id]
           );
         }
-        
+         
         await dbClient.query(
             "UPDATE orders SET status = 'approved', mercadopago_transaction_id = $1 WHERE id = $2", 
             [paymentId, orderId]

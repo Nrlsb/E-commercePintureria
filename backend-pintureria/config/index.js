@@ -1,18 +1,12 @@
 // backend-pintureria/config/index.js
 import dotenv from 'dotenv';
 
-// Carga las variables de entorno del archivo .env al inicio de la aplicación
 dotenv.config();
 
-/**
- * Objeto de configuración centralizado.
- * Lee las variables de entorno y proporciona valores por defecto si es necesario.
- */
 const config = {
   nodeEnv: process.env.NODE_ENV || 'development',
   port: process.env.PORT || 5001,
   
-  // Configuración de la Base de Datos
   database: {
     connectionString: process.env.DATABASE_URL,
     user: process.env.DB_USER,
@@ -22,14 +16,20 @@ const config = {
     port: process.env.DB_PORT,
   },
 
-  // Secretos y Claves de API
   jwtSecret: process.env.JWT_SECRET,
   mercadopago: {
     accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN,
   },
   geminiApiKey: process.env.GEMINI_API_KEY,
 
-  // Configuración del servicio de Email (usando Resend como ejemplo)
+  // --- NUEVO: Configuración para Google Cloud Storage ---
+  gcs: {
+    projectId: process.env.GCS_PROJECT_ID,
+    bucketName: process.env.GCS_BUCKET_NAME,
+    keyFilename: process.env.GCS_KEYFILE, // Ruta al archivo de credenciales .json
+  },
+  // --- FIN DE LA NUEVA CONFIGURACIÓN ---
+
   email: {
     host: process.env.EMAIL_HOST,
     port: process.env.EMAIL_PORT,
@@ -37,11 +37,9 @@ const config = {
     pass: process.env.EMAIL_PASS,
   },
 
-  // URLs de la aplicación
   frontendUrl: process.env.VITE_FRONTEND_URL || 'http://localhost:5173',
   backendUrl: process.env.BACKEND_URL || 'http://localhost:5001',
   
-  // Configuración de Envío
   shipping: {
     originPostalCode: process.env.SHIPPING_API_ORIGIN_POSTAL_CODE || '3080',
   }

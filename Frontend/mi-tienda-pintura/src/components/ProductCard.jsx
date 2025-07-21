@@ -7,27 +7,17 @@ import StarRating from './StarRating.jsx';
 import { useCartStore } from '../stores/useCartStore.js';
 import { useNotificationStore } from '../stores/useNotificationStore.js';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+// Ya no necesitamos la URL del API para las imágenes
+// const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
 const ProductCard = React.memo(({ product }) => {
   const addToCart = useCartStore(state => state.addToCart);
   const showNotification = useNotificationStore(state => state.showNotification);
 
-  // --- CORRECCIÓN: Simplificación de la carga de imágenes para evitar errores CORB ---
-  const getFullImageUrl = (url) => {
-    // Si la URL es nula o indefinida, usamos un placeholder.
-    if (!url) {
-      return `https://placehold.co/300x224/cccccc/ffffff?text=${encodeURIComponent(product.name)}`;
-    }
-    // Si la URL ya es absoluta (ej. de un servicio externo), la usamos directamente.
-    if (url.startsWith('http')) {
-      return url;
-    }
-    // Si es una ruta relativa (ej. /uploads/imagen.webp), la completamos con la URL del backend.
-    return `${API_URL}${url}`;
-  };
-
-  const imageUrl = getFullImageUrl(product.imageUrl);
+  // --- MODIFICADO: La lógica de la URL se simplifica ---
+  // Las URLs de GCS son absolutas, por lo que no necesitamos construirlas.
+  // Solo necesitamos un placeholder en caso de que la URL sea nula.
+  const imageUrl = product.imageUrl || `https://placehold.co/300x224/cccccc/ffffff?text=${encodeURIComponent(product.name)}`;
 
   const handleAddToCart = () => {
     addToCart(product);
@@ -38,13 +28,12 @@ const ProductCard = React.memo(({ product }) => {
     <div className="bg-white border border-gray-200 rounded-xl shadow-md hover:shadow-xl flex flex-col overflow-hidden transition-all duration-300 ease-in-out transform hover:-translate-y-1 group">
       <Link to={`/product/${product.id}`} className="relative w-full h-56 cursor-pointer block bg-white p-2">
         <img 
-          src={imageUrl} // Usamos la URL simple y directa.
+          src={imageUrl}
           alt={`Imagen de ${product.name}`} 
           className="w-full h-full object-contain"
           loading="lazy"
           width="300"
           height="224"
-          // El onError sigue siendo una buena práctica por si una imagen específica está rota.
           onError={(e) => { e.target.onerror = null; e.target.src=`https://placehold.co/300x224/cccccc/ffffff?text=Imagen+no+disponible`; }}
         />
       </Link>

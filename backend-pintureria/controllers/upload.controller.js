@@ -1,23 +1,29 @@
 // backend-pintureria/controllers/upload.controller.js
 import multer from 'multer';
-import path from 'path';
-import db from '../db.js';
-import fs from 'fs';
 import sharp from 'sharp';
+import db from '../db.js';
 import fetch from 'node-fetch';
 import logger from '../logger.js';
+import { uploadImageToGCS } from '../services/gcs.service.js'; // <-- 1. Importamos el nuevo servicio
+import config from '../config/index.js';
 
-const uploadDir = 'public/uploads/';
-if (!fs.existsSync(uploadDir)){ fs.mkdirSync(uploadDir, { recursive: true }); }
+// Ya no necesitamos fs ni path para guardar localmente
+// import fs from 'fs';
+// import path from 'path';
 
+// const uploadDir = 'public/uploads/';
+// if (!fs.existsSync(uploadDir)){ fs.mkdirSync(uploadDir, { recursive: true }); }
+
+// Mantenemos multer en memoria, lo cual es perfecto para este flujo
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
 export const uploadMultipleImages = upload.array('productImages', 50);
 export const uploadSingleImage = upload.single('productImage');
 
-// --- FUNCIÓN DE IA MEJORADA CON CONTEXTO ---
+// --- FUNCIÓN DE IA (sin cambios) ---
 async function getAIDataForImage(imageData, mimeType, apiKey, productNamesForBrand = []) {
+    // ... (El código de esta función no cambia)
     let prompt;
 
     // Si le pasamos una lista de nombres, el prompt es más específico
@@ -54,46 +60,41 @@ async function getAIDataForImage(imageData, mimeType, apiKey, productNamesForBra
     }
 }
 
-export const processAndAssociateImages = async (req, res, next) => {
-    // Implementación...
-};
 
+// --- 2. MODIFICADO: Subida de imagen única ---
 export const handleSingleImageUpload = async (req, res, next) => {
     if (!req.file) {
         return res.status(400).json({ message: 'No se subió ningún archivo.' });
     }
 
     try {
-        const newFilename = `prod-${Date.now()}.webp`;
-        const outputPath = path.join(uploadDir, newFilename);
-        const imageUrl = `/uploads/${newFilename}`;
-
-        await sharp(req.file.buffer)
+        // Procesamos la imagen en memoria
+        const processedImageBuffer = await sharp(req.file.buffer)
             .resize(800, 800, { fit: 'inside', withoutEnlargement: true })
             .toFormat('webp', { quality: 80 })
-            .toFile(outputPath);
+            .toBuffer();
         
+        // Creamos un nombre de archivo único
+        const newFilename = `prod-${Date.now()}.webp`;
+
+        // Subimos el buffer a GCS
+        const imageUrl = await uploadImageToGCS(processedImageBuffer, newFilename);
+        
+        // Devolvemos la URL pública de GCS
         res.status(201).json({ imageUrl });
     } catch (err) {
         next(err);
     }
 };
 
-export const analyzeImageWithAI = async (req, res, next) => {
-    // Implementación...
-};
-
-export const bulkCreateProductsWithAI = async (req, res, next) => {
-    // Implementación...
-};
-
+// --- 3. MODIFICADO: Asociación masiva con IA ---
 export const bulkAssociateImagesWithAI = async (req, res, next) => {
     if (!req.files || req.files.length === 0) {
         return res.status(400).json({ message: 'No se subieron archivos.' });
     }
 
     const results = { success: [], failed: [] };
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = config.geminiApiKey;
     if (!apiKey) {
         return next(new Error('La clave de API de Gemini no está configurada.'));
     }
@@ -103,13 +104,11 @@ export const bulkAssociateImagesWithAI = async (req, res, next) => {
             try {
                 const base64ImageData = file.buffer.toString('base64');
                 
-                // 1. Primera llamada a la IA para obtener la marca
                 const initialAIData = await getAIDataForImage(base64ImageData, file.mimetype, apiKey);
                 if (!initialAIData.brand) {
                     throw new Error('La IA no pudo identificar una marca en la imagen.');
                 }
                 
-                // 2. Buscamos en la BD todos los productos de esa marca
                 const productsOfBrandResult = await db.query('SELECT name FROM products WHERE brand ILIKE $1', [initialAIData.brand]);
                 const productNamesForBrand = productsOfBrandResult.rows.map(p => p.name);
 
@@ -117,14 +116,12 @@ export const bulkAssociateImagesWithAI = async (req, res, next) => {
                     throw new Error(`No se encontraron productos de la marca "${initialAIData.brand}" en la base de datos.`);
                 }
 
-                // 3. Segunda llamada a la IA, pero ahora con el contexto de los nombres de productos
                 const finalAIData = await getAIDataForImage(base64ImageData, file.mimetype, apiKey, productNamesForBrand);
 
                 if (!finalAIData.productName) {
                     throw new Error('La IA no pudo determinar el nombre del producto a partir de la lista proporcionada.');
                 }
                 
-                // 4. Búsqueda exacta en la BD con los datos refinados
                 const sqlQuery = `SELECT id, name, brand FROM products p WHERE p.brand ILIKE $1 AND p.name ILIKE $2 LIMIT 1`;
                 const searchResult = await db.query(sqlQuery, [finalAIData.brand, finalAIData.productName]);
 
@@ -134,15 +131,18 @@ export const bulkAssociateImagesWithAI = async (req, res, next) => {
                 
                 const matchedProduct = searchResult.rows[0];
 
-                const newFilename = `${matchedProduct.id}-${Date.now()}.webp`;
-                const outputPath = path.join(uploadDir, newFilename);
-                const imageUrl = `/uploads/${newFilename}`;
-
-                await sharp(file.buffer)
+                // Procesamos la imagen en memoria
+                const processedImageBuffer = await sharp(file.buffer)
                     .resize(800, 800, { fit: 'inside', withoutEnlargement: true })
                     .toFormat('webp', { quality: 80 })
-                    .toFile(outputPath);
+                    .toBuffer();
+
+                const newFilename = `${matchedProduct.id}-${Date.now()}.webp`;
                 
+                // Subimos a GCS y obtenemos la URL pública
+                const imageUrl = await uploadImageToGCS(processedImageBuffer, newFilename);
+                
+                // Actualizamos la BD con la URL de GCS
                 await db.query('UPDATE products SET image_url = $1 WHERE id = $2', [imageUrl, matchedProduct.id]);
 
                 results.success.push({
@@ -165,4 +165,20 @@ export const bulkAssociateImagesWithAI = async (req, res, next) => {
     } catch(err) {
         next(err);
     }
+};
+
+
+// Las demás funciones (analyzeImageWithAI, bulkCreateProductsWithAI, etc.)
+// deberían seguir un patrón similar: procesar con Sharp a un buffer y luego llamar a uploadImageToGCS.
+// Por brevedad, no se incluyen todas aquí, pero la lógica es la misma.
+export const analyzeImageWithAI = async (req, res, next) => {
+    // Implementación...
+};
+
+export const bulkCreateProductsWithAI = async (req, res, next) => {
+    // Implementación...
+};
+
+export const processAndAssociateImages = async (req, res, next) => {
+    // Implementación...
 };
