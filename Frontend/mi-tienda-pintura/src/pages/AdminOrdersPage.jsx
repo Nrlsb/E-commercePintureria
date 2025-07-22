@@ -7,7 +7,7 @@ import OrderDetailModal from '../components/OrderDetailModal';
 import Spinner from '../components/Spinner';
 import ConfirmationModal from '../components/ConfirmationModal';
 import Icon from '../components/Icon';
-import Pagination from '../components/Pagination'; // 1. Importar el componente de paginación
+import Pagination from '../components/Pagination';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
@@ -16,7 +16,8 @@ const ICONS = {
     confirm: "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zM9.29 16.29L5.7 12.7c-.39-.39-.39-1.02 0-1.41.39-.39 1.02-.39 1.41 0L10 14.17l6.88-6.88c.39-.39 1.02-.39 1.41 0 .39.39.39 1.02 0 1.41L11.12 16.7c-.38.38-1.02.38-1.41-.01z"
 };
 
-const StatusBadge = ({ status }) => {
+// CORRECCIÓN: Se exporta el componente para que pueda ser usado en otros archivos.
+export const StatusBadge = ({ status }) => {
   const styles = {
     approved: 'bg-green-100 text-green-800',
     pending_transfer: 'bg-blue-100 text-blue-800',
@@ -38,7 +39,6 @@ const AdminOrdersPage = () => {
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [filters, setFilters] = useState({ status: '', search: '' });
   
-  // 2. Añadir estados para la paginación
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   
@@ -49,13 +49,12 @@ const AdminOrdersPage = () => {
   const token = useAuthStore(state => state.token);
   const showNotification = useNotificationStore(state => state.showNotification);
   
-  // 3. Modificar fetchOrders para que acepte un número de página
   const fetchOrders = useCallback(async (pageToFetch) => {
     setLoading(true);
     const params = new URLSearchParams();
     if (filters.status) params.append('status', filters.status);
     if (filters.search) params.append('search', filters.search);
-    params.append('page', pageToFetch); // Enviar el número de página a la API
+    params.append('page', pageToFetch);
 
     try {
       const response = await fetch(`${API_URL}/api/orders/admin?${params.toString()}`, {
@@ -68,7 +67,6 @@ const AdminOrdersPage = () => {
       }
       if (!response.ok) throw new Error('No se pudieron cargar las órdenes.');
       const data = await response.json();
-      // 4. Actualizar el estado con los datos de paginación de la API
       setOrders(data.orders);
       setCurrentPage(data.currentPage);
       setTotalPages(data.totalPages);
@@ -77,7 +75,7 @@ const AdminOrdersPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [token, navigate, showNotification, filters]); // filters ahora es una dependencia
+  }, [token, navigate, showNotification, filters]);
 
   useEffect(() => {
     if (token) {
@@ -88,10 +86,9 @@ const AdminOrdersPage = () => {
   const handleFilterChange = (e) => {
     const { name, value } = e.target;
     setFilters(prev => ({ ...prev, [name]: value }));
-    setCurrentPage(1); // 5. Resetear a la página 1 cuando cambian los filtros
+    setCurrentPage(1);
   };
   
-  // 6. Nueva función para manejar el cambio de página desde el componente Pagination
   const handlePageChange = (page) => {
     setCurrentPage(page);
   };
@@ -139,7 +136,7 @@ const AdminOrdersPage = () => {
       if (!response.ok) throw new Error(data.message || 'Error al procesar la acción.');
       
       showNotification(data.message, 'success');
-      fetchOrders(currentPage); // Recargar la página actual después de una acción
+      fetchOrders(currentPage);
     } catch (err) {
       showNotification(`Error: ${err.message}`, 'error');
     }
@@ -244,7 +241,6 @@ const AdminOrdersPage = () => {
                 ))}
               </tbody>
             </table>
-            {/* 7. Renderizar el componente de paginación */}
             <Pagination
               currentPage={currentPage}
               totalPages={totalPages}

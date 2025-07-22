@@ -118,7 +118,7 @@ const AdminDashboardPage = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard title="Ingresos Totales" value={kpis.totalRevenue || 0} icon={ICONS.revenue} color="bg-green-500" format={(v) => `$${new Intl.NumberFormat('es-AR').format(v)}`} />
         <StatCard title="Nuevas Órdenes (30d)" value={kpis.newOrders || 0} icon={ICONS.orders} color="bg-blue-500" />
-        <StatCard title="Nuevos Clientes (30d)" value={kpis.users} icon={ICONS.users} color="bg-yellow-500" />
+        <StatCard title="Nuevos Clientes (30d)" value={kpis.newCustomers} icon={ICONS.users} color="bg-yellow-500" />
         <StatCard title="Productos Activos" value={kpis.activeProducts || 0} icon={ICONS.box} color="bg-indigo-500" />
       </div>
 
@@ -174,6 +174,4 @@ const AdminDashboardPage = () => {
   );
 };
 
-// Exportamos el StatusBadge aquí para que pueda ser importado por otros componentes si es necesario
-export { StatusBadge };
 export default AdminDashboardPage;
