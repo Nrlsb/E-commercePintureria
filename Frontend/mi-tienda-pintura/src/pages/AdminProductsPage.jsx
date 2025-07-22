@@ -126,20 +126,38 @@ const AdminProductsPage = () => {
 
       <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-8 gap-4">
         <h1 className="text-3xl font-bold text-gray-800">Gestión de Productos</h1>
+        <Link to="/admin" className="text-blue-600 hover:underline">&larr; Volver al Dashboard</Link>
+      </div>
+      
+      {/* --- CORRECCIÓN: Se añaden los botones de acciones masivas --- */}
+      <div className="mb-6 bg-white p-4 rounded-lg shadow-md">
+        <h2 className="text-lg font-semibold mb-3">Acciones de Productos</h2>
         <div className="flex flex-wrap gap-2 sm:gap-4">
-            <button onClick={handleClearCache} disabled={isClearingCache} className="bg-yellow-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-yellow-600 transition-colors flex items-center justify-center space-x-2 disabled:bg-gray-400">
-                {isClearingCache ? <Spinner className="w-5 h-5" /> : <Icon path={ICONS.cache} className="w-5 h-5" />}
-                <span>Limpiar Caché</span>
-            </button>
             <Link to="/admin/product/new" className="bg-green-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-600 transition-colors flex items-center justify-center space-x-2">
                 <Icon path={ICONS.add} className="w-5 h-5" />
                 <span>Crear Producto</span>
             </Link>
-             <Link to="/admin" className="text-blue-600 hover:underline">&larr; Volver al Dashboard</Link>
+            <Link to="/admin/product/bulk-upload" className="bg-blue-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center space-x-2">
+                <Icon path={ICONS.upload} className="w-5 h-5" />
+                <span>Carga Masiva</span>
+            </Link>
+            <Link to="/admin/product/bulk-create-ai" className="bg-purple-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-600 transition-colors flex items-center justify-center space-x-2">
+                <Icon path={ICONS.sparkles} className="w-5 h-5" />
+                <span>Creación Masiva con IA</span>
+            </Link>
+            <Link to="/admin/product/bulk-associate-ai" className="bg-teal-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-teal-600 transition-colors flex items-center justify-center space-x-2">
+                <Icon path={ICONS.sparkles} className="w-5 h-5" />
+                <span>Asociación Masiva con IA</span>
+            </Link>
+            <button onClick={handleClearCache} disabled={isClearingCache} className="bg-yellow-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-yellow-600 transition-colors flex items-center justify-center space-x-2 disabled:bg-gray-400">
+                {isClearingCache ? <Spinner className="w-5 h-5" /> : <Icon path={ICONS.cache} className="w-5 h-5" />}
+                <span>Limpiar Caché</span>
+            </button>
         </div>
       </div>
       
       <div className="bg-white p-6 rounded-lg shadow-md overflow-x-auto">
+        <h2 className="text-2xl font-bold mb-4 text-gray-700">Listado de Productos</h2>
         <table className="w-full text-left table-auto">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-200">
