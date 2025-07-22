@@ -1,6 +1,7 @@
 // backend-pintureria/server.js
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet'; // 1. Importar helmet
 import { startCancelPendingOrdersJob } from './services/cronService.js';
 import expressWinston from 'express-winston';
 import logger from './logger.js';
@@ -15,13 +16,17 @@ import shippingRoutes from './routes/shipping.routes.js';
 import reviewRoutes from './routes/review.routes.js';
 import couponRoutes from './routes/coupons.routes.js';
 import uploadRoutes from './routes/upload.routes.js';
-import utilsRoutes from './routes/utils.routes.js'; // 1. Importar la nueva ruta
+import utilsRoutes from './routes/utils.routes.js';
 import errorHandler from './middlewares/errorHandler.js';
 import { handlePaymentNotification } from './controllers/payment.controller.js';
 
 
 const app = express();
 const PORT = config.port;
+
+// 2. Usar helmet para añadir cabeceras de seguridad.
+// Es una buena práctica colocarlo al principio de la cadena de middlewares.
+app.use(helmet());
 
 app.set('trust proxy', 1);
 
@@ -74,7 +79,7 @@ app.use('/api/payment', paymentRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/coupons', couponRoutes);
 app.use('/api/uploads', uploadRoutes);
-app.use('/api/utils', utilsRoutes); // 2. Usar la nueva ruta
+app.use('/api/utils', utilsRoutes);
 
 startCancelPendingOrdersJob();
 
