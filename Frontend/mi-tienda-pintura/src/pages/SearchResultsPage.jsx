@@ -1,31 +1,57 @@
 // src/pages/SearchResultsPage.jsx
 import React from 'react';
-import ProductGrid from '../components/ProductGrid.jsx'; // Se importa el nuevo componente
+import ProductGrid from '../components/ProductGrid.jsx';
+import Pagination from '../components/Pagination.jsx'; // Importamos la paginación
 import { useProductStore } from '../stores/useProductStore.js';
 
 const SearchResultsPage = () => {
-  const products = useProductStore(state => state.products);
-  const query = useProductStore(state => state.searchQuery);
-  const loading = useProductStore(state => state.loading);
-  const error = useProductStore(state => state.error);
+  // --- MODIFICADO: Obtenemos todos los datos necesarios del store ---
+  const { 
+    products, 
+    searchQuery, 
+    loading, 
+    error, 
+    totalProducts, 
+    currentPage, 
+    totalPages,
+    fetchProducts
+  } = useProductStore(state => ({
+    products: state.products,
+    searchQuery: state.searchQuery,
+    loading: state.loading,
+    error: state.error,
+    totalProducts: state.totalProducts,
+    currentPage: state.currentPage,
+    totalPages: state.totalPages,
+    fetchProducts: state.fetchProducts,
+  }));
   
-  // La lógica de filtrado se mantiene aquí, ya que es específica de la búsqueda
-  const filteredProducts = products.filter(product =>
-    product.name.toLowerCase().includes(query.toLowerCase()) ||
-    product.brand.toLowerCase().includes(query.toLowerCase())
-  );
+  // --- NUEVO: Función para manejar el cambio de página ---
+  const handlePageChange = (page) => {
+    // Llamamos a fetchProducts sin categoría para que use el searchQuery del store
+    fetchProducts(null, page); 
+    window.scrollTo(0, 0);
+  };
 
   return (
     <div>
-      <h1 className="text-3xl font-bold text-gray-800 mb-2">Resultados para: <span className="text-blue-600">"{query}"</span></h1>
-      {!loading && <p className="text-gray-600 mb-8">{filteredProducts.length} productos encontrados.</p>}
+      <h1 className="text-3xl font-bold text-gray-800 mb-2">Resultados para: <span className="text-blue-600">"{searchQuery}"</span></h1>
+      {/* --- MODIFICADO: Usamos el totalProducts del store --- */}
+      {!loading && <p className="text-gray-600 mb-8">{totalProducts} productos encontrados.</p>}
       
-      {/* Se usa el componente ProductGrid, pasando los productos ya filtrados */}
+      {/* --- MODIFICADO: Pasamos directamente los productos del store, sin filtrar --- */}
       <ProductGrid
-        products={filteredProducts}
+        products={products}
         loading={loading}
         error={error}
-        loadingMessage={`Buscando productos para "${query}"...`}
+        loadingMessage={`Buscando productos para "${searchQuery}"...`}
+      />
+
+      {/* --- NUEVO: Añadimos el componente de paginación --- */}
+      <Pagination 
+        currentPage={currentPage}
+        totalPages={totalPages}
+        onPageChange={handlePageChange}
       />
     </div>
   );

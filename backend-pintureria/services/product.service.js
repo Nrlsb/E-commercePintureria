@@ -7,19 +7,15 @@ import db from '../db.js';
  * @returns {Promise<object>} Objeto con la lista de productos y datos de paginación.
  */
 export const getActiveProducts = async (filters) => {
-  // --- MODIFICADO: Se añade 'searchQuery' a los filtros ---
   const { category, sortBy, brands, minPrice, maxPrice, page = 1, limit = 12, searchQuery } = filters;
 
   const queryParams = [];
   let whereClauses = ['p.is_active = true'];
   let paramIndex = 1;
 
-  // --- NUEVO: Lógica para manejar el término de búsqueda ---
   if (searchQuery) {
-    // Busca el término en el nombre Y en la marca del producto.
-    // ILIKE es case-insensitive (no distingue mayúsculas/minúsculas).
     whereClauses.push(`(p.name ILIKE $${paramIndex} OR p.brand ILIKE $${paramIndex})`);
-    queryParams.push(`%${searchQuery}%`); // Los '%' son comodines para buscar coincidencias parciales.
+    queryParams.push(`%${searchQuery}%`);
     paramIndex++;
   }
 
@@ -75,10 +71,12 @@ export const getActiveProducts = async (filters) => {
 
   const result = await db.query(baseQuery, queryParams);
   
+  // --- MODIFICADO: Se añade 'totalProducts' al objeto de respuesta ---
   return {
     products: result.rows,
     currentPage: parseInt(page, 10),
     totalPages,
+    totalProducts, // Devolvemos el conteo total
   };
 };
 
