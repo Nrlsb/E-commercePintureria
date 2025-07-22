@@ -13,16 +13,30 @@ export const handlePaymentNotification = async (req, res, next) => {
   const topic = query.topic || query.type;
   const eventId = query.id;
 
-  // Si no es una notificación válida, respondemos OK para que MP no reintente.
   if (!topic || !eventId) {
     return res.sendStatus(200);
   }
 
   try {
-    // 1. Guardar el evento en la base de datos de forma rápida.
-    // Usamos el cuerpo de la petición (req.body) si existe, si no, la query.
-    const payloadToStore = Object.keys(req.body).length > 0 ? req.body : query;
-    
+    // --- CORRECCIÓN: Procesar el cuerpo de la solicitud (req.body) ---
+    // Por defecto, usamos la query.
+    let payloadToStore = query;
+
+    // Si req.body es un Buffer y tiene contenido, lo procesamos.
+    if (Buffer.isBuffer(req.body) && req.body.length > 0) {
+      try {
+        // 1. Convertimos el Buffer a un string.
+        const bodyAsString = req.body.toString();
+        // 2. Parseamos el string para obtener el objeto JSON.
+        payloadToStore = JSON.parse(bodyAsString);
+      } catch (e) {
+        logger.error('El cuerpo del webhook no es un JSON válido:', req.body.toString());
+        // Si falla el parseo, nos quedamos con la query como fallback.
+        payloadToStore = query;
+      }
+    }
+    // --- FIN DE LA CORRECCIÓN ---
+
     await db.query(
       `INSERT INTO webhook_events (source, event_type, event_id, payload)
        VALUES ($1, $2, $3, $4)`,
@@ -31,21 +45,14 @@ export const handlePaymentNotification = async (req, res, next) => {
 
     logger.info(`Webhook event received and stored: ${topic} - ${eventId}`);
     
-    // 2. Responder inmediatamente a Mercado Pago para confirmar la recepción.
     res.sendStatus(200);
 
-    // 3. Procesar el evento de forma asíncrona (sin esperar a que termine).
-    // Esto se conoce como "fire and forget".
     processPaymentNotification(topic, eventId).catch(err => {
-      // Si el procesamiento asíncrono falla, solo lo registramos.
-      // Ya hemos guardado el evento, por lo que podemos re-procesarlo más tarde si es necesario.
       logger.error(`Error during async webhook processing for event ${eventId}:`, err);
     });
 
   } catch (error) {
-    // Este error solo ocurriría si falla el INSERT inicial en la base de datos.
     logger.error('Failed to store webhook event:', error);
-    // En este caso sí es importante devolver un error para que Mercado Pago reintente la notificación.
     next(error);
   }
 };
