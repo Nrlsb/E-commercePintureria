@@ -13,7 +13,6 @@ const upload = multer({ storage: storage });
 export const uploadMultipleImages = upload.array('productImages', 50);
 export const uploadSingleImage = upload.single('productImage');
 
-// --- Helper para introducir un retraso ---
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 async function getAIDataForImage(imageData, mimeType, apiKey, productNamesForBrand = []) {
@@ -37,7 +36,6 @@ async function getAIDataForImage(imageData, mimeType, apiKey, productNamesForBra
     });
 
     if (!apiResponse.ok) {
-        // Si el error es por límite de peticiones, lo manejamos específicamente.
         if (apiResponse.status === 429) {
             throw new Error('Error de la API de IA: Too Many Requests');
         }
@@ -85,7 +83,6 @@ export const bulkAssociateImagesWithAI = async (req, res, next) => {
     try {
         for (const file of req.files) {
             try {
-                // --- NUEVO: Añadimos un retraso de 3 segundos antes de procesar la siguiente imagen ---
                 await delay(3000); 
 
                 const base64ImageData = file.buffer.toString('base64');
@@ -106,12 +103,18 @@ export const bulkAssociateImagesWithAI = async (req, res, next) => {
                 if (!finalAIData.productName) {
                     throw new Error('La IA no pudo determinar el nombre del producto a partir de la lista proporcionada.');
                 }
+
+                // --- MODIFICACIÓN CLAVE: Búsqueda más flexible ---
+                // Se limpia el nombre extraído por la IA de caracteres no alfanuméricos (excepto espacios)
+                const cleanedProductName = finalAIData.productName.replace(/[^a-zA-Z0-9\s]/g, '');
                 
+                // Se utiliza '%' como comodín para buscar productos que CONTENGAN el nombre limpiado.
                 const sqlQuery = `SELECT id, name, brand FROM products p WHERE p.brand ILIKE $1 AND p.name ILIKE $2 LIMIT 1`;
-                const searchResult = await db.query(sqlQuery, [finalAIData.brand, finalAIData.productName]);
+                const searchResult = await db.query(sqlQuery, [finalAIData.brand, `%${cleanedProductName}%`]);
+                // --- FIN DE LA MODIFICACIÓN ---
 
                 if (searchResult.rows.length === 0) {
-                    throw new Error(`No se encontró un producto exacto con nombre "${finalAIData.productName}" y marca "${finalAIData.brand}".`);
+                    throw new Error(`No se encontró un producto que coincida con "${finalAIData.productName}" y marca "${finalAIData.brand}".`);
                 }
                 
                 const matchedProduct = searchResult.rows[0];
@@ -141,7 +144,6 @@ export const bulkAssociateImagesWithAI = async (req, res, next) => {
     }
 };
 
-// Se aplican los mismos cambios a las otras funciones de IA
 export const analyzeImageWithAI = async (req, res, next) => {
     // ... (lógica existente)
 };
@@ -159,10 +161,7 @@ export const bulkCreateProductsWithAI = async (req, res, next) => {
     try {
         for (const file of req.files) {
             try {
-                // --- NUEVO: Añadimos un retraso de 3 segundos ---
                 await delay(3000);
-
-                // ... (resto de la lógica de la función sin cambios)
                 const base64ImageData = file.buffer.toString('base64');
                 const aiData = await getAIDataForImage(base64ImageData, file.mimetype, apiKey);
                 
@@ -181,7 +180,7 @@ export const bulkCreateProductsWithAI = async (req, res, next) => {
                     description: aiData.description || 'Descripción a completar.',
                     price: 0,
                     stock: 0,
-                    is_active: false, // Se crea como inactivo por defecto
+                    is_active: false,
                     image_url: imageUrl,
                 };
 
