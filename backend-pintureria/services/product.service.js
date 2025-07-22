@@ -1,12 +1,32 @@
 // backend-pintureria/services/product.service.js
 import db from '../db.js';
+import redisClient from '../redisClient.js';
+import logger from '../logger.js';
+
+const CACHE_EXPIRATION = 3600; // 1 hora en segundos
 
 /**
  * Obtiene una lista paginada y filtrada de productos.
+ * Intenta obtener los datos desde la caché de Redis antes de consultar la base de datos.
  * @param {object} filters - Opciones de filtrado y ordenamiento.
  * @returns {Promise<object>} Objeto con la lista de productos y datos de paginación.
  */
 export const getActiveProducts = async (filters) => {
+  const cacheKey = `products:${JSON.stringify(filters)}`;
+
+  try {
+    if (redisClient.isReady) {
+      const cachedData = await redisClient.get(cacheKey);
+      if (cachedData) {
+        logger.debug(`Cache HIT para la clave: ${cacheKey}`);
+        return JSON.parse(cachedData);
+      }
+    }
+  } catch (err) {
+    logger.error('Error al leer de la caché de Redis:', err);
+  }
+
+  logger.debug(`Cache MISS para la clave: ${cacheKey}. Consultando base de datos.`);
   const { category, sortBy, brands, minPrice, maxPrice, page = 1, limit = 12, searchQuery } = filters;
 
   const queryParams = [];
@@ -71,21 +91,46 @@ export const getActiveProducts = async (filters) => {
 
   const result = await db.query(baseQuery, queryParams);
   
-  // --- MODIFICADO: Se añade 'totalProducts' al objeto de respuesta ---
-  return {
+  const responseData = {
     products: result.rows,
     currentPage: parseInt(page, 10),
     totalPages,
-    totalProducts, // Devolvemos el conteo total
+    totalProducts,
   };
+
+  try {
+    if (redisClient.isReady) {
+      await redisClient.setEx(cacheKey, CACHE_EXPIRATION, JSON.stringify(responseData));
+    }
+  } catch (err) {
+    logger.error('Error al escribir en la caché de Redis:', err);
+  }
+
+  return responseData;
 };
 
 /**
  * Obtiene un producto activo por su ID.
+ * Intenta obtener los datos desde la caché de Redis antes de consultar la base de datos.
  * @param {number} productId - El ID del producto.
  * @returns {Promise<object|null>} El producto encontrado o null.
  */
 export const getActiveProductById = async (productId) => {
+  const cacheKey = `product:${productId}`;
+
+  try {
+    if (redisClient.isReady) {
+      const cachedData = await redisClient.get(cacheKey);
+      if (cachedData) {
+        logger.debug(`Cache HIT para la clave: ${cacheKey}`);
+        return JSON.parse(cachedData);
+      }
+    }
+  } catch (err) {
+    logger.error('Error al leer de la caché de Redis:', err);
+  }
+
+  logger.debug(`Cache MISS para la clave: ${cacheKey}. Consultando base de datos.`);
   const query = `
     SELECT 
       p.id, p.name, p.brand, p.category, p.price,
@@ -99,5 +144,17 @@ export const getActiveProductById = async (productId) => {
     GROUP BY p.id;
   `;
   const result = await db.query(query, [productId]);
-  return result.rows[0] || null;
+  const product = result.rows[0] || null;
+
+  if (product) {
+    try {
+      if (redisClient.isReady) {
+        await redisClient.setEx(cacheKey, CACHE_EXPIRATION, JSON.stringify(product));
+      }
+    } catch (err) {
+      logger.error('Error al escribir en la caché de Redis:', err);
+    }
+  }
+
+  return product;
 };

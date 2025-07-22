@@ -2,6 +2,22 @@
 import db from '../db.js';
 import logger from '../logger.js';
 import * as productService from '../services/product.service.js';
+import redisClient from '../redisClient.js';
+
+// --- Función para limpiar la caché de productos ---
+const clearProductsCache = async () => {
+  try {
+    if (redisClient.isReady) {
+      const keys = await redisClient.keys('products:*');
+      if (keys.length > 0) {
+        await redisClient.del(keys);
+        logger.info('Caché de lista de productos invalidada.');
+      }
+    }
+  } catch (err) {
+    logger.error('Error al invalidar la caché de productos:', err);
+  }
+};
 
 // --- Controladores de Productos ---
 
@@ -28,10 +44,6 @@ export const getProductById = async (req, res, next) => {
   }
 };
 
-// --- El resto de los controladores (create, update, delete, reviews) permanecen aquí por ahora ---
-// --- ya que la lógica está muy ligada a la base de datos y al request. ---
-// --- Se podrían mover a servicios si la lógica de negocio crece. ---
-
 export const getProductBrands = async (req, res, next) => {
   try {
     const result = await db.query('SELECT DISTINCT brand FROM products WHERE is_active = true ORDER BY brand ASC');
@@ -50,6 +62,7 @@ export const createProduct = async (req, res, next) => {
       [name, brand, category, price, old_price, image_url, description, stock]
     );
     logger.info(`Producto creado con ID: ${result.rows[0].id}`);
+    await clearProductsCache(); // Invalidar caché
     res.status(201).json(result.rows[0]);
   } catch (err) {
     next(err);
@@ -68,6 +81,10 @@ export const updateProduct = async (req, res, next) => {
       return res.status(404).json({ message: 'Producto no encontrado' });
     }
     logger.info(`Producto actualizado con ID: ${id}`);
+    await clearProductsCache(); // Invalidar caché de listas
+    if (redisClient.isReady) {
+      await redisClient.del(`product:${id}`); // Invalidar caché del producto específico
+    }
     res.json(result.rows[0]);
   } catch (err) {
     next(err);
@@ -87,6 +104,10 @@ export const deleteProduct = async (req, res, next) => {
     }
     
     logger.info(`Producto DESACTIVADO con ID: ${id}`);
+    await clearProductsCache(); // Invalidar caché de listas
+    if (redisClient.isReady) {
+      await redisClient.del(`product:${id}`); // Invalidar caché del producto específico
+    }
     res.status(200).json({ message: 'Producto desactivado con éxito' });
   } catch (err) {
     next(err);
@@ -123,6 +144,11 @@ export const createProductReview = async (req, res, next) => {
     `;
     const result = await db.query(query, [rating, comment, productId, userId]);
     logger.info(`Nueva reseña creada para el producto ID: ${productId} por el usuario ID: ${userId}`);
+    // Invalidar la caché del producto específico ya que sus reviews cambiaron
+    if (redisClient.isReady) {
+      await redisClient.del(`product:${productId}`);
+    }
+    await clearProductsCache();
     res.status(201).json(result.rows[0]);
   } catch (err) {
     if (err.code === '23505') { 
@@ -137,7 +163,7 @@ export const deleteReview = async (req, res, next) => {
   const { userId, role } = req.user;
 
   try {
-    const reviewResult = await db.query('SELECT user_id FROM reviews WHERE id = $1', [reviewId]);
+    const reviewResult = await db.query('SELECT user_id, product_id FROM reviews WHERE id = $1', [reviewId]);
     
     if (reviewResult.rows.length === 0) {
       return res.status(404).json({ message: 'Reseña no encontrada.' });
@@ -151,6 +177,11 @@ export const deleteReview = async (req, res, next) => {
 
     await db.query('DELETE FROM reviews WHERE id = $1', [reviewId]);
     logger.info(`Reseña ID: ${reviewId} eliminada por el usuario ID: ${userId}`);
+    // Invalidar la caché del producto afectado
+    if (redisClient.isReady) {
+      await redisClient.del(`product:${review.product_id}`);
+    }
+    await clearProductsCache();
     res.status(204).send();
 
   } catch (err) {

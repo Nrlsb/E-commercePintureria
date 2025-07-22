@@ -22,12 +22,16 @@ const config = {
   },
   geminiApiKey: process.env.GEMINI_API_KEY,
 
-  // --- MODIFICADO: Configuración para Google Cloud Storage ---
   gcs: {
     projectId: process.env.GCS_PROJECT_ID,
     bucketName: process.env.GCS_BUCKET_NAME,
-    keyFilename: process.env.GCS_KEYFILE, // Para desarrollo local con archivo
-    keyFileContent: process.env.GCS_KEYFILE_CONTENT, // Para producción (Render) con el contenido del JSON
+    keyFilename: process.env.GCS_KEYFILE,
+    keyFileContent: process.env.GCS_KEYFILE_CONTENT,
+  },
+
+  // --- NUEVO: Configuración de Redis ---
+  redis: {
+    url: process.env.REDIS_URL || 'redis://localhost:6379'
   },
   // --- FIN DE LA MODIFICACIÓN ---
 
