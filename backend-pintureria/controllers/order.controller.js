@@ -10,31 +10,48 @@ const MIN_TRANSACTION_AMOUNT = 100;
 
 export const confirmTransferPayment = async (req, res, next) => {
   const { orderId } = req.params;
+  // --- MEJORA: Se utiliza un cliente de la pool para manejar la transacción ---
+  const dbClient = await db.connect();
   try {
-    const result = await db.query(
+    // Iniciamos la transacción
+    await dbClient.query('BEGIN');
+
+    const result = await dbClient.query(
       "UPDATE orders SET status = 'approved' WHERE id = $1 AND status = 'pending_transfer' RETURNING *",
       [orderId]
     );
 
     if (result.rowCount === 0) {
+      // Si no se actualizó ninguna fila, hacemos rollback y notificamos
+      await dbClient.query('ROLLBACK');
       return res.status(404).json({ message: 'Orden no encontrada o ya no estaba pendiente de pago.' });
     }
 
     const order = result.rows[0];
 
-    const userData = await db.query('SELECT email FROM users WHERE id = $1', [order.user_id]);
-    const itemsData = await db.query('SELECT p.name, oi.quantity, oi.price FROM order_items oi JOIN products p ON p.id = oi.product_id WHERE oi.order_id = $1', [orderId]);
+    const userData = await dbClient.query('SELECT email FROM users WHERE id = $1', [order.user_id]);
+    const itemsData = await dbClient.query('SELECT p.name, oi.quantity, oi.price FROM order_items oi JOIN products p ON p.id = oi.product_id WHERE oi.order_id = $1', [orderId]);
     
     const orderForEmail = {
       ...order,
       items: itemsData.rows,
     };
 
+    // Enviamos el email antes de confirmar la transacción. Si el envío falla, podemos hacer rollback.
     await sendOrderConfirmationEmail(userData.rows[0].email, orderForEmail);
+    
+    // Si todo fue exitoso, confirmamos la transacción
+    await dbClient.query('COMMIT');
+
     logger.info(`Pago por transferencia confirmado para la orden #${orderId}`);
     res.status(200).json({ message: 'Pago confirmado y email enviado con éxito.', order });
   } catch (error) {
+    // Si cualquier paso falla, revertimos todos los cambios en la base de datos
+    await dbClient.query('ROLLBACK');
     next(error);
+  } finally {
+    // Liberamos el cliente para que vuelva a la pool
+    dbClient.release();
   }
 };
 
