@@ -9,33 +9,44 @@ const { MercadoPagoConfig, Payment } = mercadopago;
 const client = new MercadoPagoConfig({ accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN });
 
 export const handlePaymentNotification = async (req, res, next) => {
+  // --- LOG DE DEPURACIÓN 1: Verificamos si la función se está ejecutando ---
+  logger.info('--- INICIANDO handlePaymentNotification ---');
+
   const { query } = req;
   const topic = query.topic || query.type;
   const eventId = query.id;
 
+  // --- LOG DE DEPURACIÓN 2: Vemos qué datos iniciales tenemos ---
+  logger.info(`Webhook recibido - Topic: ${topic}, Event ID: ${eventId}`);
+
   if (!topic || !eventId) {
+    logger.warn('Webhook recibido sin topic o eventId. Respondiendo 200 OK.');
     return res.sendStatus(200);
   }
 
   try {
-    // --- CORRECCIÓN: Procesar el cuerpo de la solicitud (req.body) ---
-    // Por defecto, usamos la query.
     let payloadToStore = query;
 
-    // Si req.body es un Buffer y tiene contenido, lo procesamos.
+    // --- LOG DE DEPURACIÓN 3: Vemos el tipo y contenido del req.body ---
+    logger.info(`Tipo de req.body: ${typeof req.body}`);
+    if (Buffer.isBuffer(req.body)) {
+        logger.info(`req.body es un Buffer. Contenido: ${req.body.toString()}`);
+    } else {
+        logger.info(`req.body no es un Buffer. Contenido: ${JSON.stringify(req.body)}`);
+    }
+
     if (Buffer.isBuffer(req.body) && req.body.length > 0) {
       try {
-        // 1. Convertimos el Buffer a un string.
         const bodyAsString = req.body.toString();
-        // 2. Parseamos el string para obtener el objeto JSON.
         payloadToStore = JSON.parse(bodyAsString);
       } catch (e) {
         logger.error('El cuerpo del webhook no es un JSON válido:', req.body.toString());
-        // Si falla el parseo, nos quedamos con la query como fallback.
         payloadToStore = query;
       }
     }
-    // --- FIN DE LA CORRECCIÓN ---
+    
+    // --- LOG DE DEPURACIÓN 4: Vemos el payload final que intentaremos guardar ---
+    logger.info(`Payload a guardar en la BD: ${JSON.stringify(payloadToStore)}`);
 
     await db.query(
       `INSERT INTO webhook_events (source, event_type, event_id, payload)
@@ -43,7 +54,8 @@ export const handlePaymentNotification = async (req, res, next) => {
       ['mercadopago', topic, eventId, payloadToStore]
     );
 
-    logger.info(`Webhook event received and stored: ${topic} - ${eventId}`);
+    // --- LOG DE DEPURACIÓN 5: Confirmamos que la inserción fue exitosa ---
+    logger.info(`ÉXITO: Webhook event ${eventId} guardado en la base de datos.`);
     
     res.sendStatus(200);
 
@@ -52,7 +64,8 @@ export const handlePaymentNotification = async (req, res, next) => {
     });
 
   } catch (error) {
-    logger.error('Failed to store webhook event:', error);
+    // --- LOG DE DEPURACIÓN 6: Si algo falla, este será el error exacto ---
+    logger.error('FALLO al intentar guardar el webhook event en la BD:', error);
     next(error);
   }
 };
