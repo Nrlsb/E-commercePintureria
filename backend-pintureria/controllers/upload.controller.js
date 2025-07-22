@@ -39,6 +39,9 @@ async function getAIDataForImage(imageData, mimeType, apiKey, productNamesForBra
         if (apiResponse.status === 429) {
             throw new Error('Error de la API de IA: Too Many Requests');
         }
+        if (apiResponse.status === 503) {
+            throw new Error('Error de la API de IA: Service Unavailable');
+        }
         const errorBody = await apiResponse.text();
         logger.error("Error from Gemini API:", errorBody);
         throw new Error(`Error de la API de IA: ${apiResponse.statusText}`);
@@ -91,56 +94,53 @@ export const bulkAssociateImagesWithAI = async (req, res, next) => {
                     throw new Error('La IA no pudo identificar una marca en la imagen.');
                 }
                 
-                const productsOfBrandResult = await db.query('SELECT name FROM products WHERE brand ILIKE $1', [initialAIData.brand]);
-                const productNamesForBrand = productsOfBrandResult.rows.map(p => p.name);
+                const productsOfBrandResult = await db.query('SELECT id, name, brand FROM products WHERE brand ILIKE $1', [initialAIData.brand]);
+                const dbProducts = productsOfBrandResult.rows;
 
-                if (productNamesForBrand.length === 0) {
+                if (dbProducts.length === 0) {
                     throw new Error(`No se encontraron productos de la marca "${initialAIData.brand}" en la base de datos.`);
                 }
-
+                
+                const productNamesForBrand = dbProducts.map(p => p.name);
                 const finalAIData = await getAIDataForImage(base64ImageData, file.mimetype, apiKey, productNamesForBrand);
 
                 if (!finalAIData.productName) {
                     throw new Error('La IA no pudo determinar el nombre del producto a partir de la lista proporcionada.');
                 }
 
-                // --- MODIFICACIÓN AVANZADA: Búsqueda por palabras clave ---
-                
-                // 1. Limpiar el nombre del producto extraído por la IA.
-                const cleanedProductName = finalAIData.productName.replace(/[^a-zA-Z0-9\s]/g, '');
-                
-                // 2. Definir "stop words" (palabras comunes a ignorar en la búsqueda).
-                const stopWords = new Set(['para', 'de', 'y', 'a', 'con', 'en', 'x', 'lts', 'lt', 'blanco', 'mate']);
-                
-                // 3. Dividir en palabras clave y filtrar las stop words.
-                const keywords = cleanedProductName.split(' ')
-                    .map(word => word.trim())
-                    .filter(word => word.length > 1 && !stopWords.has(word.toLowerCase()));
+                // --- MEJORA AVANZADA: Búsqueda por puntaje de coincidencia ---
+                const stopWords = new Set(['para', 'de', 'y', 'a', 'con', 'en', 'x', 'lts', 'lt', 'blanco', 'mate', 'blanca', 'acrilico', 'acrílico']);
+                const getKeywords = (text) => new Set(text.replace(/[^a-zA-Z0-9\s]/g, '').toLowerCase().split(' ').filter(word => word.length > 2 && !stopWords.has(word)));
 
-                if (keywords.length === 0) {
+                const aiKeywords = getKeywords(finalAIData.productName);
+                
+                if (aiKeywords.size === 0) {
                     throw new Error(`No se pudieron extraer palabras clave significativas de "${finalAIData.productName}".`);
                 }
 
-                // 4. Construir la consulta SQL dinámicamente.
-                const queryParams = [finalAIData.brand];
-                let sqlQuery = `SELECT id, name, brand FROM products p WHERE p.brand ILIKE $1`;
-                
-                keywords.forEach((word, index) => {
-                    // El índice del parámetro empieza en 2 porque $1 es la marca.
-                    sqlQuery += ` AND p.name ILIKE $${index + 2}`;
-                    queryParams.push(`%${word}%`);
-                });
+                let bestMatch = null;
+                let highestScore = 0;
 
-                sqlQuery += ` LIMIT 1`;
+                for (const dbProduct of dbProducts) {
+                    const dbKeywords = getKeywords(dbProduct.name);
+                    let currentScore = 0;
+                    for (const keyword of aiKeywords) {
+                        if (dbKeywords.has(keyword)) {
+                            currentScore++;
+                        }
+                    }
 
-                const searchResult = await db.query(sqlQuery, queryParams);
-                // --- FIN DE LA MODIFICACIÓN ---
+                    if (currentScore > highestScore) {
+                        highestScore = currentScore;
+                        bestMatch = dbProduct;
+                    }
+                }
 
-                if (searchResult.rows.length === 0) {
+                if (!bestMatch || highestScore === 0) {
                     throw new Error(`No se encontró un producto que coincida con las palabras clave de "${finalAIData.productName}" y marca "${finalAIData.brand}".`);
                 }
                 
-                const matchedProduct = searchResult.rows[0];
+                const matchedProduct = bestMatch;
                 const processedImageBuffer = await sharp(file.buffer)
                     .resize(800, 800, { fit: 'inside', withoutEnlargement: true })
                     .toFormat('webp', { quality: 80 })
