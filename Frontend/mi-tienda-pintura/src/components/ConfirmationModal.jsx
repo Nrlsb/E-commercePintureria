@@ -1,5 +1,6 @@
 // src/components/ConfirmationModal.jsx
 import React from 'react';
+import { motion } from 'framer-motion'; // 1. Importar motion
 import Icon from './Icon';
 
 const ConfirmationModal = ({
@@ -13,17 +14,36 @@ const ConfirmationModal = ({
   iconPath = "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z",
   iconColor = "text-yellow-500"
 }) => {
+  // isOpen ya no se usa aquí, AnimatePresence se encargará de montarlo/desmontarlo
   if (!isOpen) {
     return null;
   }
 
+  // 2. Definir variantes para la animación del fondo y del modal
+  const backdropVariants = {
+    visible: { opacity: 1 },
+    hidden: { opacity: 0 },
+  };
+
+  const modalVariants = {
+    hidden: { y: "-50px", opacity: 0, scale: 0.95 },
+    visible: { y: "0", opacity: 1, scale: 1, transition: { type: "spring", stiffness: 300, damping: 30 } },
+    exit: { y: "50px", opacity: 0, scale: 0.95, transition: { duration: 0.2 } },
+  };
+
   return (
-    <div
+    // 3. Usar motion.div y aplicar las variantes
+    <motion.div
       className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50"
+      variants={backdropVariants}
+      initial="hidden"
+      animate="visible"
+      exit="hidden"
       onClick={onClose}
     >
-      <div
-        className="bg-white rounded-lg shadow-xl w-full max-w-md m-4 transform transition-all"
+      <motion.div
+        className="bg-white rounded-lg shadow-xl w-full max-w-md m-4"
+        variants={modalVariants}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="p-6 text-center">
@@ -47,8 +67,8 @@ const ConfirmationModal = ({
             {confirmText}
           </button>
         </div>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 };
 

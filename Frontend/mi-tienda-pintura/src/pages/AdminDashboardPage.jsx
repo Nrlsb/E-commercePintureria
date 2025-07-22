@@ -1,11 +1,11 @@
 // src/pages/AdminDashboardPage.jsx
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { AnimatePresence } from 'framer-motion'; // 1. Importar AnimatePresence
 import { useAuthStore } from '../stores/useAuthStore';
 import { useNotificationStore } from '../stores/useNotificationStore';
 import Icon from '../components/Icon';
 import Spinner from '../components/Spinner';
-// --- NUEVO: Importamos el modal de confirmación ---
 import ConfirmationModal from '../components/ConfirmationModal';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
@@ -42,7 +42,6 @@ const AdminDashboardPage = () => {
   const [error, setError] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
   
-  // --- NUEVO: Estado para manejar el modal ---
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [productToDelete, setProductToDelete] = useState(null);
 
@@ -50,7 +49,6 @@ const AdminDashboardPage = () => {
   const showNotification = useNotificationStore(state => state.showNotification);
 
   useEffect(() => {
-    // ... (lógica de fetch sin cambios)
     const fetchData = async () => {
       try {
         const [productsResponse, ordersResponse] = await Promise.all([
@@ -72,24 +70,21 @@ const AdminDashboardPage = () => {
     fetchData();
   }, [token]);
 
-  // --- NUEVO: Función para abrir el modal ---
   const openDeleteModal = (product) => {
     setProductToDelete(product);
     setIsModalOpen(true);
   };
 
-  // --- NUEVO: Función para cerrar el modal ---
   const closeDeleteModal = () => {
     setProductToDelete(null);
     setIsModalOpen(false);
   };
 
-  // --- MODIFICADO: La lógica de eliminación ahora se llama desde el modal ---
   const handleDeleteConfirm = async () => {
     if (!productToDelete) return;
     
     setDeletingId(productToDelete.id);
-    closeDeleteModal(); // Cierra el modal inmediatamente
+    closeDeleteModal();
 
     try {
       const response = await fetch(`${API_URL}/api/products/${productToDelete.id}`, {
@@ -114,17 +109,21 @@ const AdminDashboardPage = () => {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      {/* --- NUEVO: Renderizamos el modal de confirmación --- */}
-      <ConfirmationModal
-        isOpen={isModalOpen}
-        onClose={closeDeleteModal}
-        onConfirm={handleDeleteConfirm}
-        title="Eliminar Producto"
-        message={`¿Estás seguro de que quieres eliminar "${productToDelete?.name}"? Esta acción es irreversible.`}
-        confirmText="Sí, Eliminar"
-        iconPath={ICONS.delete}
-        iconColor="text-red-500"
-      />
+      {/* 2. Envolver el modal con AnimatePresence */}
+      <AnimatePresence>
+        {isModalOpen && (
+          <ConfirmationModal
+            isOpen={isModalOpen}
+            onClose={closeDeleteModal}
+            onConfirm={handleDeleteConfirm}
+            title="Eliminar Producto"
+            message={`¿Estás seguro de que quieres eliminar "${productToDelete?.name}"? Esta acción es irreversible.`}
+            confirmText="Sí, Eliminar"
+            iconPath={ICONS.delete}
+            iconColor="text-red-500"
+          />
+        )}
+      </AnimatePresence>
 
       <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-8 gap-4">
         <h1 className="text-3xl font-bold text-gray-800">Panel de Administración</h1>
@@ -174,7 +173,6 @@ const AdminDashboardPage = () => {
                   <Link to={`/admin/product/edit/${product.id}`} className="p-2 text-blue-600 hover:bg-blue-100 rounded-full transition-colors">
                     <Icon path={ICONS.edit} className="w-5 h-5" />
                   </Link>
-                  {/* --- MODIFICADO: El botón ahora abre el modal --- */}
                   <button onClick={() => openDeleteModal(product)} disabled={deletingId === product.id} className="p-2 text-red-600 hover:bg-red-100 rounded-full transition-colors disabled:opacity-50 disabled:cursor-wait">
                     {deletingId === product.id ? (
                       <Spinner className="w-5 h-5 text-red-500" />

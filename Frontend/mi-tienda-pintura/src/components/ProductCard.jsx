@@ -1,22 +1,17 @@
 // src/components/ProductCard.jsx
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { motion } from 'framer-motion'; // 1. Importar motion
 import Icon from './Icon.jsx';
 import { ICONS } from '../data/icons.js';
 import StarRating from './StarRating.jsx';
 import { useCartStore } from '../stores/useCartStore.js';
 import { useNotificationStore } from '../stores/useNotificationStore.js';
 
-// Ya no necesitamos la URL del API para las imágenes
-// const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
-
 const ProductCard = React.memo(({ product }) => {
   const addToCart = useCartStore(state => state.addToCart);
   const showNotification = useNotificationStore(state => state.showNotification);
 
-  // --- MODIFICADO: La lógica de la URL se simplifica ---
-  // Las URLs de GCS son absolutas, por lo que no necesitamos construirlas.
-  // Solo necesitamos un placeholder en caso de que la URL sea nula.
   const imageUrl = product.imageUrl || `https://placehold.co/300x224/cccccc/ffffff?text=${encodeURIComponent(product.name)}`;
 
   const handleAddToCart = () => {
@@ -24,8 +19,21 @@ const ProductCard = React.memo(({ product }) => {
     showNotification(`${product.name} ha sido agregado al carrito.`);
   };
 
+  // 2. Definir variantes para la animación de la tarjeta
+  const cardVariants = {
+    rest: { y: 0, scale: 1 },
+    hover: { y: -5, scale: 1.03 },
+  };
+
   return (
-    <div className="bg-white border border-gray-200 rounded-xl shadow-md hover:shadow-xl flex flex-col overflow-hidden transition-all duration-300 ease-in-out transform hover:-translate-y-1 group">
+    // 3. Envolver el componente en motion.div y aplicar las variantes y transiciones
+    <motion.div
+      variants={cardVariants}
+      initial="rest"
+      whileHover="hover"
+      transition={{ type: "spring", stiffness: 300, damping: 20 }}
+      className="bg-white border border-gray-200 rounded-xl shadow-md flex flex-col overflow-hidden group"
+    >
       <Link to={`/product/${product.id}`} className="relative w-full h-56 cursor-pointer block bg-white p-2">
         <img 
           src={imageUrl}
@@ -66,7 +74,7 @@ const ProductCard = React.memo(({ product }) => {
           </button>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 });
 

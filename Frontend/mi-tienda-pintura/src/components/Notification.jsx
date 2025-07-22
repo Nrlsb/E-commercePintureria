@@ -1,5 +1,6 @@
 // src/components/Notification.jsx
 import React from 'react';
+import { motion } from 'framer-motion'; // 1. Importar motion
 
 // Objeto para centralizar los estilos de cada tipo de notificación
 const notificationStyles = {
@@ -21,20 +22,45 @@ const notificationStyles = {
   },
 };
 
-const Notification = ({ message, show, type = 'success' }) => {
-  // Se seleccionan los estilos basados en el 'type'
+// 2. Definir variantes para la animación
+const notificationVariants = {
+  hidden: {
+    opacity: 0,
+    x: "100%",
+    transition: {
+      type: "spring",
+      stiffness: 400,
+      damping: 30
+    }
+  },
+  visible: {
+    opacity: 1,
+    x: 0,
+    transition: {
+      type: "spring",
+      stiffness: 400,
+      damping: 30
+    }
+  }
+};
+
+const Notification = ({ message, type = 'success' }) => {
   const styles = notificationStyles[type] || notificationStyles.success;
 
   return (
-    <div
-      className={`fixed bottom-5 right-5 ${styles.bg} text-white py-3 px-6 rounded-lg shadow-xl transition-all duration-500 ease-in-out
-                  ${show ? 'transform translate-x-0 opacity-100' : 'transform translate-x-[calc(100%+2rem)] opacity-0'}`}
+    // 3. Usar motion.div y aplicar las variantes
+    <motion.div
+      variants={notificationVariants}
+      initial="hidden"
+      animate="visible"
+      exit="hidden"
+      className={`fixed bottom-5 right-5 ${styles.bg} text-white py-3 px-6 rounded-lg shadow-xl`}
     >
       <div className="flex items-center">
         {styles.icon}
         <span className="font-medium">{message}</span>
       </div>
-    </div>
+    </motion.div>
   );
 };
 
