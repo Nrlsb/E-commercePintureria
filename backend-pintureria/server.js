@@ -15,8 +15,8 @@ import shippingRoutes from './routes/shipping.routes.js';
 import reviewRoutes from './routes/review.routes.js';
 import couponRoutes from './routes/coupons.routes.js';
 import uploadRoutes from './routes/upload.routes.js';
+import utilsRoutes from './routes/utils.routes.js'; // 1. Importar la nueva ruta
 import errorHandler from './middlewares/errorHandler.js';
-// --- NUEVO: Importamos el controlador de pagos directamente ---
 import { handlePaymentNotification } from './controllers/payment.controller.js';
 
 
@@ -49,15 +49,8 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 
-// --- MODIFICACIÓN CLAVE ---
-// Se define la ruta del webhook ANTES de los middlewares que parsean el body.
-// Esta ruta usará express.raw() para recibir el cuerpo de la solicitud sin procesar,
-// que es como Mercado Pago lo necesita para validar la firma.
 app.post('/api/payment/notification', express.raw({ type: 'application/json' }), handlePaymentNotification);
-// --- FIN DE LA MODIFICACIÓN ---
 
-
-// Middlewares que parsean el body para el RESTO de la aplicación
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
@@ -77,10 +70,11 @@ app.use('/api/products', productRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/shipping', shippingRoutes);
-app.use('/api/payment', paymentRoutes); // El resto de las rutas de pago siguen funcionando
+app.use('/api/payment', paymentRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/coupons', couponRoutes);
 app.use('/api/uploads', uploadRoutes);
+app.use('/api/utils', utilsRoutes); // 2. Usar la nueva ruta
 
 startCancelPendingOrdersJob();
 

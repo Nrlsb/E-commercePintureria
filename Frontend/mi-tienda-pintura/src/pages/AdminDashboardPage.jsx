@@ -1,7 +1,7 @@
 // src/pages/AdminDashboardPage.jsx
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { AnimatePresence } from 'framer-motion'; // 1. Importar AnimatePresence
+import { AnimatePresence } from 'framer-motion';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useNotificationStore } from '../stores/useNotificationStore';
 import Icon from '../components/Icon';
@@ -10,7 +10,6 @@ import ConfirmationModal from '../components/ConfirmationModal';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
-// ... (Componente StatCard y objeto ICONS sin cambios)
 const StatCard = ({ title, value, icon, color }) => (
   <div className="bg-white p-6 rounded-lg shadow-md flex items-center space-x-4">
     <div className={`rounded-full p-3 ${color}`}>
@@ -31,7 +30,9 @@ const ICONS = {
     delete: "M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z",
     orders: "M13 2.05v3.03c3.39.49 6 3.39 6 6.92 0 .9-.18 1.75-.48 2.54l2.6 1.53c.56-1.24.88-2.62.88-4.07 0-5.18-3.95-9.45-9-9.95zM12 19c-3.87 0-7-3.13-7-7 0-3.53 2.61-6.43 6-6.92V2.05c-5.06.5-9 4.76-9 9.95 0 5.52 4.48 10 10 10 3.31 0 6.24-1.61 8.06-4.09l-2.6-1.53C16.17 17.98 14.21 19 12 19z",
     upload: "M9 16h6v-6h4l-7-7-7-7h4v6zm-4 2h14v2H5v-2z",
-    sparkles: "M12 2L9.5 7.5L4 10l5.5 2.5L12 18l2.5-5.5L20 10l-5.5-2.5z"
+    sparkles: "M12 2L9.5 7.5L4 10l5.5 2.5L12 18l2.5-5.5L20 10l-5.5-2.5z",
+    // --- NUEVO: Ícono para la caché ---
+    cache: "M19 8l-4 4h3c0 3.31-2.69 6-6 6-1.01 0-1.97-.25-2.8-.7l-1.46 1.46C8.97 19.54 10.43 20 12 20c4.42 0 8-3.58 8-8h3l-4-4zM5 12c0-3.31 2.69-6 6-6 1.01 0 1.97.25 2.8.7l1.46-1.46C14.03 4.46 12.57 4 11 4c-4.42 0-8 3.58-8 8H0l4 4 4-4H5z"
 };
 
 
@@ -41,9 +42,9 @@ const AdminDashboardPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
-  
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [productToDelete, setProductToDelete] = useState(null);
+  const [isClearingCache, setIsClearingCache] = useState(false); // Estado para el botón de caché
 
   const token = useAuthStore(state => state.token);
   const showNotification = useNotificationStore(state => state.showNotification);
@@ -104,12 +105,35 @@ const AdminDashboardPage = () => {
     }
   };
 
+  // --- NUEVO: Función para limpiar la caché ---
+  const handleClearCache = async () => {
+    if (!window.confirm('¿Estás seguro de que quieres limpiar toda la caché de productos? Esto puede hacer que el sitio cargue más lento temporalmente.')) {
+      return;
+    }
+    setIsClearingCache(true);
+    try {
+      const response = await fetch(`${API_URL}/api/utils/clear-cache`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || 'Error al limpiar la caché');
+      }
+      showNotification(data.message, 'success');
+    } catch (err) {
+      showNotification(err.message, 'error');
+    } finally {
+      setIsClearingCache(false);
+    }
+  };
+
+
   if (loading) return <div className="text-center p-10"><Icon path={ICONS.box} className="w-12 h-12 animate-spin mx-auto text-[#0F3460]" /></div>;
   if (error) return <div className="text-center p-10 text-red-500">Error: {error}</div>;
 
   return (
     <div className="container mx-auto px-4 py-8">
-      {/* 2. Envolver el modal con AnimatePresence */}
       <AnimatePresence>
         {isModalOpen && (
           <ConfirmationModal
@@ -128,6 +152,11 @@ const AdminDashboardPage = () => {
       <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-8 gap-4">
         <h1 className="text-3xl font-bold text-gray-800">Panel de Administración</h1>
         <div className="flex flex-wrap gap-2 sm:gap-4">
+            {/* --- NUEVO: Botón para limpiar la caché --- */}
+            <button onClick={handleClearCache} disabled={isClearingCache} className="bg-yellow-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-yellow-600 transition-colors flex items-center justify-center space-x-2 disabled:bg-gray-400">
+                {isClearingCache ? <Spinner className="w-5 h-5" /> : <Icon path={ICONS.cache} className="w-5 h-5" />}
+                <span>Limpiar Caché</span>
+            </button>
             <Link to="/admin/orders" className="bg-blue-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center space-x-2">
                 <Icon path={ICONS.orders} className="w-5 h-5" />
                 <span>Gestionar Órdenes</span>
