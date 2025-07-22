@@ -20,6 +20,14 @@ import errorHandler from './middlewares/errorHandler.js';
 const app = express();
 const PORT = config.port; // Usamos el puerto desde el config
 
+// --- NUEVA CONFIGURACIÓN: Confiar en el Proxy de Render ---
+// Esto es crucial para que express-rate-limit funcione correctamente en producción.
+// Render utiliza un proxy inverso, y esta configuración le dice a Express
+// que confíe en la cabecera X-Forwarded-For enviada por ese proxy.
+app.set('trust proxy', 1);
+// --- FIN DE LA NUEVA CONFIGURACIÓN ---
+
+
 // --- Configuración de CORS ---
 const whitelist = [
   'http://localhost:5173',
@@ -44,9 +52,6 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-
-// Middlewares, Rutas, etc. (sin cambios en el resto del archivo)
-// ... (resto del código igual)
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
