@@ -104,17 +104,40 @@ export const bulkAssociateImagesWithAI = async (req, res, next) => {
                     throw new Error('La IA no pudo determinar el nombre del producto a partir de la lista proporcionada.');
                 }
 
-                // --- MODIFICACIÓN CLAVE: Búsqueda más flexible ---
-                // Se limpia el nombre extraído por la IA de caracteres no alfanuméricos (excepto espacios)
+                // --- MODIFICACIÓN AVANZADA: Búsqueda por palabras clave ---
+                
+                // 1. Limpiar el nombre del producto extraído por la IA.
                 const cleanedProductName = finalAIData.productName.replace(/[^a-zA-Z0-9\s]/g, '');
                 
-                // Se utiliza '%' como comodín para buscar productos que CONTENGAN el nombre limpiado.
-                const sqlQuery = `SELECT id, name, brand FROM products p WHERE p.brand ILIKE $1 AND p.name ILIKE $2 LIMIT 1`;
-                const searchResult = await db.query(sqlQuery, [finalAIData.brand, `%${cleanedProductName}%`]);
+                // 2. Definir "stop words" (palabras comunes a ignorar en la búsqueda).
+                const stopWords = new Set(['para', 'de', 'y', 'a', 'con', 'en', 'x', 'lts', 'lt', 'blanco', 'mate']);
+                
+                // 3. Dividir en palabras clave y filtrar las stop words.
+                const keywords = cleanedProductName.split(' ')
+                    .map(word => word.trim())
+                    .filter(word => word.length > 1 && !stopWords.has(word.toLowerCase()));
+
+                if (keywords.length === 0) {
+                    throw new Error(`No se pudieron extraer palabras clave significativas de "${finalAIData.productName}".`);
+                }
+
+                // 4. Construir la consulta SQL dinámicamente.
+                const queryParams = [finalAIData.brand];
+                let sqlQuery = `SELECT id, name, brand FROM products p WHERE p.brand ILIKE $1`;
+                
+                keywords.forEach((word, index) => {
+                    // El índice del parámetro empieza en 2 porque $1 es la marca.
+                    sqlQuery += ` AND p.name ILIKE $${index + 2}`;
+                    queryParams.push(`%${word}%`);
+                });
+
+                sqlQuery += ` LIMIT 1`;
+
+                const searchResult = await db.query(sqlQuery, queryParams);
                 // --- FIN DE LA MODIFICACIÓN ---
 
                 if (searchResult.rows.length === 0) {
-                    throw new Error(`No se encontró un producto que coincida con "${finalAIData.productName}" y marca "${finalAIData.brand}".`);
+                    throw new Error(`No se encontró un producto que coincida con las palabras clave de "${finalAIData.productName}" y marca "${finalAIData.brand}".`);
                 }
                 
                 const matchedProduct = searchResult.rows[0];
