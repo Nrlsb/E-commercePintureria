@@ -33,6 +33,14 @@ const CartPage = () => {
     }
   };
 
+  // --- NUEVO: Helper para obtener la URL de la imagen del carrito ---
+  const getCartItemImageUrl = (item) => {
+    if (item.imageUrl && typeof item.imageUrl === 'object') {
+      return item.imageUrl.small || item.imageUrl.medium; // Usa la imagen pequeña o mediana
+    }
+    return item.imageUrl || `https://placehold.co/100x100/cccccc/ffffff?text=Img`;
+  };
+
   if (cart.length === 0) {
     return (
       <div className="flex-grow flex flex-col items-center justify-center text-center">
@@ -57,7 +65,8 @@ const CartPage = () => {
             {cart.map(item => (
               <div key={item.id} className="flex flex-col sm:flex-row items-center justify-between border-b pb-6 last:border-b-0">
                 <div className="flex items-center mb-4 sm:mb-0">
-                  <img src={item.imageUrl} alt={item.name} className="w-24 h-24 object-cover rounded-md mr-4" />
+                  {/* --- MODIFICADO: Usa la nueva función para obtener la URL --- */}
+                  <img src={getCartItemImageUrl(item)} alt={item.name} className="w-24 h-24 object-cover rounded-md mr-4" />
                   <div>
                     <h3 className="font-semibold text-lg text-gray-800">{item.name}</h3>
                     <p className="text-gray-500">{item.brand}</p>
