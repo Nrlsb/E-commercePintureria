@@ -1,5 +1,5 @@
 // Frontend/mi-tienda-pintura/src/pages/BulkCreateAIPage.jsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useNotificationStore } from '../stores/useNotificationStore';
@@ -7,12 +7,53 @@ import Spinner from '../components/Spinner';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
+// --- NUEVO: Componente de Barra de Progreso ---
+const ProgressBar = ({ progress }) => (
+  <div className="w-full bg-gray-200 rounded-full h-2.5 mt-4">
+    <div
+      className="bg-purple-600 h-2.5 rounded-full transition-all duration-500 ease-out"
+      style={{ width: `${progress}%` }}
+    ></div>
+  </div>
+);
+
 const BulkCreateAIPage = () => {
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(false);
   const [uploadResult, setUploadResult] = useState(null);
+
+  // --- NUEVO: Estados para la barra de progreso ---
+  const [progress, setProgress] = useState(0);
+  const [progressText, setProgressText] = useState('');
+
   const token = useAuthStore(state => state.token);
   const showNotification = useNotificationStore(state => state.showNotification);
+
+  // --- NUEVO: useEffect para simular el progreso ---
+  useEffect(() => {
+    let interval;
+    if (loading && files.length > 0) {
+      const totalFiles = files.length;
+      let processedFiles = 0;
+      const estimatedTimePerFile = 3000; // Coincide con el delay del backend
+
+      interval = setInterval(() => {
+        processedFiles++;
+        const newProgress = Math.min((processedFiles / totalFiles) * 100, 100);
+        setProgress(newProgress);
+        setProgressText(`Procesando imagen ${processedFiles} de ${totalFiles}...`);
+        
+        if (processedFiles >= totalFiles) {
+          clearInterval(interval);
+          setProgressText('Finalizando proceso, por favor espera...');
+        }
+      }, estimatedTimePerFile);
+    }
+    
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [loading, files.length]);
 
   const handleFileChange = (e) => {
     setFiles([...e.target.files]);
@@ -26,6 +67,8 @@ const BulkCreateAIPage = () => {
     }
     setLoading(true);
     setUploadResult(null);
+    setProgress(0);
+    setProgressText('Iniciando subida...');
 
     const formData = new FormData();
     files.forEach(file => {
@@ -51,6 +94,8 @@ const BulkCreateAIPage = () => {
       showNotification(err.message, 'error');
     } finally {
       setLoading(false);
+      setProgress(0);
+      setProgressText('');
       document.getElementById('file-upload').value = '';
       setFiles([]);
     }
@@ -80,8 +125,17 @@ const BulkCreateAIPage = () => {
               accept="image/jpeg, image/png, image/webp"
               onChange={handleFileChange}
               className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+              disabled={loading}
             />
           </div>
+
+          {/* --- NUEVO: Mostrar barra de progreso y texto durante la carga --- */}
+          {loading && (
+            <div className="my-4">
+              <p className="text-center text-purple-700 font-semibold">{progressText}</p>
+              <ProgressBar progress={progress} />
+            </div>
+          )}
 
           <div className="text-right">
             <button type="submit" disabled={loading || files.length === 0} className="w-64 flex justify-center items-center px-6 py-3 bg-purple-600 text-white font-semibold rounded-lg hover:bg-purple-700 disabled:bg-gray-400">
