@@ -12,12 +12,20 @@ const ProductCard = React.memo(({ product }) => {
   const addToCart = useCartStore(state => state.addToCart);
   const showNotification = useNotificationStore(state => state.showNotification);
 
-  // --- MODIFICADO: Lógica para manejar tanto el nuevo objeto de URLs como el string antiguo ---
+  // --- CORRECCIÓN: Lógica mejorada para manejar ambos formatos de URL ---
   const imageUrls = product.imageUrl;
-  const src = imageUrls?.medium || imageUrls || `https://placehold.co/300x224/cccccc/ffffff?text=${encodeURIComponent(product.name)}`;
-  const srcSet = imageUrls && typeof imageUrls === 'object'
-    ? `${imageUrls.small} 400w, ${imageUrls.medium} 800w, ${imageUrls.large} 1200w`
-    : null;
+  let src, srcSet;
+
+  if (imageUrls && typeof imageUrls === 'object') {
+    // Nuevo formato: el campo es un objeto { small, medium, large }
+    src = imageUrls.medium || imageUrls.small; // Usamos medium como principal, o small si no existe
+    srcSet = `${imageUrls.small} 400w, ${imageUrls.medium} 800w, ${imageUrls.large} 1200w`;
+  } else {
+    // Formato antiguo: el campo es un string (una sola URL) o es nulo
+    src = imageUrls || `https://placehold.co/300x224/cccccc/ffffff?text=${encodeURIComponent(product.name)}`;
+    srcSet = null; // No hay srcset para el formato antiguo
+  }
+
 
   const handleAddToCart = () => {
     addToCart(product);
@@ -38,7 +46,6 @@ const ProductCard = React.memo(({ product }) => {
       className="bg-white border border-gray-200 rounded-xl shadow-md flex flex-col overflow-hidden group"
     >
       <Link to={`/product/${product.id}`} className="relative w-full h-56 cursor-pointer block bg-white p-2">
-        {/* --- MODIFICADO: Se añaden los atributos srcSet y sizes --- */}
         <img 
           src={src}
           srcSet={srcSet}
