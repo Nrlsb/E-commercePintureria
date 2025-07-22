@@ -2,7 +2,7 @@
 import React, { Suspense, lazy, useEffect } from 'react';
 import { Routes, Route, useLocation } from 'react-router-dom';
 import { initMercadoPago } from '@mercadopago/sdk-react';
-import { AnimatePresence } from 'framer-motion'; // 1. Importar AnimatePresence
+import { AnimatePresence } from 'framer-motion';
 
 import { useProductStore } from './stores/useProductStore';
 import { useNotificationStore } from './stores/useNotificationStore';
@@ -36,6 +36,7 @@ const CategoryPage = lazy(() => import('./pages/CategoryPage.jsx'));
 const LoginPage = lazy(() => import('./pages/LoginPage.jsx'));
 const RegisterPage = lazy(() => import('./pages/RegisterPage.jsx'));
 const AdminDashboardPage = lazy(() => import('./pages/AdminDashboardPage.jsx'));
+const AdminProductsPage = lazy(() => import('./pages/AdminProductsPage.jsx')); // 1. Importar la nueva página
 const ProductFormPage = lazy(() => import('./pages/ProductFormPage.jsx'));
 const OrderHistoryPage = lazy(() => import('./pages/OrderHistoryPage.jsx'));
 const AdminOrdersPage = lazy(() => import('./pages/AdminOrdersPage.jsx'));
@@ -73,7 +74,6 @@ export default function App() {
             </div>
           }>
           <Routes>
-            {/* ... (el resto de las rutas no cambia) ... */}
             <Route path="/" element={<HomePage />} />
             <Route path="/product/:productId" element={<ProductDetailPage />} />
             <Route path="/cart" element={<CartPage />} />
@@ -93,6 +93,7 @@ export default function App() {
 
             <Route element={<AdminRoute />}>
               <Route path="/admin" element={<AdminDashboardPage />} />
+              <Route path="/admin/products" element={<AdminProductsPage />} /> {/* 2. Añadir la nueva ruta */}
               <Route path="/admin/orders" element={<AdminOrdersPage />} />
               <Route path="/admin/product/new" element={<ProductFormPage />} />
               <Route path="/admin/product/edit/:productId" element={<ProductFormPage />} />
@@ -104,7 +105,6 @@ export default function App() {
         </Suspense>
       </main>
       <Footer />
-      {/* 2. Envolver el componente Notification con AnimatePresence */}
       <AnimatePresence>
         {showNotification && (
           <Notification message={notificationMessage} type={notificationType} />
