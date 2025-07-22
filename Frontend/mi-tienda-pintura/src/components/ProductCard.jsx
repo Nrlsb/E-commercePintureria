@@ -1,7 +1,7 @@
 // src/components/ProductCard.jsx
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion'; // 1. Importar motion
+import { motion } from 'framer-motion';
 import Icon from './Icon.jsx';
 import { ICONS } from '../data/icons.js';
 import StarRating from './StarRating.jsx';
@@ -12,21 +12,24 @@ const ProductCard = React.memo(({ product }) => {
   const addToCart = useCartStore(state => state.addToCart);
   const showNotification = useNotificationStore(state => state.showNotification);
 
-  const imageUrl = product.imageUrl || `https://placehold.co/300x224/cccccc/ffffff?text=${encodeURIComponent(product.name)}`;
+  // --- MODIFICADO: Lógica para manejar tanto el nuevo objeto de URLs como el string antiguo ---
+  const imageUrls = product.imageUrl;
+  const src = imageUrls?.medium || imageUrls || `https://placehold.co/300x224/cccccc/ffffff?text=${encodeURIComponent(product.name)}`;
+  const srcSet = imageUrls && typeof imageUrls === 'object'
+    ? `${imageUrls.small} 400w, ${imageUrls.medium} 800w, ${imageUrls.large} 1200w`
+    : null;
 
   const handleAddToCart = () => {
     addToCart(product);
     showNotification(`${product.name} ha sido agregado al carrito.`);
   };
 
-  // 2. Definir variantes para la animación de la tarjeta
   const cardVariants = {
     rest: { y: 0, scale: 1 },
     hover: { y: -5, scale: 1.03 },
   };
 
   return (
-    // 3. Envolver el componente en motion.div y aplicar las variantes y transiciones
     <motion.div
       variants={cardVariants}
       initial="rest"
@@ -35,8 +38,11 @@ const ProductCard = React.memo(({ product }) => {
       className="bg-white border border-gray-200 rounded-xl shadow-md flex flex-col overflow-hidden group"
     >
       <Link to={`/product/${product.id}`} className="relative w-full h-56 cursor-pointer block bg-white p-2">
+        {/* --- MODIFICADO: Se añaden los atributos srcSet y sizes --- */}
         <img 
-          src={imageUrl}
+          src={src}
+          srcSet={srcSet}
+          sizes="(max-width: 640px) 90vw, (max-width: 1024px) 45vw, 23vw"
           alt={`Imagen de ${product.name}`} 
           className="w-full h-full object-contain"
           loading="lazy"

@@ -5,12 +5,23 @@ import logger from '../logger.js';
 
 const CACHE_EXPIRATION = 3600; // 1 hora en segundos
 
-/**
- * Obtiene una lista paginada y filtrada de productos.
- * Intenta obtener los datos desde la caché de Redis antes de consultar la base de datos.
- * @param {object} filters - Opciones de filtrado y ordenamiento.
- * @returns {Promise<object>} Objeto con la lista de productos y datos de paginación.
- */
+// --- NUEVO: Helper para parsear la URL de la imagen ---
+// Intenta parsear un string JSON. Si falla o no es un JSON, lo trata como una URL de tamaño mediano.
+const parseImageUrl = (imageUrl) => {
+  if (!imageUrl) return null;
+  if (typeof imageUrl === 'object') return imageUrl; // Ya es un objeto
+  try {
+    // Verifica si es un string que parece un objeto JSON
+    if (imageUrl.startsWith('{') && imageUrl.endsWith('}')) {
+      return JSON.parse(imageUrl);
+    }
+  } catch (e) {
+    // Ignora el error de parseo y continúa
+  }
+  // Si no es un JSON válido o es una URL simple, lo devuelve en el formato esperado
+  return { small: imageUrl, medium: imageUrl, large: imageUrl };
+};
+
 export const getActiveProducts = async (filters) => {
   const cacheKey = `products:${JSON.stringify(filters)}`;
 
@@ -19,7 +30,13 @@ export const getActiveProducts = async (filters) => {
       const cachedData = await redisClient.get(cacheKey);
       if (cachedData) {
         logger.debug(`Cache HIT para la clave: ${cacheKey}`);
-        return JSON.parse(cachedData);
+        // Parseamos los datos recuperados de la caché
+        const parsedCache = JSON.parse(cachedData);
+        parsedCache.products = parsedCache.products.map(p => ({
+          ...p,
+          imageUrl: parseImageUrl(p.imageUrl)
+        }));
+        return parsedCache;
       }
     }
   } catch (err) {
@@ -27,18 +44,16 @@ export const getActiveProducts = async (filters) => {
   }
 
   logger.debug(`Cache MISS para la clave: ${cacheKey}. Consultando base de datos.`);
+  // ... (lógica de construcción de query sin cambios) ...
   const { category, sortBy, brands, minPrice, maxPrice, page = 1, limit = 12, searchQuery } = filters;
-
   const queryParams = [];
   let whereClauses = ['p.is_active = true'];
   let paramIndex = 1;
-
   if (searchQuery) {
     whereClauses.push(`(p.name ILIKE $${paramIndex} OR p.brand ILIKE $${paramIndex})`);
     queryParams.push(`%${searchQuery}%`);
     paramIndex++;
   }
-
   if (category) {
     whereClauses.push(`p.category = $${paramIndex++}`);
     queryParams.push(category);
@@ -56,14 +71,11 @@ export const getActiveProducts = async (filters) => {
     whereClauses.push(`p.price <= $${paramIndex++}`);
     queryParams.push(maxPrice);
   }
-
   const whereString = `WHERE ${whereClauses.join(' AND ')}`;
-
   const countQuery = `SELECT COUNT(*) FROM products p ${whereString}`;
   const totalResult = await db.query(countQuery, queryParams);
   const totalProducts = parseInt(totalResult.rows[0].count, 10);
   const totalPages = Math.ceil(totalProducts / limit);
-
   let baseQuery = `
     SELECT 
       p.id, p.name, p.brand, p.category, p.price,
@@ -76,7 +88,6 @@ export const getActiveProducts = async (filters) => {
     ${whereString}
     GROUP BY p.id
   `;
-  
   let orderByClause = ' ORDER BY p.id ASC';
   switch (sortBy) {
     case 'price_asc': orderByClause = ' ORDER BY p.price ASC'; break;
@@ -84,15 +95,20 @@ export const getActiveProducts = async (filters) => {
     case 'rating_desc': orderByClause = ' ORDER BY "averageRating" DESC'; break;
   }
   baseQuery += orderByClause;
-
   const offset = (page - 1) * limit;
   baseQuery += ` LIMIT $${paramIndex++} OFFSET $${paramIndex++}`;
   queryParams.push(limit, offset);
 
   const result = await db.query(baseQuery, queryParams);
   
+  // --- MODIFICADO: Parseamos el campo imageUrl para cada producto ---
+  const productsWithParsedImages = result.rows.map(p => ({
+    ...p,
+    imageUrl: parseImageUrl(p.imageUrl)
+  }));
+
   const responseData = {
-    products: result.rows,
+    products: productsWithParsedImages,
     currentPage: parseInt(page, 10),
     totalPages,
     totalProducts,
@@ -100,6 +116,7 @@ export const getActiveProducts = async (filters) => {
 
   try {
     if (redisClient.isReady) {
+      // Guardamos en caché la respuesta ya procesada (con el objeto de imagen)
       await redisClient.setEx(cacheKey, CACHE_EXPIRATION, JSON.stringify(responseData));
     }
   } catch (err) {
@@ -109,12 +126,6 @@ export const getActiveProducts = async (filters) => {
   return responseData;
 };
 
-/**
- * Obtiene un producto activo por su ID.
- * Intenta obtener los datos desde la caché de Redis antes de consultar la base de datos.
- * @param {number} productId - El ID del producto.
- * @returns {Promise<object|null>} El producto encontrado o null.
- */
 export const getActiveProductById = async (productId) => {
   const cacheKey = `product:${productId}`;
 
@@ -123,7 +134,9 @@ export const getActiveProductById = async (productId) => {
       const cachedData = await redisClient.get(cacheKey);
       if (cachedData) {
         logger.debug(`Cache HIT para la clave: ${cacheKey}`);
-        return JSON.parse(cachedData);
+        const parsedProduct = JSON.parse(cachedData);
+        parsedProduct.imageUrl = parseImageUrl(parsedProduct.imageUrl);
+        return parsedProduct;
       }
     }
   } catch (err) {
@@ -144,16 +157,23 @@ export const getActiveProductById = async (productId) => {
     GROUP BY p.id;
   `;
   const result = await db.query(query, [productId]);
-  const product = result.rows[0] || null;
+  
+  if (!result.rows[0]) {
+    return null;
+  }
+  
+  // --- MODIFICADO: Parseamos el campo imageUrl ---
+  const product = {
+    ...result.rows[0],
+    imageUrl: parseImageUrl(result.rows[0].imageUrl)
+  };
 
-  if (product) {
-    try {
-      if (redisClient.isReady) {
-        await redisClient.setEx(cacheKey, CACHE_EXPIRATION, JSON.stringify(product));
-      }
-    } catch (err) {
-      logger.error('Error al escribir en la caché de Redis:', err);
+  try {
+    if (redisClient.isReady) {
+      await redisClient.setEx(cacheKey, CACHE_EXPIRATION, JSON.stringify(product));
     }
+  } catch (err) {
+    logger.error('Error al escribir en la caché de Redis:', err);
   }
 
   return product;

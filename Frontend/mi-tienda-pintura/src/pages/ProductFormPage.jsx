@@ -8,8 +8,8 @@ import Icon from '../components/Icon';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
-// --- Componente para la subida de imagen (Modificado para pasar el archivo) ---
-const ImageUploader = ({ imageUrl, onUploadSuccess, onFileSelect, token }) => {
+// --- MODIFICADO: El componente ahora maneja un objeto de URLs ---
+const ImageUploader = ({ imageUrls, onUploadSuccess, onFileSelect, token }) => {
   const [uploading, setUploading] = useState(false);
   const showNotification = useNotificationStore(state => state.showNotification);
 
@@ -17,9 +17,7 @@ const ImageUploader = ({ imageUrl, onUploadSuccess, onFileSelect, token }) => {
     const file = e.target.files[0];
     if (!file) return;
 
-    // Pasamos el archivo al componente padre para el análisis de IA
     onFileSelect(file);
-
     setUploading(true);
     const formData = new FormData();
     formData.append('productImage', file);
@@ -34,7 +32,8 @@ const ImageUploader = ({ imageUrl, onUploadSuccess, onFileSelect, token }) => {
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || 'Error al subir la imagen');
       
-      onUploadSuccess(data.imageUrl);
+      // La respuesta ahora es `data.imageUrls` que es un objeto
+      onUploadSuccess(data.imageUrls);
       showNotification('Imagen subida y optimizada con éxito.', 'success');
     } catch (err) {
       showNotification(err.message, 'error');
@@ -43,17 +42,16 @@ const ImageUploader = ({ imageUrl, onUploadSuccess, onFileSelect, token }) => {
     }
   };
   
-  const fullImageUrl = imageUrl && imageUrl.startsWith('http')
-    ? imageUrl
-    : `${API_URL}${imageUrl}`;
+  // Muestra la imagen de tamaño mediano como vista previa
+  const previewUrl = imageUrls?.medium;
 
   return (
     <div>
       <label className="block mb-2 font-medium text-gray-700">Imagen del Producto</label>
       <div className="flex items-center gap-4">
         <div className="w-32 h-32 bg-gray-100 rounded-lg flex items-center justify-center border-2 border-dashed">
-          {imageUrl ? (
-            <img src={fullImageUrl} alt="Vista previa" className="w-full h-full object-contain rounded-lg" />
+          {previewUrl ? (
+            <img src={previewUrl} alt="Vista previa" className="w-full h-full object-contain rounded-lg" />
           ) : (
             <span className="text-sm text-gray-500">Sin imagen</span>
           )}
@@ -90,9 +88,10 @@ const ProductFormPage = () => {
   const token = useAuthStore(state => state.token);
   const showNotification = useNotificationStore(state => state.showNotification);
   
+  // --- MODIFICADO: El estado del producto ahora usa `image_urls` ---
   const [product, setProduct] = useState({
     name: '', brand: '', category: '', price: '', old_price: '',
-    image_url: '', description: '', stock: 0,
+    image_urls: {}, description: '', stock: 0,
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -101,16 +100,21 @@ const ProductFormPage = () => {
 
   const isEditing = Boolean(productId);
 
+  // --- MODIFICADO: El fetch ahora espera `image_url` y lo parsea ---
   useEffect(() => {
     if (isEditing) {
       setLoading(true);
       fetch(`${API_URL}/api/products/${productId}`)
         .then(res => res.ok ? res.json() : Promise.reject(new Error('No se pudo cargar el producto.')))
-        .then(data => setProduct({
-            name: data.name || '', brand: data.brand || '', category: data.category || '',
-            price: data.price || '', old_price: data.old_price || '', image_url: data.image_url || '',
-            description: data.description || '', stock: data.stock || 0,
-        }))
+        .then(data => {
+            // El servicio ya devuelve `imageUrl` como un objeto
+            setProduct({
+                name: data.name || '', brand: data.brand || '', category: data.category || '',
+                price: data.price || '', old_price: data.oldPrice || '', 
+                image_urls: data.imageUrl || {}, // Usamos el objeto directamente
+                description: data.description || '', stock: data.stock || 0,
+            })
+        })
         .catch(err => {
             setError(err.message);
             showNotification(err.message, 'error');
@@ -124,8 +128,8 @@ const ProductFormPage = () => {
     setProduct(prev => ({ ...prev, [name]: value }));
   };
   
-  const handleImageUploadSuccess = (newImageUrl) => {
-    setProduct(prev => ({ ...prev, image_url: newImageUrl }));
+  const handleImageUploadSuccess = (newImageUrls) => {
+    setProduct(prev => ({ ...prev, image_urls: newImageUrls }));
   };
   
   const fileToBase64 = (file) => new Promise((resolve, reject) => {
@@ -136,6 +140,7 @@ const ProductFormPage = () => {
   });
 
   const handleAIDataGeneration = async () => {
+    // ... (lógica sin cambios)
     if (!uploadedImageFile) {
         showNotification('Primero debes seleccionar una imagen.', 'error');
         return;
@@ -169,10 +174,10 @@ const ProductFormPage = () => {
     }
   };
 
-
+  // --- MODIFICADO: El submit ahora stringifica el objeto de URLs ---
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!product.image_url) {
+    if (!product.image_urls || !product.image_urls.medium) {
         showNotification('Por favor, sube una imagen para el producto.', 'error');
         return;
     }
@@ -191,6 +196,7 @@ const ProductFormPage = () => {
             price: parseFloat(product.price) || 0,
             old_price: parseFloat(product.old_price) || null,
             stock: parseInt(product.stock, 10) || 0,
+            image_url: JSON.stringify(product.image_urls), // Enviamos el objeto como string
         }),
       });
 
@@ -230,7 +236,7 @@ const ProductFormPage = () => {
             </div>
 
             <ImageUploader 
-              imageUrl={product.image_url} 
+              imageUrls={product.image_urls} 
               onUploadSuccess={handleImageUploadSuccess}
               onFileSelect={setUploadedImageFile}
               token={token}

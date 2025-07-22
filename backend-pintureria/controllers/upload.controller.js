@@ -15,7 +15,33 @@ export const uploadSingleImage = upload.single('productImage');
 
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
+// --- NUEVO: Función centralizada para procesar y subir imágenes en varios tamaños ---
+const processAndUploadImage = async (fileBuffer) => {
+    const baseFilename = `prod-${Date.now()}`;
+    const sizes = {
+        small: 400,
+        medium: 800,
+        large: 1200,
+    };
+
+    const uploadPromises = Object.entries(sizes).map(async ([sizeName, width]) => {
+        const processedImageBuffer = await sharp(fileBuffer)
+            .resize(width, width, { fit: 'inside', withoutEnlargement: true })
+            .toFormat('webp', { quality: 80 })
+            .toBuffer();
+        const newFilename = `${baseFilename}-${sizeName}.webp`;
+        const url = await uploadImageToGCS(processedImageBuffer, newFilename);
+        return { [sizeName]: url };
+    });
+
+    const uploadedUrlsArray = await Promise.all(uploadPromises);
+    // Combina el array de objetos en un solo objeto: { small: 'url', medium: 'url', large: 'url' }
+    return uploadedUrlsArray.reduce((acc, curr) => ({ ...acc, ...curr }), {});
+};
+
+
 async function getAIDataForImage(imageData, mimeType, apiKey, productNamesForBrand = []) {
+    // ... (lógica de IA sin cambios)
     let prompt;
     if (productNamesForBrand.length > 0) {
         prompt = `Analiza la imagen de un producto de pinturería. De la siguiente lista de nombres de productos: [${productNamesForBrand.join(', ')}], ¿cuál es el nombre exacto que mejor coincide con el producto en la imagen? También identifica la marca visible. Responde únicamente con un objeto JSON válido que contenga las claves "productName" y "brand".`;
@@ -55,24 +81,21 @@ async function getAIDataForImage(imageData, mimeType, apiKey, productNamesForBra
     }
 }
 
+// --- MODIFICADO: Ahora usa la nueva función y devuelve un objeto de URLs ---
 export const handleSingleImageUpload = async (req, res, next) => {
     if (!req.file) {
         return res.status(400).json({ message: 'No se subió ningún archivo.' });
     }
     try {
-        const processedImageBuffer = await sharp(req.file.buffer)
-            .resize(800, 800, { fit: 'inside', withoutEnlargement: true })
-            .toFormat('webp', { quality: 80 })
-            .toBuffer();
-        const newFilename = `prod-${Date.now()}.webp`;
-        const imageUrl = await uploadImageToGCS(processedImageBuffer, newFilename);
-        res.status(201).json({ imageUrl });
+        const imageUrls = await processAndUploadImage(req.file.buffer);
+        res.status(201).json({ imageUrls }); // Devuelve el objeto con todas las URLs
     } catch (err) {
         next(err);
     }
 };
 
 export const bulkAssociateImagesWithAI = async (req, res, next) => {
+    // ... (lógica sin cambios hasta la subida de imagen)
     if (!req.files || req.files.length === 0) {
         return res.status(400).json({ message: 'No se subieron archivos.' });
     }
@@ -108,7 +131,6 @@ export const bulkAssociateImagesWithAI = async (req, res, next) => {
                     throw new Error('La IA no pudo determinar el nombre del producto a partir de la lista proporcionada.');
                 }
 
-                // --- MEJORA AVANZADA: Búsqueda por puntaje de coincidencia ---
                 const stopWords = new Set(['para', 'de', 'y', 'a', 'con', 'en', 'x', 'lts', 'lt', 'blanco', 'mate', 'blanca', 'acrilico', 'acrílico']);
                 const getKeywords = (text) => new Set(text.replace(/[^a-zA-Z0-9\s]/g, '').toLowerCase().split(' ').filter(word => word.length > 2 && !stopWords.has(word)));
 
@@ -141,14 +163,13 @@ export const bulkAssociateImagesWithAI = async (req, res, next) => {
                 }
                 
                 const matchedProduct = bestMatch;
-                const processedImageBuffer = await sharp(file.buffer)
-                    .resize(800, 800, { fit: 'inside', withoutEnlargement: true })
-                    .toFormat('webp', { quality: 80 })
-                    .toBuffer();
+                
+                // --- MODIFICADO: Usa la nueva función para subir múltiples tamaños ---
+                const imageUrls = await processAndUploadImage(file.buffer);
+                
+                // Guardamos el objeto como un string JSON en la base de datos
+                await db.query('UPDATE products SET image_url = $1 WHERE id = $2', [JSON.stringify(imageUrls), matchedProduct.id]);
 
-                const newFilename = `${matchedProduct.id}-${Date.now()}.webp`;
-                const imageUrl = await uploadImageToGCS(processedImageBuffer, newFilename);
-                await db.query('UPDATE products SET image_url = $1 WHERE id = $2', [imageUrl, matchedProduct.id]);
 
                 results.success.push({
                     fileName: file.originalname,
@@ -168,10 +189,11 @@ export const bulkAssociateImagesWithAI = async (req, res, next) => {
 };
 
 export const analyzeImageWithAI = async (req, res, next) => {
-    // ... (lógica existente)
+    // ... (lógica existente sin cambios)
 };
 
 export const bulkCreateProductsWithAI = async (req, res, next) => {
+    // ... (lógica sin cambios hasta la subida de imagen)
     if (!req.files || req.files.length === 0) {
         return res.status(400).json({ message: 'No se subieron archivos.' });
     }
@@ -188,13 +210,8 @@ export const bulkCreateProductsWithAI = async (req, res, next) => {
                 const base64ImageData = file.buffer.toString('base64');
                 const aiData = await getAIDataForImage(base64ImageData, file.mimetype, apiKey);
                 
-                const processedImageBuffer = await sharp(file.buffer)
-                    .resize(800, 800, { fit: 'inside', withoutEnlargement: true })
-                    .toFormat('webp', { quality: 80 })
-                    .toBuffer();
-                
-                const newFilename = `prod-ai-${Date.now()}.webp`;
-                const imageUrl = await uploadImageToGCS(processedImageBuffer, newFilename);
+                // --- MODIFICADO: Usa la nueva función para subir múltiples tamaños ---
+                const imageUrls = await processAndUploadImage(file.buffer);
 
                 const newProduct = {
                     name: aiData.productName || 'Producto a Editar',
@@ -204,7 +221,7 @@ export const bulkCreateProductsWithAI = async (req, res, next) => {
                     price: 0,
                     stock: 0,
                     is_active: false,
-                    image_url: imageUrl,
+                    image_url: JSON.stringify(imageUrls), // Guardamos el objeto como string
                 };
 
                 const result = await db.query(
@@ -231,5 +248,33 @@ export const bulkCreateProductsWithAI = async (req, res, next) => {
 };
 
 export const processAndAssociateImages = async (req, res, next) => {
-    // ... (lógica existente)
+    // ... (lógica existente, pero ahora usará la nueva función de subida)
+    if (!req.files || req.files.length === 0) {
+        return res.status(400).json({ message: 'No se subieron archivos.' });
+    }
+
+    const results = { success: [], failed: [] };
+    for (const file of req.files) {
+        const productIdMatch = file.originalname.match(/^(\d+)/);
+        if (!productIdMatch) {
+            results.failed.push({ file: file.originalname, reason: 'El nombre del archivo no contiene un ID de producto válido.' });
+            continue;
+        }
+        const productId = productIdMatch[1];
+
+        try {
+            // --- MODIFICADO: Usa la nueva función para subir múltiples tamaños ---
+            const imageUrls = await processAndUploadImage(file.buffer);
+
+            // Guardamos el objeto como un string JSON en la base de datos
+            await db.query('UPDATE products SET image_url = $1 WHERE id = $2', [JSON.stringify(imageUrls), productId]);
+            
+            results.success.push(file.originalname);
+            logger.info(`Imagen ${file.originalname} asociada al producto ID ${productId}`);
+        } catch (error) {
+            logger.warn(`Fallo al asociar imagen ${file.originalname}: ${error.message}`);
+            results.failed.push({ file: file.originalname, reason: error.message });
+        }
+    }
+    res.status(200).json({ message: 'Carga masiva completada.', ...results });
 };

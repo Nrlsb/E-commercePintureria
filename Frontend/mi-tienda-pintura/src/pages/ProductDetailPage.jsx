@@ -91,15 +91,6 @@ const ProductDetailPage = () => {
     }
   };
 
-  // Lógica para construir la URL de la imagen
-  const getFullImageUrl = (url) => {
-    if (!url) return 'https://placehold.co/500x500/cccccc/ffffff?text=Imagen+no+disponible';
-    if (url.startsWith('http')) {
-      return url;
-    }
-    return `${API_URL}${url}`;
-  };
-
   const relatedProducts = product 
     ? products.filter(p => p.category === product.category && p.id !== product.id).slice(0, 4)
     : [];
@@ -108,7 +99,12 @@ const ProductDetailPage = () => {
   if (error) return <div className="text-center p-10 text-red-500">Error: {error}</div>;
   if (!product) return null;
   
-  const fullImageUrl = getFullImageUrl(product.imageUrl);
+  // --- MODIFICADO: Lógica para manejar tanto el nuevo objeto de URLs como el string antiguo ---
+  const imageUrls = product.imageUrl;
+  const src = imageUrls?.large || imageUrls || 'https://placehold.co/500x500/cccccc/ffffff?text=Imagen+no+disponible';
+  const srcSet = imageUrls && typeof imageUrls === 'object'
+    ? `${imageUrls.small} 400w, ${imageUrls.medium} 800w, ${imageUrls.large} 1200w`
+    : null;
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -122,8 +118,11 @@ const ProductDetailPage = () => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
         <div className="bg-white p-4 rounded-lg shadow-md flex items-center justify-center">
+          {/* --- MODIFICADO: Se añaden los atributos srcSet y sizes --- */}
           <img 
-            src={fullImageUrl} 
+            src={src}
+            srcSet={srcSet}
+            sizes="(max-width: 768px) 90vw, 45vw"
             alt={`Imagen de ${product.name}`} 
             className="max-w-full h-auto max-h-[500px] object-contain"
             loading="lazy"
@@ -166,7 +165,8 @@ const ProductDetailPage = () => {
           </button>
         </div>
       </div>
-
+      
+      {/* ... (resto del componente sin cambios) ... */}
       <div className="mt-16">
         <div className="border-b border-gray-200">
           <nav className="-mb-px flex space-x-8" aria-label="Tabs">
