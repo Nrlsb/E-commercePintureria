@@ -1,4 +1,4 @@
-// src/pages/AdminOrdersPage.jsx
+// Frontend/mi-tienda-pintura/src/pages/AdminOrdersPage.jsx
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/useAuthStore';
@@ -7,6 +7,7 @@ import OrderDetailModal from '../components/OrderDetailModal';
 import Spinner from '../components/Spinner';
 import ConfirmationModal from '../components/ConfirmationModal';
 import Icon from '../components/Icon';
+import Pagination from '../components/Pagination'; // 1. Importar el componente de paginación
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
@@ -37,20 +38,24 @@ const AdminOrdersPage = () => {
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [filters, setFilters] = useState({ status: '', search: '' });
   
+  // 2. Añadir estados para la paginación
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [actionToConfirm, setActionToConfirm] = useState(null);
 
   const navigate = useNavigate();
   const token = useAuthStore(state => state.token);
   const showNotification = useNotificationStore(state => state.showNotification);
-
-  // --- CORRECCIÓN: Se elimina 'filters' de las dependencias de useCallback ---
-  const fetchOrders = useCallback(async () => {
+  
+  // 3. Modificar fetchOrders para que acepte un número de página
+  const fetchOrders = useCallback(async (pageToFetch) => {
     setLoading(true);
     const params = new URLSearchParams();
-    // Leemos los filtros directamente del estado más reciente al momento de ejecutar.
     if (filters.status) params.append('status', filters.status);
     if (filters.search) params.append('search', filters.search);
+    params.append('page', pageToFetch); // Enviar el número de página a la API
 
     try {
       const response = await fetch(`${API_URL}/api/orders/admin?${params.toString()}`, {
@@ -63,27 +68,34 @@ const AdminOrdersPage = () => {
       }
       if (!response.ok) throw new Error('No se pudieron cargar las órdenes.');
       const data = await response.json();
-      setOrders(data);
+      // 4. Actualizar el estado con los datos de paginación de la API
+      setOrders(data.orders);
+      setCurrentPage(data.currentPage);
+      setTotalPages(data.totalPages);
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, navigate, showNotification]); // Eliminamos 'filters' de aquí
+  }, [token, navigate, showNotification, filters]); // filters ahora es una dependencia
 
-  // --- CORRECCIÓN: useEffect separado para reaccionar a los cambios de filtros ---
   useEffect(() => {
     if (token) {
-      fetchOrders();
+      fetchOrders(currentPage);
     }
-  }, [token, filters, fetchOrders]); // Este effect se ejecuta al inicio y cuando cambian los filtros.
+  }, [token, filters, currentPage, fetchOrders]);
 
   const handleFilterChange = (e) => {
     const { name, value } = e.target;
     setFilters(prev => ({ ...prev, [name]: value }));
+    setCurrentPage(1); // 5. Resetear a la página 1 cuando cambian los filtros
   };
   
+  // 6. Nueva función para manejar el cambio de página desde el componente Pagination
+  const handlePageChange = (page) => {
+    setCurrentPage(page);
+  };
+
   const handleRowClick = async (orderId) => {
     try {
       const response = await fetch(`${API_URL}/api/orders/${orderId}`, {
@@ -127,7 +139,7 @@ const AdminOrdersPage = () => {
       if (!response.ok) throw new Error(data.message || 'Error al procesar la acción.');
       
       showNotification(data.message, 'success');
-      fetchOrders();
+      fetchOrders(currentPage); // Recargar la página actual después de una acción
     } catch (err) {
       showNotification(`Error: ${err.message}`, 'error');
     }
@@ -196,41 +208,49 @@ const AdminOrdersPage = () => {
         ) : error ? (
           <div className="text-center p-10 text-red-500">Error: {error}</div>
         ) : (
-          <table className="w-full text-left">
-            <thead>
-              <tr className="border-b">
-                <th className="p-4">ID Orden</th>
-                <th className="p-4">Cliente</th>
-                <th className="p-4">Fecha</th>
-                <th className="p-4">Total</th>
-                <th className="p-4">Estado</th>
-                <th className="p-4 text-center">Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {orders.map(order => (
-                <tr key={order.id} className="border-b hover:bg-gray-50 cursor-pointer" onClick={() => handleRowClick(order.id)}>
-                  <td className="p-4 font-medium">#{order.id}</td>
-                  <td className="p-4">{order.user_email}</td>
-                  <td className="p-4">{new Date(order.created_at).toLocaleDateString('es-AR')}</td>
-                  <td className="p-4">${new Intl.NumberFormat('es-AR').format(order.total_amount)}</td>
-                  <td className="p-4"><StatusBadge status={order.status} /></td>
-                  <td className="p-4 text-center space-x-2" onClick={(e) => e.stopPropagation()}>
-                    {order.status === 'approved' && (
-                      <button onClick={() => openConfirmationModal('cancel', order.id)} className="bg-red-500 text-white text-xs font-bold py-1 px-2 rounded hover:bg-red-600">
-                        Cancelar
-                      </button>
-                    )}
-                    {order.status === 'pending_transfer' && (
-                      <button onClick={() => openConfirmationModal('confirm', order.id)} className="bg-green-500 text-white text-xs font-bold py-1 px-2 rounded hover:bg-green-600">
-                        Confirmar Pago
-                      </button>
-                    )}
-                  </td>
+          <>
+            <table className="w-full text-left">
+              <thead>
+                <tr className="border-b">
+                  <th className="p-4">ID Orden</th>
+                  <th className="p-4">Cliente</th>
+                  <th className="p-4">Fecha</th>
+                  <th className="p-4">Total</th>
+                  <th className="p-4">Estado</th>
+                  <th className="p-4 text-center">Acciones</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {orders.map(order => (
+                  <tr key={order.id} className="border-b hover:bg-gray-50 cursor-pointer" onClick={() => handleRowClick(order.id)}>
+                    <td className="p-4 font-medium">#{order.id}</td>
+                    <td className="p-4">{order.user_email}</td>
+                    <td className="p-4">{new Date(order.created_at).toLocaleDateString('es-AR')}</td>
+                    <td className="p-4">${new Intl.NumberFormat('es-AR').format(order.total_amount)}</td>
+                    <td className="p-4"><StatusBadge status={order.status} /></td>
+                    <td className="p-4 text-center space-x-2" onClick={(e) => e.stopPropagation()}>
+                      {order.status === 'approved' && (
+                        <button onClick={() => openConfirmationModal('cancel', order.id)} className="bg-red-500 text-white text-xs font-bold py-1 px-2 rounded hover:bg-red-600">
+                          Cancelar
+                        </button>
+                      )}
+                      {order.status === 'pending_transfer' && (
+                        <button onClick={() => openConfirmationModal('confirm', order.id)} className="bg-green-500 text-white text-xs font-bold py-1 px-2 rounded hover:bg-green-600">
+                          Confirmar Pago
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {/* 7. Renderizar el componente de paginación */}
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={handlePageChange}
+            />
+          </>
         )}
       </div>
     </div>

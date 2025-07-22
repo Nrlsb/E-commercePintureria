@@ -256,12 +256,9 @@ export const getOrderHistory = async (req, res, next) => {
 };
 
 export const getAllOrders = async (req, res, next) => {
-    const { status, search } = req.query;
-    let query = `
-        SELECT o.id, o.total_amount, o.status, o.created_at, u.email as user_email 
-        FROM orders o
-        JOIN users u ON o.user_id = u.id
-    `;
+    // 1. Añadir page y limit a los query params, con valores por defecto
+    const { status, search, page = 1, limit = 15 } = req.query;
+    
     const queryParams = [];
     let paramIndex = 1;
     const whereClauses = [];
@@ -277,14 +274,35 @@ export const getAllOrders = async (req, res, next) => {
         paramIndex++;
     }
 
-    if (whereClauses.length > 0) {
-        query += ` WHERE ${whereClauses.join(' AND ')}`;
-    }
+    const whereString = whereClauses.length > 0 ? ` WHERE ${whereClauses.join(' AND ')}` : '';
 
-    query += ' ORDER BY o.created_at DESC';
     try {
-        const result = await db.query(query, queryParams);
-        res.json(result.rows);
+        // 2. Crear una consulta para obtener el conteo total de órdenes que coinciden con los filtros
+        const countQuery = `SELECT COUNT(*) FROM orders o JOIN users u ON o.user_id = u.id ${whereString}`;
+        const totalResult = await db.query(countQuery, queryParams);
+        const totalOrders = parseInt(totalResult.rows[0].count, 10);
+        const totalPages = Math.ceil(totalOrders / limit);
+
+        // 3. Modificar la consulta principal para añadir LIMIT y OFFSET para la paginación
+        const offset = (page - 1) * limit;
+        const ordersQuery = `
+            SELECT o.id, o.total_amount, o.status, o.created_at, u.email as user_email 
+            FROM orders o
+            JOIN users u ON o.user_id = u.id
+            ${whereString}
+            ORDER BY o.created_at DESC
+            LIMIT $${paramIndex++} OFFSET $${paramIndex++}
+        `;
+        
+        const ordersResult = await db.query(ordersQuery, [...queryParams, limit, offset]);
+
+        // 4. Devolver un objeto con los datos de paginación
+        res.json({
+            orders: ordersResult.rows,
+            currentPage: parseInt(page, 10),
+            totalPages,
+            totalOrders,
+        });
     } catch (error) {
         next(error);
     }
