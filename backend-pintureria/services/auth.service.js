@@ -9,11 +9,74 @@ import config from '../config/index.js';
 
 const JWT_SECRET = config.jwtSecret;
 
+// Función auxiliar para generar un token JWT
+const generateToken = (user) => {
+  return jwt.sign(
+    {
+      userId: user.id,
+      email: user.email,
+      role: user.role,
+      firstName: user.first_name,
+      lastName: user.last_name,
+      phone: user.phone,
+    },
+    JWT_SECRET,
+    { expiresIn: '1h' }
+  );
+};
+
+// --- NUEVA FUNCIÓN ---
 /**
- * Registra un nuevo usuario en la base de datos.
- * @param {object} userData - Datos del usuario (email, password, firstName, lastName, phone).
- * @returns {Promise<object>} El usuario creado.
+ * Encuentra un usuario existente por su googleId o email, o crea uno nuevo.
+ * @param {object} profile - El perfil de usuario devuelto por Google.
+ * @returns {Promise<object>} El usuario de la base de datos y un token JWT.
  */
+export const findOrCreateGoogleUser = async (profile) => {
+  const { id: googleId, displayName, emails, name } = profile;
+  const email = emails[0].value;
+
+  try {
+    // 1. Buscar si el usuario ya existe con ese google_id
+    let result = await db.query('SELECT * FROM users WHERE google_id = $1', [googleId]);
+    let user = result.rows[0];
+
+    // 2. Si no existe por google_id, buscar por email
+    if (!user) {
+      result = await db.query('SELECT * FROM users WHERE email = $1', [email]);
+      user = result.rows[0];
+
+      // Si existe por email pero no tiene google_id, se lo añadimos
+      if (user) {
+        result = await db.query(
+          'UPDATE users SET google_id = $1 WHERE id = $2 RETURNING *',
+          [googleId, user.id]
+        );
+        user = result.rows[0];
+        logger.info(`Usuario existente ${email} vinculado con Google ID.`);
+      }
+    }
+
+    // 3. Si el usuario no existe en absoluto, lo creamos
+    if (!user) {
+      const newUserResult = await db.query(
+        'INSERT INTO users (google_id, email, first_name, last_name) VALUES ($1, $2, $3, $4) RETURNING *',
+        [googleId, email, name.givenName || displayName, name.familyName || '']
+      );
+      user = newUserResult.rows[0];
+      logger.info(`Nuevo usuario creado a través de Google: ${email}`);
+    }
+
+    // 4. Generar y devolver el token JWT para el usuario
+    const token = generateToken(user);
+    return { token };
+
+  } catch (err) {
+    logger.error('Error en findOrCreateGoogleUser:', err);
+    throw new Error('Error al procesar la autenticación con Google.');
+  }
+};
+// --- FIN DE LA NUEVA FUNCIÓN ---
+
 export const register = async (userData) => {
   const { email, password, firstName, lastName, phone } = userData;
   if (!email || !password || !firstName || !lastName) {
@@ -41,12 +104,6 @@ export const register = async (userData) => {
   }
 };
 
-/**
- * Autentica a un usuario y devuelve un token JWT.
- * @param {string} email - Email del usuario.
- * @param {string} password - Contraseña del usuario.
- * @returns {Promise<object>} Objeto con el token y los datos del usuario.
- */
 export const login = async (email, password) => {
   if (!email || !password) {
     const error = new Error('Email y contraseña son requeridos.');
@@ -70,18 +127,7 @@ export const login = async (email, password) => {
     throw error;
   }
 
-  const token = jwt.sign(
-    {
-      userId: user.id,
-      email: user.email,
-      role: user.role,
-      firstName: user.first_name,
-      lastName: user.last_name,
-      phone: user.phone, // Añadimos el teléfono al token
-    },
-    JWT_SECRET,
-    { expiresIn: '1h' }
-  );
+  const token = generateToken(user);
 
   logger.info(`Inicio de sesión exitoso para el usuario: ${user.email}`);
   return {
@@ -97,11 +143,6 @@ export const login = async (email, password) => {
   };
 };
 
-/**
- * Inicia el proceso de reseteo de contraseña.
- * @param {string} email - Email del usuario.
- * @returns {Promise<string>} Mensaje de confirmación.
- */
 export const forgotPassword = async (email) => {
     const userResult = await db.query('SELECT * FROM users WHERE email = $1', [email]);
     if (userResult.rows.length === 0) {
@@ -121,12 +162,6 @@ export const forgotPassword = async (email) => {
     return 'Se ha enviado un correo para restablecer la contraseña.';
 };
 
-/**
- * Resetea la contraseña de un usuario usando un token.
- * @param {string} token - El token de reseteo.
- * @param {string} password - La nueva contraseña.
- * @returns {Promise<string>} Mensaje de confirmación.
- */
 export const resetPassword = async (token, password) => {
     if (!password || password.length < 6) {
         const error = new Error('La contraseña debe tener al menos 6 caracteres.');
@@ -159,12 +194,6 @@ export const resetPassword = async (token, password) => {
     return 'Contraseña actualizada con éxito.';
 };
 
-// --- NUEVO: Servicio para refrescar el token ---
-/**
- * Genera un nuevo token JWT para un usuario con sus datos actualizados.
- * @param {number} userId - El ID del usuario.
- * @returns {Promise<string>} El nuevo token JWT.
- */
 export const refreshToken = async (userId) => {
   const result = await db.query('SELECT * FROM users WHERE id = $1', [userId]);
   const user = result.rows[0];
@@ -175,18 +204,7 @@ export const refreshToken = async (userId) => {
     throw error;
   }
 
-  const newToken = jwt.sign(
-    {
-      userId: user.id,
-      email: user.email,
-      role: user.role,
-      firstName: user.first_name,
-      lastName: user.last_name,
-      phone: user.phone,
-    },
-    JWT_SECRET,
-    { expiresIn: '1h' }
-  );
+  const newToken = generateToken(user);
 
   logger.info(`Token refrescado para el usuario: ${user.email}`);
   return newToken;

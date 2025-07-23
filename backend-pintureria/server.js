@@ -2,6 +2,8 @@
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import passport from 'passport'; // 1. Importar passport
+import './config/passport-setup.js'; // 2. Importar la configuración para que se ejecute
 import { startCancelPendingOrdersJob } from './services/cronService.js';
 import expressWinston from 'express-winston';
 import logger from './logger.js';
@@ -19,7 +21,7 @@ import uploadRoutes from './routes/upload.routes.js';
 import utilsRoutes from './routes/utils.routes.js';
 import analyticsRoutes from './routes/analytics.routes.js';
 import wishlistRoutes from './routes/wishlist.routes.js';
-import userRoutes from './routes/user.routes.js'; // 1. Importar rutas de usuario
+import userRoutes from './routes/user.routes.js';
 import errorHandler from './middlewares/errorHandler.js';
 import { handlePaymentNotification } from './controllers/payment.controller.js';
 
@@ -54,6 +56,10 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 
+// --- NUEVO: Inicializar Passport ---
+app.use(passport.initialize());
+// --- FIN DE LA MODIFICACIÓN ---
+
 app.post('/api/payment/notification', express.raw({ type: 'application/json' }), handlePaymentNotification);
 
 app.use(express.json({ limit: '10mb' }));
@@ -82,7 +88,7 @@ app.use('/api/uploads', uploadRoutes);
 app.use('/api/utils', utilsRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/wishlist', wishlistRoutes);
-app.use('/api/user', userRoutes); // 2. Usar las nuevas rutas de usuario
+app.use('/api/user', userRoutes);
 
 startCancelPendingOrdersJob();
 

@@ -29,9 +29,14 @@ const config = {
     keyFileContent: process.env.GCS_KEYFILE_CONTENT,
   },
 
-  // --- NUEVO: Configuración de Redis ---
   redis: {
     url: process.env.REDIS_URL || 'redis://localhost:6379'
+  },
+
+  // --- NUEVO: Configuración de Google OAuth ---
+  google: {
+    clientId: process.env.GOOGLE_CLIENT_ID,
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
   },
   // --- FIN DE LA MODIFICACIÓN ---
 
