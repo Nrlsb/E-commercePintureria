@@ -1,23 +1,25 @@
+// backend-pintureria/routes/auth.routes.js
 import { Router } from 'express';
 import { 
   registerUser, 
   loginUser,
   forgotPassword,
-  resetPassword
+  resetPassword,
+  refreshToken // 1. Importar el nuevo controlador
 } from '../controllers/auth.controller.js';
 import { registerRules, loginRules, validate } from '../middlewares/validators.js';
-// Importamos el nuevo middleware de rate limiting
 import { authLimiter } from '../middlewares/rateLimiter.js';
+import { authenticateToken } from '../middlewares/auth.middleware.js'; // Importar middleware de autenticación
 
 const router = Router();
 
-// Aplicamos el limitador de peticiones a las rutas sensibles antes de la validación
 router.post('/register', authLimiter, registerRules(), validate, registerUser);
 router.post('/login', authLimiter, loginRules(), validate, loginUser);
 router.post('/forgot-password', authLimiter, forgotPassword);
-
-// La ruta de reset-password es menos propensa a ataques de fuerza bruta
-// ya que depende de un token único, por lo que no es estrictamente necesario limitarla.
 router.post('/reset-password/:token', resetPassword);
+
+// 2. Añadir la nueva ruta para refrescar el token.
+//    Requiere un token válido para poder generar uno nuevo.
+router.post('/refresh-token', authenticateToken, refreshToken);
 
 export default router;

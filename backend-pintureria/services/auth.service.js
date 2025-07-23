@@ -5,12 +5,10 @@ import crypto from 'crypto';
 import db from '../db.js';
 import { sendPasswordResetEmail } from '../emailService.js';
 import logger from '../logger.js';
-import config from '../config/index.js'; // Importamos la configuración
+import config from '../config/index.js';
 
-// Usamos el secreto JWT desde el objeto de configuración
 const JWT_SECRET = config.jwtSecret;
 
-// ... (el resto del código del servicio de autenticación no necesita cambios)
 /**
  * Registra un nuevo usuario en la base de datos.
  * @param {object} userData - Datos del usuario (email, password, firstName, lastName, phone).
@@ -79,6 +77,7 @@ export const login = async (email, password) => {
       role: user.role,
       firstName: user.first_name,
       lastName: user.last_name,
+      phone: user.phone, // Añadimos el teléfono al token
     },
     JWT_SECRET,
     { expiresIn: '1h' }
@@ -93,6 +92,7 @@ export const login = async (email, password) => {
       role: user.role,
       firstName: user.first_name,
       lastName: user.last_name,
+      phone: user.phone,
     },
   };
 };
@@ -157,4 +157,37 @@ export const resetPassword = async (token, password) => {
     
     logger.info(`Contraseña actualizada para el usuario: ${user.email}`);
     return 'Contraseña actualizada con éxito.';
+};
+
+// --- NUEVO: Servicio para refrescar el token ---
+/**
+ * Genera un nuevo token JWT para un usuario con sus datos actualizados.
+ * @param {number} userId - El ID del usuario.
+ * @returns {Promise<string>} El nuevo token JWT.
+ */
+export const refreshToken = async (userId) => {
+  const result = await db.query('SELECT * FROM users WHERE id = $1', [userId]);
+  const user = result.rows[0];
+
+  if (!user) {
+    const error = new Error('Usuario no encontrado.');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const newToken = jwt.sign(
+    {
+      userId: user.id,
+      email: user.email,
+      role: user.role,
+      firstName: user.first_name,
+      lastName: user.last_name,
+      phone: user.phone,
+    },
+    JWT_SECRET,
+    { expiresIn: '1h' }
+  );
+
+  logger.info(`Token refrescado para el usuario: ${user.email}`);
+  return newToken;
 };

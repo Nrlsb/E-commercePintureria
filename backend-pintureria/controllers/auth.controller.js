@@ -50,3 +50,18 @@ export const resetPassword = async (req, res, next) => {
     next(error);
   }
 };
+
+// --- NUEVO: Controlador para refrescar el token ---
+export const refreshToken = async (req, res, next) => {
+  try {
+    // req.user es añadido por el middleware authenticateToken
+    const userId = req.user.userId; 
+    const newToken = await authService.refreshToken(userId);
+    res.json({ token: newToken });
+  } catch (err) {
+    if (err.statusCode) {
+      return res.status(err.statusCode).json({ message: err.message });
+    }
+    next(err);
+  }
+};
