@@ -24,7 +24,7 @@ export const useAuthStore = create(
           token: newToken,
           user: parseJwt(newToken),
         });
-        // 2. Al iniciar sesión, cargar la lista de deseos del usuario.
+        // 2. Al iniciar sesión, cargar la lista de deseos  del usuario.
         useWishlistStore.getState().fetchWishlist(newToken);
       },
 
