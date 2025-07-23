@@ -7,7 +7,7 @@ import { useAuthStore } from '../stores/useAuthStore';
 import { useCartStore } from '../stores/useCartStore';
 import { useProductStore } from '../stores/useProductStore';
 
-// --- Componente de Menú de Usuario para Escritorio (sin cambios) ---
+// --- Componente de Menú de Usuario para Escritorio (MODIFICADO) ---
 const UserMenuDesktop = () => {
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef(null);
@@ -50,6 +50,10 @@ const UserMenuDesktop = () => {
           <Link to="/my-orders" onClick={() => setIsOpen(false)} className="block px-4 py-2 text-sm hover:bg-gray-100">
             Mis Compras
           </Link>
+          {/* --- AÑADIDO: Enlace a la Lista de Deseos --- */}
+          <Link to="/wishlist" onClick={() => setIsOpen(false)} className="block px-4 py-2 text-sm hover:bg-gray-100">
+            Mi Lista de Deseos
+          </Link>
           <button onClick={handleLogout} className="w-full text-left block px-4 py-2 text-sm hover:bg-gray-100">
             Salir
           </button>
@@ -77,31 +81,22 @@ const Header = () => {
     const timerId = setTimeout(() => {
       if (localQuery.trim() !== '' && localQuery !== searchQuery) {
         if (location.pathname === '/search') {
-          // --- CORRECCIÓN SUTIL ---
-          // Ahora llamamos a setSearchQuery aquí también para que el estado global esté siempre sincronizado.
           setSearchQuery(localQuery.trim());
-          fetchProducts(null, 1); // Pasamos null como categoría para que busque en todos los productos.
+          fetchProducts(null, 1);
         }
       }
     }, 500);
 
     return () => clearTimeout(timerId);
-  // --- CORRECCIÓN DE DEPENDENCIA ---
-  // El fetchProducts del store no necesita ser una dependencia aquí, evitamos ejecuciones innecesarias.
-  }, [localQuery, searchQuery, location.pathname, setSearchQuery]);
+  }, [localQuery, searchQuery, location.pathname, setSearchQuery, fetchProducts]);
 
 
   const handleSubmit = (e) => {
     e.preventDefault();
     const trimmedQuery = localQuery.trim();
     if (trimmedQuery) {
-      // --- CORRECCIÓN CLAVE ---
-      // Aquí es donde faltaba actualizar el estado global.
-      // 1. Actualizamos el `searchQuery` en el store.
       setSearchQuery(trimmedQuery);
-      // 2. Llamamos a `fetchProducts` (ahora sin argumentos, tomará el `searchQuery` del store).
       fetchProducts(null, 1);
-      // 3. Navegamos a la página de resultados.
       navigate('/search');
       if (isMenuOpen) setIsMenuOpen(false);
     }
@@ -185,7 +180,7 @@ const Header = () => {
         </div>
       </div>
 
-      {/* Panel Lateral para Móvil (sin cambios) */}
+      {/* Panel Lateral para Móvil (MODIFICADO) */}
       {isMenuOpen && (
         <div className={`fixed top-0 left-0 w-full h-full bg-black bg-opacity-50 z-40 transition-opacity duration-300`} onClick={() => setIsMenuOpen(false)}>
           <div className={`fixed top-0 right-0 w-4/5 max-w-sm h-full bg-[#0F3460] shadow-xl z-50 transform transition-transform duration-300 ease-in-out ${isMenuOpen ? 'translate-x-0' : 'translate-x-full'}`} onClick={(e) => e.stopPropagation()}>
@@ -207,6 +202,8 @@ const Header = () => {
                       <Link to="/admin" onClick={handleMobileLinkClick} className="px-4 py-2 hover:bg-[#1a4a8a] rounded-md">Panel Admin</Link>
                     )}
                     <Link to="/my-orders" onClick={handleMobileLinkClick} className="px-4 py-2 hover:bg-[#1a4a8a] rounded-md">Mis Compras</Link>
+                    {/* --- AÑADIDO: Enlace a la Lista de Deseos (móvil) --- */}
+                    <Link to="/wishlist" onClick={handleMobileLinkClick} className="px-4 py-2 hover:bg-[#1a4a8a] rounded-md">Mi Lista de Deseos</Link>
                     <button onClick={handleMobileLogout} className="w-full text-left px-4 py-2 hover:bg-[#1a4a8a] rounded-md">Salir</button>
                   </>
                 ) : (
