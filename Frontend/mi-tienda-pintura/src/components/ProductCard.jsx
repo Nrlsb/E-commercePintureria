@@ -9,10 +9,12 @@ import { useCartStore } from '../stores/useCartStore.js';
 import { useNotificationStore } from '../stores/useNotificationStore.js';
 import { useWishlistStore } from '../stores/useWishlistStore.js';
 import { useAuthStore } from '../stores/useAuthStore.js';
+import { useProductStore } from '../stores/useProductStore.js'; // 1. Importar el store de productos
 
 const ProductCard = React.memo(({ product }) => {
   const addToCart = useCartStore(state => state.addToCart);
   const showNotification = useNotificationStore(state => state.showNotification);
+  const openQuickView = useProductStore(state => state.openQuickView); // 2. Obtener la acción para abrir el modal
   
   const { wishlistProductIds, toggleWishlistItem } = useWishlistStore();
   const { user, token } = useAuthStore();
@@ -42,6 +44,13 @@ const ProductCard = React.memo(({ product }) => {
         return;
     }
     toggleWishlistItem(product, token);
+  };
+  
+  // 3. Handler para el botón de vista rápida
+  const handleQuickViewClick = (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    openQuickView(product);
   };
 
   const cardVariants = {
@@ -81,6 +90,18 @@ const ProductCard = React.memo(({ product }) => {
           height="224"
           onError={(e) => { e.target.onerror = null; e.target.src=`https://placehold.co/300x224/cccccc/ffffff?text=Imagen+no+disponible`; }}
         />
+        {/* 4. Botón de Vista Rápida que aparece al hacer hover */}
+        <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-opacity duration-300 flex items-center justify-center">
+            <motion.button
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 }}
+                onClick={handleQuickViewClick}
+                className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-white text-gray-800 font-bold py-2 px-4 rounded-lg"
+            >
+                Vista Rápida
+            </motion.button>
+        </div>
       </Link>
       <div className="p-4 flex flex-col flex-grow">
         <h3 className="text-gray-500 text-xs uppercase tracking-widest mb-1">{product.brand}</h3>
@@ -101,9 +122,8 @@ const ProductCard = React.memo(({ product }) => {
               <p className="text-md text-gray-400 line-through ml-2">${new Intl.NumberFormat('es-AR').format(product.oldPrice)}</p>
             )}
           </div>
-          {/* 1. Añadir motion al botón para feedback visual */}
           <motion.button
-              whileTap={{ scale: 0.95 }} // Efecto al presionar
+              whileTap={{ scale: 0.95 }}
               onClick={handleAddToCart}
               disabled={product.stock === 0}
               className="w-full flex items-center justify-center bg-[#0F3460] text-white py-2.5 px-4 rounded-lg font-semibold hover:bg-[#1a4a8a] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#0F3460] transition-colors duration-300 disabled:bg-gray-400 disabled:cursor-not-allowed"

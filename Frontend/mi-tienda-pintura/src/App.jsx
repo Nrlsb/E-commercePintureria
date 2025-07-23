@@ -15,6 +15,7 @@ import Notification from './components/Notification.jsx';
 import Spinner from './components/Spinner.jsx';
 import AdminRoute from './components/AdminRoute.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
+import QuickViewModal from './components/QuickViewModal.jsx'; // 1. Importar el nuevo modal
 
 const ScrollToTop = () => {
   const { pathname } = useLocation();
@@ -46,7 +47,7 @@ const BulkUploadPage = lazy(() => import('./pages/BulkUploadPage.jsx'));
 const BulkCreateAIPage = lazy(() => import('./pages/BulkCreateAIPage.jsx'));
 const BulkAssociateAIPage = lazy(() => import('./pages/BulkAssociateAIPage.jsx'));
 const WishlistPage = lazy(() => import('./pages/WishlistPage.jsx'));
-const ProfilePage = lazy(() => import('./pages/ProfilePage.jsx')); // 1. Importar la nueva página
+const ProfilePage = lazy(() => import('./pages/ProfilePage.jsx'));
 
 const MERCADOPAGO_PUBLIC_KEY = import.meta.env.VITE_MERCADOPAGO_PUBLIC_KEY;
 
@@ -57,7 +58,12 @@ if (MERCADOPAGO_PUBLIC_KEY) {
 }
 
 export default function App() {
-  const fetchAvailableBrands = useProductStore(state => state.fetchAvailableBrands);
+  // 2. Obtener el estado y la acción del store de productos
+  const { fetchAvailableBrands, quickViewProduct, closeQuickView } = useProductStore(state => ({
+      fetchAvailableBrands: state.fetchAvailableBrands,
+      quickViewProduct: state.quickViewProduct,
+      closeQuickView: state.closeQuickView,
+  }));
   const { message: notificationMessage, show: showNotification, type: notificationType } = useNotificationStore();
   const location = useLocation();
 
@@ -94,15 +100,13 @@ export default function App() {
             <Route path="/register" element={<RegisterPage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
-
             <Route element={<ProtectedRoute />}>
               <Route path="/checkout" element={<CheckoutPage />} />
               <Route path="/my-orders" element={<OrderHistoryPage />} />
               <Route path="/order-pending/:orderId" element={<OrderPendingPage />} />
               <Route path="/wishlist" element={<WishlistPage />} />
-              <Route path="/profile" element={<ProfilePage />} /> {/* 2. Añadir la nueva ruta */}
+              <Route path="/profile" element={<ProfilePage />} />
             </Route>
-
             <Route element={<AdminRoute />}>
               <Route path="/admin" element={<AdminDashboardPage />} />
               <Route path="/admin/products" element={<AdminProductsPage />} />
@@ -117,7 +121,12 @@ export default function App() {
         </Suspense>
       </motion.main>
       <Footer />
+      
+      {/* 3. Renderizar el modal y las notificaciones con AnimatePresence */}
       <AnimatePresence>
+        {quickViewProduct && (
+          <QuickViewModal product={quickViewProduct} onClose={closeQuickView} />
+        )}
         {showNotification && (
           <Notification message={notificationMessage} type={notificationType} />
         )}

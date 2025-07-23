@@ -12,6 +12,9 @@ export const useProductStore = create((set, get) => ({
   error: null,
   searchQuery: '',
   
+  // --- NUEVO: Estado para la vista rápida ---
+  quickViewProduct: null,
+
   filters: {
     brands: [],
     minPrice: '',
@@ -34,12 +37,10 @@ export const useProductStore = create((set, get) => ({
 
   fetchProducts: async (category, page = 1) => {
     set({ loading: true, error: null });
-    // --- MODIFICADO: Obtenemos 'searchQuery' del estado ---
     const { filters, sortOption, searchQuery } = get();
     
     const params = new URLSearchParams();
 
-    // --- NUEVO: Añadimos el término de búsqueda a los parámetros de la API ---
     if (searchQuery) {
       params.append('searchQuery', searchQuery);
     }
@@ -95,4 +96,8 @@ export const useProductStore = create((set, get) => ({
   },
 
   setSearchQuery: (query) => set({ searchQuery: query }),
+
+  // --- NUEVO: Acciones para la vista rápida ---
+  openQuickView: (product) => set({ quickViewProduct: product }),
+  closeQuickView: () => set({ quickViewProduct: null }),
 }));
