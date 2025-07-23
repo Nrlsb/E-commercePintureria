@@ -1,4 +1,4 @@
-// src/App.jsx
+// Frontend/mi-tienda-pintura/src/App.jsx
 import React, { Suspense, lazy, useEffect } from 'react';
 import { Routes, Route, useLocation } from 'react-router-dom';
 import { initMercadoPago } from '@mercadopago/sdk-react';
@@ -24,6 +24,10 @@ const ScrollToTop = () => {
   }, [pathname]);
   return null;
 };
+
+// --- NUEVO: Importar la página de callback ---
+const AuthCallbackPage = lazy(() => import('./pages/AuthCallbackPage.jsx'));
+// --- FIN DE LA MODIFICACIÓN ---
 
 // Lazy Loading de Páginas
 const HomePage = lazy(() => import('./pages/HomePage.jsx'));
@@ -98,6 +102,11 @@ export default function App() {
             <Route path="/category/:categoryName" element={<CategoryPage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
+            
+            {/* --- NUEVA RUTA --- */}
+            <Route path="/auth/callback" element={<AuthCallbackPage />} />
+            {/* --- FIN DE LA NUEVA RUTA --- */}
+
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
 
