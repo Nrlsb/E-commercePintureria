@@ -42,6 +42,10 @@ const UserMenuDesktop = () => {
 
       {isOpen && (
         <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50 text-gray-800">
+          {/* --- AÑADIDO: Enlace a la página de Perfil --- */}
+          <Link to="/profile" onClick={() => setIsOpen(false)} className="block px-4 py-2 text-sm hover:bg-gray-100">
+            Mi Perfil
+          </Link>
           {user.role === 'admin' && (
             <Link to="/admin" onClick={() => setIsOpen(false)} className="block px-4 py-2 text-sm hover:bg-gray-100">
               Panel Admin
@@ -50,7 +54,6 @@ const UserMenuDesktop = () => {
           <Link to="/my-orders" onClick={() => setIsOpen(false)} className="block px-4 py-2 text-sm hover:bg-gray-100">
             Mis Compras
           </Link>
-          {/* --- AÑADIDO: Enlace a la Lista de Deseos --- */}
           <Link to="/wishlist" onClick={() => setIsOpen(false)} className="block px-4 py-2 text-sm hover:bg-gray-100">
             Mi Lista de Deseos
           </Link>
@@ -198,11 +201,12 @@ const Header = () => {
                   <>
                     <div className="px-4 py-2 text-white font-semibold">Hola, {user.email.split('@')[0]}</div>
                     <hr className="border-gray-500"/>
+                    {/* --- AÑADIDO: Enlace a la página de Perfil (móvil) --- */}
+                    <Link to="/profile" onClick={handleMobileLinkClick} className="px-4 py-2 hover:bg-[#1a4a8a] rounded-md">Mi Perfil</Link>
                     {user.role === 'admin' && (
                       <Link to="/admin" onClick={handleMobileLinkClick} className="px-4 py-2 hover:bg-[#1a4a8a] rounded-md">Panel Admin</Link>
                     )}
                     <Link to="/my-orders" onClick={handleMobileLinkClick} className="px-4 py-2 hover:bg-[#1a4a8a] rounded-md">Mis Compras</Link>
-                    {/* --- AÑADIDO: Enlace a la Lista de Deseos (móvil) --- */}
                     <Link to="/wishlist" onClick={handleMobileLinkClick} className="px-4 py-2 hover:bg-[#1a4a8a] rounded-md">Mi Lista de Deseos</Link>
                     <button onClick={handleMobileLogout} className="w-full text-left px-4 py-2 hover:bg-[#1a4a8a] rounded-md">Salir</button>
                   </>

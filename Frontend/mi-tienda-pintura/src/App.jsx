@@ -2,7 +2,6 @@
 import React, { Suspense, lazy, useEffect } from 'react';
 import { Routes, Route, useLocation } from 'react-router-dom';
 import { initMercadoPago } from '@mercadopago/sdk-react';
-// 1. Importar motion de framer-motion
 import { AnimatePresence, motion } from 'framer-motion';
 
 import { useProductStore } from './stores/useProductStore';
@@ -47,6 +46,7 @@ const BulkUploadPage = lazy(() => import('./pages/BulkUploadPage.jsx'));
 const BulkCreateAIPage = lazy(() => import('./pages/BulkCreateAIPage.jsx'));
 const BulkAssociateAIPage = lazy(() => import('./pages/BulkAssociateAIPage.jsx'));
 const WishlistPage = lazy(() => import('./pages/WishlistPage.jsx'));
+const ProfilePage = lazy(() => import('./pages/ProfilePage.jsx')); // 1. Importar la nueva página
 
 const MERCADOPAGO_PUBLIC_KEY = import.meta.env.VITE_MERCADOPAGO_PUBLIC_KEY;
 
@@ -59,7 +59,7 @@ if (MERCADOPAGO_PUBLIC_KEY) {
 export default function App() {
   const fetchAvailableBrands = useProductStore(state => state.fetchAvailableBrands);
   const { message: notificationMessage, show: showNotification, type: notificationType } = useNotificationStore();
-  const location = useLocation(); // 2. Obtener la ubicación para usarla como key en AnimatePresence
+  const location = useLocation();
 
   useEffect(() => {
     fetchAvailableBrands();
@@ -70,9 +70,8 @@ export default function App() {
       <Header />
       <Navbar />
       <ScrollToTop />
-      {/* 3. Reemplazar <main> con motion.main y añadir variantes de animación */}
       <motion.main
-        key={location.pathname} // 4. La key ayuda a AnimatePresence a detectar el cambio de página
+        key={location.pathname}
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: -20 }}
@@ -84,7 +83,6 @@ export default function App() {
               <Spinner className="w-12 h-12 text-[#0F3460]" />
             </div>
           }>
-          {/* 5. AnimatePresence ya estaba, lo cual es perfecto para las notificaciones. No se necesita otro para las rutas. */}
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/product/:productId" element={<ProductDetailPage />} />
@@ -102,6 +100,7 @@ export default function App() {
               <Route path="/my-orders" element={<OrderHistoryPage />} />
               <Route path="/order-pending/:orderId" element={<OrderPendingPage />} />
               <Route path="/wishlist" element={<WishlistPage />} />
+              <Route path="/profile" element={<ProfilePage />} /> {/* 2. Añadir la nueva ruta */}
             </Route>
 
             <Route element={<AdminRoute />}>

@@ -18,7 +18,8 @@ import couponRoutes from './routes/coupons.routes.js';
 import uploadRoutes from './routes/upload.routes.js';
 import utilsRoutes from './routes/utils.routes.js';
 import analyticsRoutes from './routes/analytics.routes.js';
-import wishlistRoutes from './routes/wishlist.routes.js'; // 1. Importar rutas de wishlist
+import wishlistRoutes from './routes/wishlist.routes.js';
+import userRoutes from './routes/user.routes.js'; // 1. Importar rutas de usuario
 import errorHandler from './middlewares/errorHandler.js';
 import { handlePaymentNotification } from './controllers/payment.controller.js';
 
@@ -80,7 +81,8 @@ app.use('/api/coupons', couponRoutes);
 app.use('/api/uploads', uploadRoutes);
 app.use('/api/utils', utilsRoutes);
 app.use('/api/analytics', analyticsRoutes);
-app.use('/api/wishlist', wishlistRoutes); // 2. Usar las nuevas rutas
+app.use('/api/wishlist', wishlistRoutes);
+app.use('/api/user', userRoutes); // 2. Usar las nuevas rutas de usuario
 
 startCancelPendingOrdersJob();
 
