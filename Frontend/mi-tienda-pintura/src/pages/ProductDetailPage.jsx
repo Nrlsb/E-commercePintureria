@@ -1,6 +1,7 @@
 // src/pages/ProductDetailPage.jsx
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { motion } from 'framer-motion'; // 1. Importar motion
 import ProductCard from '../components/ProductCard.jsx';
 import StarRating from '../components/StarRating.jsx';
 import ReviewList from '../components/ReviewList.jsx';
@@ -99,7 +100,6 @@ const ProductDetailPage = () => {
   if (error) return <div className="text-center p-10 text-red-500">Error: {error}</div>;
   if (!product) return null;
   
-  // --- MODIFICADO: Lógica para manejar tanto el nuevo objeto de URLs como el string antiguo ---
   const imageUrls = product.imageUrl;
   const src = imageUrls?.large || imageUrls || 'https://placehold.co/500x500/cccccc/ffffff?text=Imagen+no+disponible';
   const srcSet = imageUrls && typeof imageUrls === 'object'
@@ -116,9 +116,14 @@ const ProductDetailPage = () => {
         <span className="font-medium text-gray-700">{product.name}</span>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+      {/* 2. Envolver el grid principal con motion.div para animar su aparición */}
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="grid grid-cols-1 md:grid-cols-2 gap-12"
+      >
         <div className="bg-white p-4 rounded-lg shadow-md flex items-center justify-center">
-          {/* --- MODIFICADO: Se añaden los atributos srcSet y sizes --- */}
           <img 
             src={src}
             srcSet={srcSet}
@@ -156,17 +161,17 @@ const ProductDetailPage = () => {
             {product.stock > 5 && <span className="text-sm text-gray-500">({product.stock} disponibles)</span>}
           </div>
           
-          <button 
+          <motion.button 
+            whileTap={{ scale: 0.97 }} // 3. Añadir feedback al botón
             onClick={handleAddToCartClick} 
             disabled={product.stock === 0}
             className="w-full bg-[#0F3460] text-white py-4 px-6 rounded-lg font-bold text-lg hover:bg-[#1a4a8a] transition-colors duration-300 disabled:bg-gray-400 disabled:cursor-not-allowed"
           >
             {product.stock > 0 ? 'Agregar al Carrito' : 'Sin Stock'}
-          </button>
+          </motion.button>
         </div>
-      </div>
+      </motion.div>
       
-      {/* ... (resto del componente sin cambios) ... */}
       <div className="mt-16">
         <div className="border-b border-gray-200">
           <nav className="-mb-px flex space-x-8" aria-label="Tabs">

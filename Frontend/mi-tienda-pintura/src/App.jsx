@@ -2,7 +2,8 @@
 import React, { Suspense, lazy, useEffect } from 'react';
 import { Routes, Route, useLocation } from 'react-router-dom';
 import { initMercadoPago } from '@mercadopago/sdk-react';
-import { AnimatePresence } from 'framer-motion';
+// 1. Importar motion de framer-motion
+import { AnimatePresence, motion } from 'framer-motion';
 
 import { useProductStore } from './stores/useProductStore';
 import { useNotificationStore } from './stores/useNotificationStore';
@@ -45,7 +46,7 @@ const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage.jsx'));
 const BulkUploadPage = lazy(() => import('./pages/BulkUploadPage.jsx'));
 const BulkCreateAIPage = lazy(() => import('./pages/BulkCreateAIPage.jsx'));
 const BulkAssociateAIPage = lazy(() => import('./pages/BulkAssociateAIPage.jsx'));
-const WishlistPage = lazy(() => import('./pages/WishlistPage.jsx')); // 1. Importar WishlistPage
+const WishlistPage = lazy(() => import('./pages/WishlistPage.jsx'));
 
 const MERCADOPAGO_PUBLIC_KEY = import.meta.env.VITE_MERCADOPAGO_PUBLIC_KEY;
 
@@ -58,6 +59,7 @@ if (MERCADOPAGO_PUBLIC_KEY) {
 export default function App() {
   const fetchAvailableBrands = useProductStore(state => state.fetchAvailableBrands);
   const { message: notificationMessage, show: showNotification, type: notificationType } = useNotificationStore();
+  const location = useLocation(); // 2. Obtener la ubicación para usarla como key en AnimatePresence
 
   useEffect(() => {
     fetchAvailableBrands();
@@ -68,12 +70,21 @@ export default function App() {
       <Header />
       <Navbar />
       <ScrollToTop />
-      <main className="flex-grow container mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col">
+      {/* 3. Reemplazar <main> con motion.main y añadir variantes de animación */}
+      <motion.main
+        key={location.pathname} // 4. La key ayuda a AnimatePresence a detectar el cambio de página
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -20 }}
+        transition={{ duration: 0.3 }}
+        className="flex-grow container mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col"
+      >
         <Suspense fallback={
             <div className="flex-grow flex items-center justify-center">
               <Spinner className="w-12 h-12 text-[#0F3460]" />
             </div>
           }>
+          {/* 5. AnimatePresence ya estaba, lo cual es perfecto para las notificaciones. No se necesita otro para las rutas. */}
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/product/:productId" element={<ProductDetailPage />} />
@@ -90,7 +101,7 @@ export default function App() {
               <Route path="/checkout" element={<CheckoutPage />} />
               <Route path="/my-orders" element={<OrderHistoryPage />} />
               <Route path="/order-pending/:orderId" element={<OrderPendingPage />} />
-              <Route path="/wishlist" element={<WishlistPage />} /> {/* 2. Añadir la ruta de wishlist */}
+              <Route path="/wishlist" element={<WishlistPage />} />
             </Route>
 
             <Route element={<AdminRoute />}>
@@ -105,7 +116,7 @@ export default function App() {
             </Route>
           </Routes>
         </Suspense>
-      </main>
+      </motion.main>
       <Footer />
       <AnimatePresence>
         {showNotification && (

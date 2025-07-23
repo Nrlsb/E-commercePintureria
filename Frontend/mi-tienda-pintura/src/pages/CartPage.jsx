@@ -1,6 +1,7 @@
 // src/pages/CartPage.jsx
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion'; // 1. Importar AnimatePresence y motion
 import { useCartStore } from '../stores/useCartStore';
 import { useAuthStore } from '../stores/useAuthStore';
 import Spinner from '../components/Spinner';
@@ -33,10 +34,9 @@ const CartPage = () => {
     }
   };
 
-  // --- NUEVO: Helper para obtener la URL de la imagen del carrito ---
   const getCartItemImageUrl = (item) => {
     if (item.imageUrl && typeof item.imageUrl === 'object') {
-      return item.imageUrl.small || item.imageUrl.medium; // Usa la imagen pequeña o mediana
+      return item.imageUrl.small || item.imageUrl.medium;
     }
     return item.imageUrl || `https://placehold.co/100x100/cccccc/ffffff?text=Img`;
   };
@@ -62,31 +62,41 @@ const CartPage = () => {
         
         <div className="lg:col-span-2 bg-white p-6 rounded-lg shadow-md">
           <div className="space-y-6">
-            {cart.map(item => (
-              <div key={item.id} className="flex flex-col sm:flex-row items-center justify-between border-b pb-6 last:border-b-0">
-                <div className="flex items-center mb-4 sm:mb-0">
-                  {/* --- MODIFICADO: Usa la nueva función para obtener la URL --- */}
-                  <img src={getCartItemImageUrl(item)} alt={item.name} className="w-24 h-24 object-cover rounded-md mr-4" />
-                  <div>
-                    <h3 className="font-semibold text-lg text-gray-800">{item.name}</h3>
-                    <p className="text-gray-500">{item.brand}</p>
+            {/* 2. Envolver la lista de productos con AnimatePresence */}
+            <AnimatePresence>
+              {cart.map(item => (
+                // 3. Convertir cada item del carrito en un motion.div para animar su entrada y salida
+                <motion.div
+                  key={item.id}
+                  layout // Anima el cambio de posición cuando otros elementos se eliminan
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, x: -50, transition: { duration: 0.2 } }}
+                  className="flex flex-col sm:flex-row items-center justify-between border-b pb-6 last:border-b-0"
+                >
+                  <div className="flex items-center mb-4 sm:mb-0">
+                    <img src={getCartItemImageUrl(item)} alt={item.name} className="w-24 h-24 object-cover rounded-md mr-4" />
+                    <div>
+                      <h3 className="font-semibold text-lg text-gray-800">{item.name}</h3>
+                      <p className="text-gray-500">{item.brand}</p>
+                    </div>
                   </div>
-                </div>
-                <div className="flex items-center space-x-4">
-                  <div className="flex items-center border border-gray-300 rounded-md">
-                    <button onClick={() => updateQuantity(item.id, item.quantity - 1)} className="px-3 py-1 text-lg font-bold hover:bg-gray-100 rounded-l-md transition-colors">-</button>
-                    <span className="px-4 py-1 text-lg">{item.quantity}</span>
-                    <button onClick={() => updateQuantity(item.id, item.quantity + 1)} className="px-3 py-1 text-lg font-bold hover:bg-gray-100 rounded-r-md transition-colors">+</button>
+                  <div className="flex items-center space-x-4">
+                    <div className="flex items-center border border-gray-300 rounded-md">
+                      <button onClick={() => updateQuantity(item.id, item.quantity - 1)} className="px-3 py-1 text-lg font-bold hover:bg-gray-100 rounded-l-md transition-colors">-</button>
+                      <span className="px-4 py-1 text-lg">{item.quantity}</span>
+                      <button onClick={() => updateQuantity(item.id, item.quantity + 1)} className="px-3 py-1 text-lg font-bold hover:bg-gray-100 rounded-r-md transition-colors">+</button>
+                    </div>
+                    <p className="font-bold text-lg w-28 text-right">${new Intl.NumberFormat('es-AR').format(calculateSubtotal(item))}</p>
+                    <button onClick={() => removeItem(item.id)} className="text-gray-400 hover:text-red-500 transition-colors">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
                   </div>
-                  <p className="font-bold text-lg w-28 text-right">${new Intl.NumberFormat('es-AR').format(calculateSubtotal(item))}</p>
-                  <button onClick={() => removeItem(item.id)} className="text-gray-400 hover:text-red-500 transition-colors">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                  </button>
-                </div>
-              </div>
-            ))}
+                </motion.div>
+              ))}
+            </AnimatePresence>
           </div>
         </div>
 

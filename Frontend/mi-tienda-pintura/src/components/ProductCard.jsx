@@ -7,14 +7,13 @@ import { ICONS } from '../data/icons.js';
 import StarRating from './StarRating.jsx';
 import { useCartStore } from '../stores/useCartStore.js';
 import { useNotificationStore } from '../stores/useNotificationStore.js';
-import { useWishlistStore } from '../stores/useWishlistStore.js'; // 1. Importar store de wishlist
+import { useWishlistStore } from '../stores/useWishlistStore.js';
 import { useAuthStore } from '../stores/useAuthStore.js';
 
 const ProductCard = React.memo(({ product }) => {
   const addToCart = useCartStore(state => state.addToCart);
   const showNotification = useNotificationStore(state => state.showNotification);
   
-  // 2. Obtener estado y acciones de la wishlist
   const { wishlistProductIds, toggleWishlistItem } = useWishlistStore();
   const { user, token } = useAuthStore();
   const isWishlisted = wishlistProductIds.has(product.id);
@@ -35,9 +34,8 @@ const ProductCard = React.memo(({ product }) => {
     showNotification(`${product.name} ha sido agregado al carrito.`);
   };
 
-  // 3. Handler para el botón de wishlist
   const handleWishlistToggle = (e) => {
-    e.stopPropagation(); // Evita que el click active el Link de la tarjeta
+    e.stopPropagation();
     e.preventDefault();
     if (!token) {
         showNotification('Debes iniciar sesión para usar la lista de deseos.', 'error');
@@ -57,9 +55,8 @@ const ProductCard = React.memo(({ product }) => {
       initial="rest"
       whileHover="hover"
       transition={{ type: "spring", stiffness: 300, damping: 20 }}
-      className="bg-white border border-gray-200 rounded-xl shadow-md flex flex-col overflow-hidden group relative" // Añadido 'relative'
+      className="bg-white border border-gray-200 rounded-xl shadow-md flex flex-col overflow-hidden group relative"
     >
-      {/* 4. Botón de Wishlist */}
       {user && (
         <motion.button
             whileHover={{ scale: 1.1 }}
@@ -104,14 +101,16 @@ const ProductCard = React.memo(({ product }) => {
               <p className="text-md text-gray-400 line-through ml-2">${new Intl.NumberFormat('es-AR').format(product.oldPrice)}</p>
             )}
           </div>
-          <button 
+          {/* 1. Añadir motion al botón para feedback visual */}
+          <motion.button
+              whileTap={{ scale: 0.95 }} // Efecto al presionar
               onClick={handleAddToCart}
               disabled={product.stock === 0}
               className="w-full flex items-center justify-center bg-[#0F3460] text-white py-2.5 px-4 rounded-lg font-semibold hover:bg-[#1a4a8a] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#0F3460] transition-colors duration-300 disabled:bg-gray-400 disabled:cursor-not-allowed"
           >
               <Icon path={ICONS.shoppingCart} className="w-5 h-5 mr-2" />
               {product.stock > 0 ? 'Agregar al Carrito' : 'Sin stock'}
-          </button>
+          </motion.button>
         </div>
       </div>
     </motion.div>
