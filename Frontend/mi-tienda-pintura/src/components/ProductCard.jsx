@@ -7,29 +7,43 @@ import { ICONS } from '../data/icons.js';
 import StarRating from './StarRating.jsx';
 import { useCartStore } from '../stores/useCartStore.js';
 import { useNotificationStore } from '../stores/useNotificationStore.js';
+import { useWishlistStore } from '../stores/useWishlistStore.js'; // 1. Importar store de wishlist
+import { useAuthStore } from '../stores/useAuthStore.js';
 
 const ProductCard = React.memo(({ product }) => {
   const addToCart = useCartStore(state => state.addToCart);
   const showNotification = useNotificationStore(state => state.showNotification);
+  
+  // 2. Obtener estado y acciones de la wishlist
+  const { wishlistProductIds, toggleWishlistItem } = useWishlistStore();
+  const { user, token } = useAuthStore();
+  const isWishlisted = wishlistProductIds.has(product.id);
 
-  // --- CORRECCIÓN: Lógica mejorada para manejar ambos formatos de URL ---
   const imageUrls = product.imageUrl;
   let src, srcSet;
 
   if (imageUrls && typeof imageUrls === 'object') {
-    // Nuevo formato: el campo es un objeto { small, medium, large }
-    src = imageUrls.medium || imageUrls.small; // Usamos medium como principal, o small si no existe
+    src = imageUrls.medium || imageUrls.small;
     srcSet = `${imageUrls.small} 400w, ${imageUrls.medium} 800w, ${imageUrls.large} 1200w`;
   } else {
-    // Formato antiguo: el campo es un string (una sola URL) o es nulo
     src = imageUrls || `https://placehold.co/300x224/cccccc/ffffff?text=${encodeURIComponent(product.name)}`;
-    srcSet = null; // No hay srcset para el formato antiguo
+    srcSet = null;
   }
-
 
   const handleAddToCart = () => {
     addToCart(product);
     showNotification(`${product.name} ha sido agregado al carrito.`);
+  };
+
+  // 3. Handler para el botón de wishlist
+  const handleWishlistToggle = (e) => {
+    e.stopPropagation(); // Evita que el click active el Link de la tarjeta
+    e.preventDefault();
+    if (!token) {
+        showNotification('Debes iniciar sesión para usar la lista de deseos.', 'error');
+        return;
+    }
+    toggleWishlistItem(product, token);
   };
 
   const cardVariants = {
@@ -43,8 +57,21 @@ const ProductCard = React.memo(({ product }) => {
       initial="rest"
       whileHover="hover"
       transition={{ type: "spring", stiffness: 300, damping: 20 }}
-      className="bg-white border border-gray-200 rounded-xl shadow-md flex flex-col overflow-hidden group"
+      className="bg-white border border-gray-200 rounded-xl shadow-md flex flex-col overflow-hidden group relative" // Añadido 'relative'
     >
+      {/* 4. Botón de Wishlist */}
+      {user && (
+        <motion.button
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.9 }}
+            onClick={handleWishlistToggle}
+            className="absolute top-3 right-3 z-10 p-2 bg-white/70 backdrop-blur-sm rounded-full text-gray-600 hover:text-red-500 transition-colors"
+            aria-label="Añadir a la lista de deseos"
+        >
+            <Icon path={ICONS.heart} className={`w-6 h-6 ${isWishlisted ? 'text-red-500 fill-current' : 'fill-transparent stroke-current stroke-2'}`} />
+        </motion.button>
+      )}
+
       <Link to={`/product/${product.id}`} className="relative w-full h-56 cursor-pointer block bg-white p-2">
         <img 
           src={src}

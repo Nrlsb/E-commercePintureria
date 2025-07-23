@@ -36,7 +36,7 @@ const CategoryPage = lazy(() => import('./pages/CategoryPage.jsx'));
 const LoginPage = lazy(() => import('./pages/LoginPage.jsx'));
 const RegisterPage = lazy(() => import('./pages/RegisterPage.jsx'));
 const AdminDashboardPage = lazy(() => import('./pages/AdminDashboardPage.jsx'));
-const AdminProductsPage = lazy(() => import('./pages/AdminProductsPage.jsx')); // 1. Importar la nueva página
+const AdminProductsPage = lazy(() => import('./pages/AdminProductsPage.jsx'));
 const ProductFormPage = lazy(() => import('./pages/ProductFormPage.jsx'));
 const OrderHistoryPage = lazy(() => import('./pages/OrderHistoryPage.jsx'));
 const AdminOrdersPage = lazy(() => import('./pages/AdminOrdersPage.jsx'));
@@ -45,6 +45,7 @@ const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage.jsx'));
 const BulkUploadPage = lazy(() => import('./pages/BulkUploadPage.jsx'));
 const BulkCreateAIPage = lazy(() => import('./pages/BulkCreateAIPage.jsx'));
 const BulkAssociateAIPage = lazy(() => import('./pages/BulkAssociateAIPage.jsx'));
+const WishlistPage = lazy(() => import('./pages/WishlistPage.jsx')); // 1. Importar WishlistPage
 
 const MERCADOPAGO_PUBLIC_KEY = import.meta.env.VITE_MERCADOPAGO_PUBLIC_KEY;
 
@@ -89,11 +90,12 @@ export default function App() {
               <Route path="/checkout" element={<CheckoutPage />} />
               <Route path="/my-orders" element={<OrderHistoryPage />} />
               <Route path="/order-pending/:orderId" element={<OrderPendingPage />} />
+              <Route path="/wishlist" element={<WishlistPage />} /> {/* 2. Añadir la ruta de wishlist */}
             </Route>
 
             <Route element={<AdminRoute />}>
               <Route path="/admin" element={<AdminDashboardPage />} />
-              <Route path="/admin/products" element={<AdminProductsPage />} /> {/* 2. Añadir la nueva ruta */}
+              <Route path="/admin/products" element={<AdminProductsPage />} />
               <Route path="/admin/orders" element={<AdminOrdersPage />} />
               <Route path="/admin/product/new" element={<ProductFormPage />} />
               <Route path="/admin/product/edit/:productId" element={<ProductFormPage />} />

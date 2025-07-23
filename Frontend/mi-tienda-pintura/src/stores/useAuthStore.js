@@ -1,12 +1,8 @@
 // src/stores/useAuthStore.js
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { useWishlistStore } from './useWishlistStore'; // 1. Importar el store de wishlist
 
-/**
- * Parsea un token JWT para extraer la información del payload.
- * @param {string | null} token El token JWT.
- * @returns {object | null} El payload del token o null si es inválido.
- */
 const parseJwt = (token) => {
   if (!token) return null;
   try {
@@ -18,32 +14,31 @@ const parseJwt = (token) => {
 };
 
 export const useAuthStore = create(
-  // El middleware `persist` envuelve la definición de nuestro store.
   persist(
     (set) => ({
       token: null,
       user: null,
 
-      // La acción de login ahora solo se encarga de actualizar el estado.
-      // La persistencia es automática.
       login: (newToken) => {
         set({
           token: newToken,
           user: parseJwt(newToken),
         });
+        // 2. Al iniciar sesión, cargar la lista de deseos del usuario.
+        useWishlistStore.getState().fetchWishlist(newToken);
       },
 
-      // La acción de logout limpia el estado. `persist` se encargará de
-      // limpiar el localStorage.
       logout: () => {
         set({
           token: null,
           user: null,
         });
+        // 3. Al cerrar sesión, limpiar la lista de deseos del estado.
+        useWishlistStore.getState().clearWishlist();
       },
     }),
     {
-      name: 'auth-storage', // Nombre de la clave en localStorage.
+      name: 'auth-storage',
     }
   )
 );
