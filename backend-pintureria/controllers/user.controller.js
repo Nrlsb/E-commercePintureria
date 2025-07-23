@@ -30,8 +30,9 @@ export const updateProfile = async (req, res, next) => {
   const { firstName, lastName, phone } = req.body;
 
   try {
+    // --- CORRECCIÓN: Se elimina la asignación a la columna "updated_at" ---
     const result = await db.query(
-      'UPDATE users SET first_name = $1, last_name = $2, phone = $3, updated_at = NOW() WHERE id = $4 RETURNING id, email, first_name, last_name, phone',
+      'UPDATE users SET first_name = $1, last_name = $2, phone = $3 WHERE id = $4 RETURNING id, email, first_name, last_name, phone',
       [firstName, lastName, phone, userId]
     );
     if (result.rows.length === 0) {
@@ -102,8 +103,9 @@ export const updateAddress = async (req, res, next) => {
         if (is_default) {
             await client.query('UPDATE user_addresses SET is_default = false WHERE user_id = $1', [userId]);
         }
+        // --- CORRECCIÓN: Se elimina la asignación a la columna "updated_at" ---
         const result = await client.query(
-            'UPDATE user_addresses SET address_line1 = $1, address_line2 = $2, city = $3, state = $4, postal_code = $5, is_default = $6, updated_at = NOW() WHERE id = $7 AND user_id = $8 RETURNING *',
+            'UPDATE user_addresses SET address_line1 = $1, address_line2 = $2, city = $3, state = $4, postal_code = $5, is_default = $6 WHERE id = $7 AND user_id = $8 RETURNING *',
             [address_line1, address_line2, city, state, postal_code, is_default, addressId, userId]
         );
         if (result.rows.length === 0) {
