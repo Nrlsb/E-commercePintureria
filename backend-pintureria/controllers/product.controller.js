@@ -19,7 +19,18 @@ const clearProductsCache = async () => {
   }
 };
 
-// --- Controladores de Productos ---
+// --- NUEVO: Controlador para obtener sugerencias de búsqueda ---
+export const getProductSuggestions = async (req, res, next) => {
+  try {
+    const { q } = req.query;
+    const suggestions = await productService.fetchProductSuggestions(q);
+    res.json(suggestions);
+  } catch (err) {
+    next(err);
+  }
+};
+
+// --- Controladores de Productos (Existentes) ---
 
 export const getProducts = async (req, res, next) => {
   try {

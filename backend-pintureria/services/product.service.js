@@ -5,22 +5,66 @@ import logger from '../logger.js';
 
 const CACHE_EXPIRATION = 3600; // 1 hora en segundos
 
-// --- NUEVO: Helper para parsear la URL de la imagen ---
-// Intenta parsear un string JSON. Si falla o no es un JSON, lo trata como una URL de tamaño mediano.
+// --- Helper para parsear la URL de la imagen ---
 const parseImageUrl = (imageUrl) => {
   if (!imageUrl) return null;
-  if (typeof imageUrl === 'object') return imageUrl; // Ya es un objeto
+  if (typeof imageUrl === 'object') return imageUrl;
   try {
-    // Verifica si es un string que parece un objeto JSON
     if (imageUrl.startsWith('{') && imageUrl.endsWith('}')) {
       return JSON.parse(imageUrl);
     }
   } catch (e) {
-    // Ignora el error de parseo y continúa
+    // Ignora el error y continúa
   }
-  // Si no es un JSON válido o es una URL simple, lo devuelve en el formato esperado
   return { small: imageUrl, medium: imageUrl, large: imageUrl };
 };
+
+// --- NUEVO: Servicio para obtener sugerencias de búsqueda ---
+export const fetchProductSuggestions = async (query) => {
+  if (!query || query.trim().length < 2) {
+    return { products: [], categories: [], brands: [] };
+  }
+
+  const searchTerm = `%${query.trim()}%`;
+
+  try {
+    const productsQuery = db.query(
+      'SELECT id, name, image_url as "imageUrl" FROM products WHERE name ILIKE $1 AND is_active = true LIMIT 5',
+      [searchTerm]
+    );
+
+    const categoriesQuery = db.query(
+      'SELECT DISTINCT category FROM products WHERE category ILIKE $1 AND is_active = true LIMIT 3',
+      [searchTerm]
+    );
+
+    const brandsQuery = db.query(
+      'SELECT DISTINCT brand FROM products WHERE brand ILIKE $1 AND is_active = true LIMIT 3',
+      [searchTerm]
+    );
+
+    const [productsResult, categoriesResult, brandsResult] = await Promise.all([
+      productsQuery,
+      categoriesQuery,
+      brandsQuery,
+    ]);
+
+    // Parseamos las imágenes de los productos sugeridos
+    const products = productsResult.rows.map(p => ({
+      ...p,
+      imageUrl: parseImageUrl(p.imageUrl)?.small || 'https://placehold.co/40x40'
+    }));
+    
+    const categories = categoriesResult.rows.map(r => r.category);
+    const brands = brandsResult.rows.map(r => r.brand);
+
+    return { products, categories, brands };
+  } catch (error) {
+    logger.error('Error fetching search suggestions:', error);
+    throw error;
+  }
+};
+
 
 export const getActiveProducts = async (filters) => {
   const cacheKey = `products:${JSON.stringify(filters)}`;
@@ -30,7 +74,6 @@ export const getActiveProducts = async (filters) => {
       const cachedData = await redisClient.get(cacheKey);
       if (cachedData) {
         logger.debug(`Cache HIT para la clave: ${cacheKey}`);
-        // Parseamos los datos recuperados de la caché
         const parsedCache = JSON.parse(cachedData);
         parsedCache.products = parsedCache.products.map(p => ({
           ...p,
@@ -44,7 +87,6 @@ export const getActiveProducts = async (filters) => {
   }
 
   logger.debug(`Cache MISS para la clave: ${cacheKey}. Consultando base de datos.`);
-  // ... (lógica de construcción de query sin cambios) ...
   const { category, sortBy, brands, minPrice, maxPrice, page = 1, limit = 12, searchQuery } = filters;
   const queryParams = [];
   let whereClauses = ['p.is_active = true'];
@@ -101,7 +143,6 @@ export const getActiveProducts = async (filters) => {
 
   const result = await db.query(baseQuery, queryParams);
   
-  // --- MODIFICADO: Parseamos el campo imageUrl para cada producto ---
   const productsWithParsedImages = result.rows.map(p => ({
     ...p,
     imageUrl: parseImageUrl(p.imageUrl)
@@ -116,7 +157,6 @@ export const getActiveProducts = async (filters) => {
 
   try {
     if (redisClient.isReady) {
-      // Guardamos en caché la respuesta ya procesada (con el objeto de imagen)
       await redisClient.setEx(cacheKey, CACHE_EXPIRATION, JSON.stringify(responseData));
     }
   } catch (err) {
@@ -162,7 +202,6 @@ export const getActiveProductById = async (productId) => {
     return null;
   }
   
-  // --- MODIFICADO: Parseamos el campo imageUrl ---
   const product = {
     ...result.rows[0],
     imageUrl: parseImageUrl(result.rows[0].imageUrl)

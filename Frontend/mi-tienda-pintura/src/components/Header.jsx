@@ -1,13 +1,16 @@
-// src/components/Header.jsx
+// Frontend/mi-tienda-pintura/src/components/Header.jsx
 import React, { useState, useEffect, useRef } from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import Icon from './Icon.jsx';
 import { ICONS } from '../data/icons.js';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useCartStore } from '../stores/useCartStore';
 import { useProductStore } from '../stores/useProductStore';
+import Spinner from './Spinner.jsx';
 
-// --- Componente de Menú de Usuario para Escritorio (MODIFICADO) ---
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+
+// --- Componente de Menú de Usuario para Escritorio ---
 const UserMenuDesktop = () => {
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef(null);
@@ -42,7 +45,6 @@ const UserMenuDesktop = () => {
 
       {isOpen && (
         <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50 text-gray-800">
-          {/* --- AÑADIDO: Enlace a la página de Perfil --- */}
           <Link to="/profile" onClick={() => setIsOpen(false)} className="block px-4 py-2 text-sm hover:bg-gray-100">
             Mi Perfil
           </Link>
@@ -67,41 +69,67 @@ const UserMenuDesktop = () => {
 };
 
 
-// --- Componente Principal del Header (con Debounce) ---
+// --- Componente Principal del Header (con Autocompletar) ---
 const Header = () => {
   const navigate = useNavigate();
-  const location = useLocation();
+  const { setSearchQuery } = useProductStore();
   
-  const { fetchProducts, setSearchQuery, searchQuery } = useProductStore();
-  const [localQuery, setLocalQuery] = useState(searchQuery);
+  const [localQuery, setLocalQuery] = useState('');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  
+  // --- NUEVO: Estados para el autocompletar ---
+  const [suggestions, setSuggestions] = useState({ products: [], categories: [], brands: [] });
+  const [isSuggestionsOpen, setIsSuggestionsOpen] = useState(false);
+  const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
+  const searchContainerRef = useRef(null);
 
+  // --- Efecto para obtener sugerencias con Debounce ---
   useEffect(() => {
-    if (localQuery.trim() === '' && searchQuery !== '') {
-        setSearchQuery('');
+    if (localQuery.trim().length < 2) {
+      setSuggestions({ products: [], categories: [], brands: [] });
+      setIsSuggestionsOpen(false);
+      return;
     }
 
-    const timerId = setTimeout(() => {
-      if (localQuery.trim() !== '' && localQuery !== searchQuery) {
-        if (location.pathname === '/search') {
-          setSearchQuery(localQuery.trim());
-          fetchProducts(null, 1);
-        }
+    const timerId = setTimeout(async () => {
+      setIsLoadingSuggestions(true);
+      try {
+        const response = await fetch(`${API_URL}/api/products/suggestions?q=${localQuery.trim()}`);
+        const data = await response.json();
+        setSuggestions(data);
+        setIsSuggestionsOpen(true);
+      } catch (error) {
+        console.error("Error fetching suggestions:", error);
+      } finally {
+        setIsLoadingSuggestions(false);
       }
-    }, 500);
+    }, 300); // 300ms de espera
 
     return () => clearTimeout(timerId);
-  }, [localQuery, searchQuery, location.pathname, setSearchQuery, fetchProducts]);
+  }, [localQuery]);
 
+  // --- Efecto para cerrar las sugerencias al hacer clic fuera ---
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(event.target)) {
+        setIsSuggestionsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [searchContainerRef]);
+
+  const handleSearch = (query) => {
+    setSearchQuery(query);
+    setLocalQuery(query);
+    setIsSuggestionsOpen(false);
+    navigate(`/search?q=${encodeURIComponent(query)}`);
+  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    const trimmedQuery = localQuery.trim();
-    if (trimmedQuery) {
-      setSearchQuery(trimmedQuery);
-      fetchProducts(null, 1);
-      navigate('/search');
-      if (isMenuOpen) setIsMenuOpen(false);
+    if (localQuery.trim()) {
+      handleSearch(localQuery.trim());
     }
   };
 
@@ -129,20 +157,73 @@ const Header = () => {
             Pinturerías Mercurio
           </Link>
 
-          <form onSubmit={handleSubmit} className="hidden md:flex flex-1 justify-center px-8">
-            <div className="relative w-full max-w-lg">
+          {/* --- Contenedor de Búsqueda Modificado --- */}
+          <div ref={searchContainerRef} className="hidden md:flex flex-1 justify-center px-8">
+            <form onSubmit={handleSubmit} className="relative w-full max-w-lg">
               <input 
                 type="search" 
                 placeholder="Buscar productos, marcas y más..."
                 value={localQuery}
                 onChange={(e) => setLocalQuery(e.target.value)}
+                onFocus={() => localQuery.length > 1 && setIsSuggestionsOpen(true)}
                 className="w-full py-2 pl-4 pr-10 text-gray-900 bg-gray-100 border-transparent rounded-full focus:outline-none focus:ring-2 focus:ring-[#E9D502]"
               />
               <button type="submit" className="absolute inset-y-0 right-0 flex items-center pr-4">
-                <Icon path={ICONS.search} className="w-5 h-5 text-gray-500" />
+                {isLoadingSuggestions ? <Spinner className="w-5 h-5 text-gray-500" /> : <Icon path={ICONS.search} className="w-5 h-5 text-gray-500" />}
               </button>
-            </div>
-          </form>
+              
+              {/* --- Panel de Sugerencias --- */}
+              {isSuggestionsOpen && (
+                <div className="absolute top-full mt-2 w-full bg-white rounded-lg shadow-xl overflow-hidden z-50 text-gray-800">
+                  {suggestions.products.length === 0 && suggestions.categories.length === 0 && suggestions.brands.length === 0 ? (
+                    <div className="p-4 text-sm text-gray-500">No se encontraron sugerencias.</div>
+                  ) : (
+                    <ul className="max-h-96 overflow-y-auto">
+                      {suggestions.products.length > 0 && (
+                        <li>
+                          <h3 className="font-bold text-xs uppercase text-gray-500 px-4 pt-3 pb-1">Productos</h3>
+                          <ul>
+                            {suggestions.products.map(p => (
+                              <li key={`prod-${p.id}`}>
+                                <Link to={`/product/${p.id}`} onClick={() => setIsSuggestionsOpen(false)} className="flex items-center px-4 py-2 hover:bg-gray-100">
+                                  <img src={p.imageUrl} alt={p.name} className="w-10 h-10 object-contain mr-3"/>
+                                  <span>{p.name}</span>
+                                </Link>
+                              </li>
+                            ))}
+                          </ul>
+                        </li>
+                      )}
+                      {suggestions.categories.length > 0 && (
+                        <li>
+                          <h3 className="font-bold text-xs uppercase text-gray-500 px-4 pt-3 pb-1">Categorías</h3>
+                          <ul>
+                            {suggestions.categories.map(c => (
+                              <li key={`cat-${c}`}>
+                                <button onClick={() => handleSearch(c)} className="w-full text-left px-4 py-2 hover:bg-gray-100">en <span className="font-semibold">{c}</span></button>
+                              </li>
+                            ))}
+                          </ul>
+                        </li>
+                      )}
+                       {suggestions.brands.length > 0 && (
+                        <li>
+                          <h3 className="font-bold text-xs uppercase text-gray-500 px-4 pt-3 pb-1">Marcas</h3>
+                          <ul>
+                            {suggestions.brands.map(b => (
+                              <li key={`brand-${b}`}>
+                                <button onClick={() => handleSearch(b)} className="w-full text-left px-4 py-2 hover:bg-gray-100">en <span className="font-semibold">{b}</span></button>
+                              </li>
+                            ))}
+                          </ul>
+                        </li>
+                      )}
+                    </ul>
+                  )}
+                </div>
+              )}
+            </form>
+          </div>
 
           {/* Menú para Escritorio */}
           <div className="hidden md:flex items-center space-x-4">
@@ -168,7 +249,7 @@ const Header = () => {
 
           {/* Botones para Móvil */}
           <div className="md:hidden flex items-center space-x-4">
-            <Link to="/cart" className="text-white relative">
+             <Link to="/cart" className="text-white relative">
               <Icon path={ICONS.shoppingCart} className="w-6 h-6" />
               {cartItemCount > 0 && (
                 <span className="absolute -top-2 -right-2 bg-[#E9D502] text-[#0F3460] text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
@@ -183,7 +264,7 @@ const Header = () => {
         </div>
       </div>
 
-      {/* Panel Lateral para Móvil (MODIFICADO) */}
+      {/* Panel Lateral para Móvil */}
       {isMenuOpen && (
         <div className={`fixed top-0 left-0 w-full h-full bg-black bg-opacity-50 z-40 transition-opacity duration-300`} onClick={() => setIsMenuOpen(false)}>
           <div className={`fixed top-0 right-0 w-4/5 max-w-sm h-full bg-[#0F3460] shadow-xl z-50 transform transition-transform duration-300 ease-in-out ${isMenuOpen ? 'translate-x-0' : 'translate-x-full'}`} onClick={(e) => e.stopPropagation()}>
@@ -201,7 +282,6 @@ const Header = () => {
                   <>
                     <div className="px-4 py-2 text-white font-semibold">Hola, {user.email.split('@')[0]}</div>
                     <hr className="border-gray-500"/>
-                    {/* --- AÑADIDO: Enlace a la página de Perfil (móvil) --- */}
                     <Link to="/profile" onClick={handleMobileLinkClick} className="px-4 py-2 hover:bg-[#1a4a8a] rounded-md">Mi Perfil</Link>
                     {user.role === 'admin' && (
                       <Link to="/admin" onClick={handleMobileLinkClick} className="px-4 py-2 hover:bg-[#1a4a8a] rounded-md">Panel Admin</Link>
