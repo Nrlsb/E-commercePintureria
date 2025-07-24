@@ -3,7 +3,7 @@ import db from '../db.js';
 import mercadopago from 'mercadopago';
 import { sendOrderConfirmationEmail, sendBankTransferInstructionsEmail } from '../emailService.js';
 import logger from '../logger.js';
-import { getIoInstance } from '../socket.js'; // 1. Importar la instancia de socket
+import { getIoInstance } from '../socket.js';
 
 const { MercadoPagoConfig, Payment, PaymentRefund } = mercadopago;
 const client = new MercadoPagoConfig({ accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN });
@@ -34,7 +34,6 @@ export const confirmTransferPayment = async (req, res, next) => {
     
     await dbClient.query('COMMIT');
     
-    // 2. Emitir evento de nueva orden a los administradores
     const io = getIoInstance();
     io.to('admins').emit('new_order', { 
         orderId: order.id, 
@@ -95,7 +94,6 @@ export const createBankTransferOrder = async (req, res, next) => {
 
     await dbClient.query('COMMIT');
 
-    // 2. Emitir evento de nueva orden a los administradores
     const io = getIoInstance();
     io.to('admins').emit('new_order', { 
         orderId: orderId, 
@@ -115,8 +113,9 @@ export const createBankTransferOrder = async (req, res, next) => {
 };
 
 export const processPayment = async (req, res, next) => {
+    // CORRECCIÓN: Se obtienen `firstName` y `lastName` del token JWT, que vienen con guion bajo.
     const { token, issuer_id, payment_method_id, transaction_amount, installments, payer, cart, shippingCost, postalCode } = req.body;
-    const { userId, email } = req.user; // Añadimos email
+    const { userId, email, firstName, lastName } = req.user;
     const dbClient = await db.connect();
     let orderId;
 
@@ -157,8 +156,9 @@ export const processPayment = async (req, res, next) => {
                     type: payer.identification.type,
                     number: payer.identification.number
                 },
-                first_name: payer.firstName,
-                last_name: payer.lastName
+                // CORRECCIÓN: Usar las variables del token decodificado
+                first_name: firstName,
+                last_name: lastName
             },
             external_reference: orderId.toString(),
             notification_url: `${process.env.BACKEND_URL}/api/payment/notification`,
@@ -174,7 +174,6 @@ export const processPayment = async (req, res, next) => {
             
             await dbClient.query('COMMIT');
 
-            // 2. Emitir evento de nueva orden a los administradores
             const io = getIoInstance();
             io.to('admins').emit('new_order', { 
                 orderId: orderId, 
@@ -199,7 +198,6 @@ export const processPayment = async (req, res, next) => {
     }
 };
 
-// ... (el resto de los controladores getOrderById, getOrderHistory, getAllOrders, cancelOrder no necesitan cambios)
 export const getOrderById = async (req, res, next) => {
     const { orderId } = req.params;
     const { userId, role } = req.user;
