@@ -1,12 +1,12 @@
 // src/pages/ProductDetailPage.jsx
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { motion } from 'framer-motion'; // 1. Importar motion
+import { motion } from 'framer-motion';
 import ProductCard from '../components/ProductCard.jsx';
+import ProductCardSkeleton from '../components/ProductCardSkeleton.jsx';
 import StarRating from '../components/StarRating.jsx';
 import ReviewList from '../components/ReviewList.jsx';
 import ReviewForm from '../components/ReviewForm.jsx';
-import { useProductStore } from '../stores/useProductStore.js';
 import { useCartStore } from '../stores/useCartStore.js';
 import { useAuthStore } from '../stores/useAuthStore.js';
 import { useNotificationStore } from '../stores/useNotificationStore.js';
@@ -16,7 +16,6 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 const ProductDetailPage = () => {
   const { productId } = useParams();
   
-  const { products } = useProductStore();
   const { addToCart } = useCartStore();
   const { user, token } = useAuthStore();
   const showNotification = useNotificationStore(state => state.showNotification);
@@ -27,6 +26,10 @@ const ProductDetailPage = () => {
   const [error, setError] = useState(null);
   const [quantity, setQuantity] = useState(1);
   const [activeTab, setActiveTab] = useState('description');
+
+  // --- NUEVO: Estado específico para productos relacionados ---
+  const [relatedProducts, setRelatedProducts] = useState([]);
+  const [loadingRelated, setLoadingRelated] = useState(true);
 
   const fetchProductAndReviews = useCallback(async () => {
     try {
@@ -53,6 +56,24 @@ const ProductDetailPage = () => {
     setQuantity(1);
     setActiveTab('description');
     window.scrollTo(0, 0);
+
+    // --- NUEVO: Fetch para obtener productos relacionados desde el nuevo endpoint ---
+    const fetchRelated = async () => {
+      setLoadingRelated(true);
+      try {
+        const response = await fetch(`${API_URL}/api/products/${productId}/related`);
+        if (!response.ok) throw new Error('Error al cargar productos relacionados');
+        const data = await response.json();
+        setRelatedProducts(data);
+      } catch (err) {
+        console.error(err.message);
+        setRelatedProducts([]); // En caso de error, simplemente no mostramos nada
+      } finally {
+        setLoadingRelated(false);
+      }
+    };
+
+    fetchRelated();
   }, [productId, fetchProductAndReviews]);
 
   const handleQuantityChange = (amount) => {
@@ -73,9 +94,7 @@ const ProductDetailPage = () => {
       try {
         const response = await fetch(`${API_URL}/api/reviews/${reviewId}`, {
           method: 'DELETE',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
+          headers: { 'Authorization': `Bearer ${token}` },
         });
 
         if (!response.ok) {
@@ -91,10 +110,6 @@ const ProductDetailPage = () => {
       }
     }
   };
-
-  const relatedProducts = product 
-    ? products.filter(p => p.category === product.category && p.id !== product.id).slice(0, 4)
-    : [];
 
   if (loading) return <div className="text-center p-10">Cargando...</div>;
   if (error) return <div className="text-center p-10 text-red-500">Error: {error}</div>;
@@ -116,7 +131,6 @@ const ProductDetailPage = () => {
         <span className="font-medium text-gray-700">{product.name}</span>
       </div>
 
-      {/* 2. Envolver el grid principal con motion.div para animar su aparición */}
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -162,7 +176,7 @@ const ProductDetailPage = () => {
           </div>
           
           <motion.button 
-            whileTap={{ scale: 0.97 }} // 3. Añadir feedback al botón
+            whileTap={{ scale: 0.97 }}
             onClick={handleAddToCartClick} 
             disabled={product.stock === 0}
             className="w-full bg-[#0F3460] text-white py-4 px-6 rounded-lg font-bold text-lg hover:bg-[#1a4a8a] transition-colors duration-300 disabled:bg-gray-400 disabled:cursor-not-allowed"
@@ -224,13 +238,18 @@ const ProductDetailPage = () => {
         </div>
       </div>
 
-      {relatedProducts.length > 0 && (
+      {/* --- SECCIÓN DE PRODUCTOS RELACIONADOS MEJORADA --- */}
+      {(loadingRelated || relatedProducts.length > 0) && (
         <div className="mt-16">
-          <h2 className="text-2xl font-bold text-gray-800 mb-6">También te puede interesar</h2>
+          <h2 className="text-2xl font-bold text-gray-800 mb-6">Frecuentemente comprados juntos</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {relatedProducts.map(p => (
-              <ProductCard key={p.id} product={p} />
-            ))}
+            {loadingRelated ? (
+              [...Array(4)].map((_, index) => <ProductCardSkeleton key={index} />)
+            ) : (
+              relatedProducts.map(p => (
+                <ProductCard key={p.id} product={p} />
+              ))
+            )}
           </div>
         </div>
       )}

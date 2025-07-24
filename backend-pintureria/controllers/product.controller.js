@@ -19,7 +19,17 @@ const clearProductsCache = async () => {
   }
 };
 
-// --- NUEVO: Controlador para obtener sugerencias de búsqueda ---
+// --- NUEVO: Controlador para productos relacionados ---
+export const getRelatedProducts = async (req, res, next) => {
+  const { productId } = req.params;
+  try {
+    const products = await productService.fetchRelatedProducts(productId);
+    res.json(products);
+  } catch (err) {
+    next(err);
+  }
+};
+
 export const getProductSuggestions = async (req, res, next) => {
   try {
     const { q } = req.query;
@@ -73,7 +83,7 @@ export const createProduct = async (req, res, next) => {
       [name, brand, category, price, old_price, image_url, description, stock]
     );
     logger.info(`Producto creado con ID: ${result.rows[0].id}`);
-    await clearProductsCache(); // Invalidar caché
+    await clearProductsCache();
     res.status(201).json(result.rows[0]);
   } catch (err) {
     next(err);
@@ -92,9 +102,9 @@ export const updateProduct = async (req, res, next) => {
       return res.status(404).json({ message: 'Producto no encontrado' });
     }
     logger.info(`Producto actualizado con ID: ${id}`);
-    await clearProductsCache(); // Invalidar caché de listas
+    await clearProductsCache();
     if (redisClient.isReady) {
-      await redisClient.del(`product:${id}`); // Invalidar caché del producto específico
+      await redisClient.del(`product:${id}`);
     }
     res.json(result.rows[0]);
   } catch (err) {
@@ -115,9 +125,9 @@ export const deleteProduct = async (req, res, next) => {
     }
     
     logger.info(`Producto DESACTIVADO con ID: ${id}`);
-    await clearProductsCache(); // Invalidar caché de listas
+    await clearProductsCache();
     if (redisClient.isReady) {
-      await redisClient.del(`product:${id}`); // Invalidar caché del producto específico
+      await redisClient.del(`product:${id}`);
     }
     res.status(200).json({ message: 'Producto desactivado con éxito' });
   } catch (err) {
@@ -155,7 +165,6 @@ export const createProductReview = async (req, res, next) => {
     `;
     const result = await db.query(query, [rating, comment, productId, userId]);
     logger.info(`Nueva reseña creada para el producto ID: ${productId} por el usuario ID: ${userId}`);
-    // Invalidar la caché del producto específico ya que sus reviews cambiaron
     if (redisClient.isReady) {
       await redisClient.del(`product:${productId}`);
     }
@@ -188,7 +197,6 @@ export const deleteReview = async (req, res, next) => {
 
     await db.query('DELETE FROM reviews WHERE id = $1', [reviewId]);
     logger.info(`Reseña ID: ${reviewId} eliminada por el usuario ID: ${userId}`);
-    // Invalidar la caché del producto afectado
     if (redisClient.isReady) {
       await redisClient.del(`product:${review.product_id}`);
     }
