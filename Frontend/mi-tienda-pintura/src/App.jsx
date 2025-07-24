@@ -6,6 +6,8 @@ import { AnimatePresence, motion } from 'framer-motion';
 
 import { useProductStore } from './stores/useProductStore';
 import { useNotificationStore } from './stores/useNotificationStore';
+import { useAuthStore } from './stores/useAuthStore'; // 1. Importar auth store
+import { useSocketStore } from './stores/useSocketStore'; // 2. Importar socket store
 
 // Componentes principales
 import Header from './components/Header.jsx';
@@ -16,6 +18,7 @@ import Spinner from './components/Spinner.jsx';
 import AdminRoute from './components/AdminRoute.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
 import QuickViewModal from './components/QuickViewModal.jsx';
+import AdminNotification from './components/AdminNotification.jsx'; // 3. Importar el nuevo componente
 
 const ScrollToTop = () => {
   const { pathname } = useLocation();
@@ -25,11 +28,7 @@ const ScrollToTop = () => {
   return null;
 };
 
-// --- NUEVO: Importar la página de callback ---
 const AuthCallbackPage = lazy(() => import('./pages/AuthCallbackPage.jsx'));
-// --- FIN DE LA MODIFICACIÓN ---
-
-// Lazy Loading de Páginas
 const HomePage = lazy(() => import('./pages/HomePage.jsx'));
 const ProductDetailPage = lazy(() => import('./pages/ProductDetailPage.jsx'));
 const CartPage = lazy(() => import('./pages/CartPage.jsx'));
@@ -70,10 +69,25 @@ export default function App() {
   }));
   const { message: notificationMessage, show: showNotification, type: notificationType } = useNotificationStore();
   const location = useLocation();
+  
+  // 4. Obtener datos de autenticación y acciones del socket store
+  const { user, token } = useAuthStore();
+  const { connect, disconnect } = useSocketStore();
 
   useEffect(() => {
     fetchAvailableBrands();
   }, [fetchAvailableBrands]);
+  
+  // 5. useEffect para manejar la conexión/desconexión del socket
+  useEffect(() => {
+    if (user && user.role === 'admin' && token) {
+      connect(token);
+    }
+
+    return () => {
+      disconnect();
+    };
+  }, [user, token, connect, disconnect]);
 
   return (
     <div className="bg-gray-50 min-h-screen font-sans flex flex-col relative">
@@ -102,11 +116,7 @@ export default function App() {
             <Route path="/category/:categoryName" element={<CategoryPage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
-            
-            {/* --- NUEVA RUTA --- */}
             <Route path="/auth/callback" element={<AuthCallbackPage />} />
-            {/* --- FIN DE LA NUEVA RUTA --- */}
-
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
 
@@ -142,6 +152,9 @@ export default function App() {
           <Notification message={notificationMessage} type={notificationType} />
         )}
       </AnimatePresence>
+      
+      {/* 6. Renderizar el componente de notificaciones de admin */}
+      <AdminNotification />
     </div>
   );
 }

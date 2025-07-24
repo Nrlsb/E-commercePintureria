@@ -1,12 +1,17 @@
 // backend-pintureria/controllers/auth.controller.js
 import * as authService from '../services/auth.service.js';
+import { getIoInstance } from '../socket.js'; // 1. Importar la instancia de socket
 
 export const registerUser = async (req, res, next) => {
   try {
     const user = await authService.register(req.body);
+    
+    // 2. Emitir evento de nuevo usuario a los administradores
+    const io = getIoInstance();
+    io.to('admins').emit('new_user', { email: user.email });
+
     res.status(201).json({ message: 'Usuario registrado con éxito', user });
   } catch (err) {
-    // Si el servicio lanza un error con statusCode, lo usamos.
     if (err.statusCode) {
       return res.status(err.statusCode).json({ message: err.message });
     }
@@ -51,10 +56,8 @@ export const resetPassword = async (req, res, next) => {
   }
 };
 
-// --- NUEVO: Controlador para refrescar el token ---
 export const refreshToken = async (req, res, next) => {
   try {
-    // req.user es añadido por el middleware authenticateToken
     const userId = req.user.userId; 
     const newToken = await authService.refreshToken(userId);
     res.json({ token: newToken });

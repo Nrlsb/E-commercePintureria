@@ -2,8 +2,10 @@
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import passport from 'passport'; // 1. Importar passport
-import './config/passport-setup.js'; // 2. Importar la configuración para que se ejecute
+import passport from 'passport';
+import http from 'http'; // 1. Importar el módulo http nativo
+import { initializeSocket } from './socket.js'; // 2. Importar nuestro inicializador de socket
+import './config/passport-setup.js';
 import { startCancelPendingOrdersJob } from './services/cronService.js';
 import expressWinston from 'express-winston';
 import logger from './logger.js';
@@ -25,9 +27,12 @@ import userRoutes from './routes/user.routes.js';
 import errorHandler from './middlewares/errorHandler.js';
 import { handlePaymentNotification } from './controllers/payment.controller.js';
 
-
 const app = express();
+const httpServer = http.createServer(app); // 3. Crear un servidor HTTP a partir de la app de Express
 const PORT = config.port;
+
+// 4. Inicializar Socket.IO con el servidor HTTP
+initializeSocket(httpServer);
 
 app.use(helmet());
 app.set('trust proxy', 1);
@@ -55,10 +60,7 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-
-// --- NUEVO: Inicializar Passport ---
 app.use(passport.initialize());
-// --- FIN DE LA MODIFICACIÓN ---
 
 app.post('/api/payment/notification', express.raw({ type: 'application/json' }), handlePaymentNotification);
 
@@ -98,6 +100,7 @@ app.use(expressWinston.errorLogger({
 
 app.use(errorHandler);
 
-app.listen(PORT, () => {
+// 5. Usar httpServer.listen en lugar de app.listen
+httpServer.listen(PORT, () => {
   logger.info(`Servidor corriendo en el puerto ${PORT}`);
 });
