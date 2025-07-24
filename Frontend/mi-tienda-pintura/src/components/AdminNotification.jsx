@@ -1,5 +1,5 @@
 // src/components/AdminNotification.jsx
-import React from 'react';
+import React, { useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useSocketStore } from '../stores/useSocketStore';
 import Icon from './Icon';
@@ -9,6 +9,81 @@ const ICONS = {
     new_user: "M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z",
 };
 
+const notificationConfig = {
+    new_order: {
+        title: 'Nueva Orden Recibida',
+        icon: ICONS.new_order,
+        color: 'text-blue-500',
+        bgColor: 'bg-blue-50',
+    },
+    new_user: {
+        title: 'Nuevo Usuario Registrado',
+        icon: ICONS.new_user,
+        color: 'text-green-500',
+        bgColor: 'bg-green-50',
+    }
+};
+
+const SingleNotification = ({ notification, onDismiss }) => {
+    const config = notificationConfig[notification.type] || {};
+
+    // Auto-dismiss after 8 seconds
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            onDismiss(notification.id);
+        }, 8000);
+
+        return () => clearTimeout(timer);
+    }, [notification.id, onDismiss]);
+
+    return (
+        <motion.div
+            layout
+            initial={{ opacity: 0, y: 50, scale: 0.3 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, x: 50, transition: { duration: 0.2 } }}
+            className="max-w-sm w-full bg-white shadow-lg rounded-lg pointer-events-auto ring-1 ring-black ring-opacity-5 overflow-hidden relative"
+        >
+            <div className="p-4">
+                <div className="flex items-start">
+                    <div className="flex-shrink-0">
+                        <div className={`p-2 ${config.bgColor} rounded-full`}>
+                            <Icon path={config.icon} className={`w-6 h-6 ${config.color}`} />
+                        </div>
+                    </div>
+                    <div className="ml-3 w-0 flex-1 pt-0.5">
+                        <p className="text-sm font-bold text-gray-900">
+                            {config.title}
+                        </p>
+                        <p className="mt-1 text-sm text-gray-600">
+                            {notification.message}
+                        </p>
+                    </div>
+                    <div className="ml-4 flex-shrink-0 flex">
+                        <button
+                            onClick={() => onDismiss(notification.id)}
+                            className="bg-white rounded-md inline-flex text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                        >
+                            <span className="sr-only">Cerrar</span>
+                            <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            {/* Barra de tiempo */}
+            <motion.div
+                className="absolute bottom-0 left-0 h-1 bg-gradient-to-r from-blue-500 to-green-400"
+                initial={{ width: "100%" }}
+                animate={{ width: "0%" }}
+                transition={{ duration: 8, ease: "linear" }}
+            />
+        </motion.div>
+    );
+};
+
+
 const AdminNotification = () => {
   const { notifications, dismissNotification } = useSocketStore();
 
@@ -16,41 +91,7 @@ const AdminNotification = () => {
     <div className="fixed top-24 right-5 z-[100] space-y-3">
       <AnimatePresence>
         {notifications.map((notif) => (
-          <motion.div
-            key={notif.id}
-            layout
-            initial={{ opacity: 0, y: 50, scale: 0.3 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.5, transition: { duration: 0.2 } }}
-            className="max-w-sm w-full bg-white shadow-lg rounded-lg pointer-events-auto ring-1 ring-black ring-opacity-5 overflow-hidden"
-          >
-            <div className="p-4">
-              <div className="flex items-start">
-                <div className="flex-shrink-0">
-                  <Icon path={ICONS[notif.type]} className="w-6 h-6 text-blue-500" />
-                </div>
-                <div className="ml-3 w-0 flex-1 pt-0.5">
-                  <p className="text-sm font-medium text-gray-900">
-                    {notif.type === 'new_order' ? 'Nueva Orden Recibida' : 'Nuevo Usuario'}
-                  </p>
-                  <p className="mt-1 text-sm text-gray-500">
-                    {notif.message}
-                  </p>
-                </div>
-                <div className="ml-4 flex-shrink-0 flex">
-                  <button
-                    onClick={() => dismissNotification(notif.id)}
-                    className="bg-white rounded-md inline-flex text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                  >
-                    <span className="sr-only">Close</span>
-                    <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                      <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                    </svg>
-                  </button>
-                </div>
-              </div>
-            </div>
-          </motion.div>
+          <SingleNotification key={notif.id} notification={notif} onDismiss={dismissNotification} />
         ))}
       </AnimatePresence>
     </div>
