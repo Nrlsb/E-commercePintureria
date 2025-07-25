@@ -9,6 +9,15 @@ const { MercadoPagoConfig, Payment, PaymentRefund } = mercadopago;
 const client = new MercadoPagoConfig({ accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN });
 const MIN_TRANSACTION_AMOUNT = 100;
 
+// --- NUEVA FUNCIÓN AUXILIAR ---
+// Formatea un número al estilo argentino y acorta el email si es muy largo.
+const formatNotificationData = (total, email) => {
+    const formattedTotal = new Intl.NumberFormat('es-AR').format(total);
+    const userDisplay = email.length > 20 ? `${email.substring(0, 18)}...` : email;
+    return { formattedTotal, userDisplay };
+};
+
+
 export const confirmTransferPayment = async (req, res, next) => {
   const { orderId } = req.params;
   const dbClient = await db.connect();
@@ -34,11 +43,11 @@ export const confirmTransferPayment = async (req, res, next) => {
     
     await dbClient.query('COMMIT');
     
+    // CORRECCIÓN: Usar la función de formato para la notificación
+    const { formattedTotal, userDisplay } = formatNotificationData(order.total_amount, userData.rows[0].email);
     const io = getIoInstance();
     io.to('admins').emit('new_order', { 
-        orderId: order.id, 
-        total: order.total_amount, 
-        userEmail: userData.rows[0].email 
+        message: `Nueva orden #${order.id} por $${formattedTotal} de ${userDisplay}`
     });
 
     logger.info(`Pago por transferencia confirmado para la orden #${orderId}`);
@@ -94,11 +103,11 @@ export const createBankTransferOrder = async (req, res, next) => {
 
     await dbClient.query('COMMIT');
 
+    // CORRECCIÓN: Usar la función de formato para la notificación
+    const { formattedTotal, userDisplay } = formatNotificationData(total, email);
     const io = getIoInstance();
     io.to('admins').emit('new_order', { 
-        orderId: orderId, 
-        total: total, 
-        userEmail: email 
+        message: `Nueva orden #${orderId} por $${formattedTotal} de ${userDisplay}`
     });
 
     logger.info(`Orden #${orderId} creada exitosamente por transferencia bancaria para el usuario ID: ${userId}`);
@@ -113,7 +122,6 @@ export const createBankTransferOrder = async (req, res, next) => {
 };
 
 export const processPayment = async (req, res, next) => {
-    // CORRECCIÓN: Se obtienen `firstName` y `lastName` del token JWT, que vienen con guion bajo.
     const { token, issuer_id, payment_method_id, transaction_amount, installments, payer, cart, shippingCost, postalCode } = req.body;
     const { userId, email, firstName, lastName } = req.user;
     const dbClient = await db.connect();
@@ -156,7 +164,6 @@ export const processPayment = async (req, res, next) => {
                     type: payer.identification.type,
                     number: payer.identification.number
                 },
-                // CORRECCIÓN: Usar las variables del token decodificado
                 first_name: firstName,
                 last_name: lastName
             },
@@ -174,11 +181,11 @@ export const processPayment = async (req, res, next) => {
             
             await dbClient.query('COMMIT');
 
+            // CORRECCIÓN: Usar la función de formato para la notificación
+            const { formattedTotal, userDisplay } = formatNotificationData(transaction_amount, email);
             const io = getIoInstance();
             io.to('admins').emit('new_order', { 
-                orderId: orderId, 
-                total: transaction_amount, 
-                userEmail: email
+                message: `Nueva orden #${orderId} por $${formattedTotal} de ${userDisplay}`
             });
 
             logger.info(`Pago aprobado por Mercado Pago para la orden #${orderId}`);
