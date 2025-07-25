@@ -14,13 +14,13 @@ const notificationConfig = {
         title: 'Nueva Orden Recibida',
         icon: ICONS.new_order,
         color: 'text-blue-500',
-        bgColor: 'bg-blue-50',
+        bgColor: 'bg-blue-100',
     },
     new_user: {
         title: 'Nuevo Usuario Registrado',
         icon: ICONS.new_user,
         color: 'text-green-500',
-        bgColor: 'bg-green-50',
+        bgColor: 'bg-green-100',
     }
 };
 
@@ -42,20 +42,21 @@ const SingleNotification = ({ notification, onDismiss }) => {
             initial={{ opacity: 0, y: 50, scale: 0.3 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, x: 50, transition: { duration: 0.2 } }}
-            className="max-w-sm w-full bg-white shadow-lg rounded-lg pointer-events-auto ring-1 ring-black ring-opacity-5 overflow-hidden relative"
+            // --- CAMBIOS DE ESTILO ---
+            className="max-w-md w-full bg-white shadow-lg rounded-xl pointer-events-auto ring-1 ring-black ring-opacity-5 overflow-hidden relative"
         >
-            <div className="p-4">
+            <div className="p-5"> {/* Aumentamos el padding general */}
                 <div className="flex items-start">
                     <div className="flex-shrink-0">
-                        <div className={`p-2 ${config.bgColor} rounded-full`}>
-                            <Icon path={config.icon} className={`w-6 h-6 ${config.color}`} />
+                        <div className={`p-3 ${config.bgColor} rounded-full`}> {/* Aumentamos el padding del ícono */}
+                            <Icon path={config.icon} className={`w-7 h-7 ${config.color}`} /> {/* Ícono más grande */}
                         </div>
                     </div>
-                    <div className="ml-3 w-0 flex-1 pt-0.5">
-                        <p className="text-sm font-bold text-gray-900">
+                    <div className="ml-4 w-0 flex-1 pt-0.5"> {/* Aumentamos el margen */}
+                        <p className="text-base font-bold text-gray-900"> {/* Título más grande y en negrita */}
                             {config.title}
                         </p>
-                        <p className="mt-1 text-sm text-gray-600">
+                        <p className="mt-1 text-base text-gray-600"> {/* Mensaje más grande */}
                             {notification.message}
                         </p>
                     </div>
@@ -74,7 +75,7 @@ const SingleNotification = ({ notification, onDismiss }) => {
             </div>
             {/* Barra de tiempo */}
             <motion.div
-                className="absolute bottom-0 left-0 h-1 bg-gradient-to-r from-blue-500 to-green-400"
+                className="absolute bottom-0 left-0 h-1.5 bg-gradient-to-r from-blue-500 to-green-400" // Barra ligeramente más gruesa
                 initial={{ width: "100%" }}
                 animate={{ width: "0%" }}
                 transition={{ duration: 8, ease: "linear" }}
@@ -88,7 +89,7 @@ const AdminNotification = () => {
   const { notifications, dismissNotification } = useSocketStore();
 
   return (
-    <div className="fixed top-24 right-5 z-[100] space-y-3">
+    <div className="fixed top-24 right-5 z-[100] space-y-4"> {/* Aumentamos el espacio entre notificaciones */}
       <AnimatePresence>
         {notifications.map((notif) => (
           <SingleNotification key={notif.id} notification={notif} onDismiss={dismissNotification} />
