@@ -1,29 +1,30 @@
-const express = require('express');
-const http = require('http');
-const { Server } = require('socket.io');
-const connectDB = require('./db');
-const cors = require('cors');
-const helmet = require('helmet'); // Importación de Helmet
-const passport = require('passport');
-const session = require('express-session');
-const productRoutes = require('./routes/product.routes');
-const authRoutes = require('./routes/auth.routes');
-const orderRoutes = require('./routes/order.routes');
-const paymentRoutes = require('./routes/payment.routes');
-const reviewRoutes = require('./routes/review.routes');
-const wishlistRoutes = require('./routes/wishlist.routes');
-const userRoutes = require('./routes/user.routes');
-const shippingRoutes = require('./routes/shipping.routes');
-const couponsRoutes = require('./routes/coupons.routes');
-const analyticsRoutes = require('./routes/analytics.routes');
-const uploadRoutes = require('./routes/upload.routes');
-const utilsRoutes = require('./routes/utils.routes');
-const errorHandler = require('./middlewares/errorHandler');
-const logger = require('./logger');
-const { initializeSocket } = require('./socket');
-const cronService = require('./services/cronService');
-const config = require('./config');
-const rateLimiter = require('./middlewares/rateLimiter');
+import express from 'express';
+import http from 'http';
+import { Server } from 'socket.io';
+import connectDB from './db.js';
+import cors from 'cors';
+import helmet from 'helmet';
+import passport from 'passport';
+import session from 'express-session';
+import productRoutes from './routes/product.routes.js';
+import authRoutes from './routes/auth.routes.js';
+import orderRoutes from './routes/order.routes.js';
+import paymentRoutes from './routes/payment.routes.js';
+import reviewRoutes from './routes/review.routes.js';
+import wishlistRoutes from './routes/wishlist.routes.js';
+import userRoutes from './routes/user.routes.js';
+import shippingRoutes from './routes/shipping.routes.js';
+import couponsRoutes from './routes/coupons.routes.js';
+import analyticsRoutes from './routes/analytics.routes.js';
+import uploadRoutes from './routes/upload.routes.js';
+import utilsRoutes from './routes/utils.routes.js';
+import errorHandler from './middlewares/errorHandler.js';
+import logger from './logger.js';
+import { initializeSocket } from './socket.js';
+import cronService from './services/cronService.js';
+import config from './config/index.js';
+import rateLimiter from './middlewares/rateLimiter.js';
+import './config/passport-setup.js'; // Se importa para que se ejecute el código de configuración
 
 // Conectar a la base de datos
 connectDB();
@@ -61,7 +62,6 @@ app.use(session({
 // Inicialización de Passport
 app.use(passport.initialize());
 app.use(passport.session());
-require('./config/passport-setup');
 
 // Middleware de Rate Limiting
 app.use(rateLimiter);
@@ -98,4 +98,5 @@ server.listen(PORT, () => {
   logger.info(`Servidor corriendo en el puerto ${PORT}`);
 });
 
-module.exports = { app, server, io };
+// Exportamos para poder usarlo en los tests
+export { app, server, io };
