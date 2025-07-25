@@ -9,12 +9,11 @@ export const useSocketStore = create((set, get) => ({
   notifications: [],
 
   connect: (token) => {
-    // Evitar múltiples conexiones
     if (get().socket) return;
 
     const newSocket = io(API_URL, {
       auth: { token },
-      transports: ['websocket'] // Forzar websocket para evitar problemas de CORS con polling
+      transports: ['websocket']
     });
 
     newSocket.on('connect', () => {
@@ -36,12 +35,15 @@ export const useSocketStore = create((set, get) => ({
         set(state => ({ notifications: [...state.notifications, newNotification] }));
     };
 
+    // --- CORRECCIÓN CLAVE ---
+    // Ahora leemos la propiedad `message` del objeto `data` que envía el backend.
     newSocket.on('new_order', (data) => {
-      addNotification(`Nueva orden #${data.orderId} por $${data.total} de ${data.userEmail}`, 'new_order');
+      addNotification(data.message, 'new_order');
     });
 
     newSocket.on('new_user', (data) => {
-      addNotification(`Nuevo usuario registrado: ${data.email}`, 'new_user');
+      const message = `Nuevo usuario registrado: ${data.email}`;
+      addNotification(message, 'new_user');
     });
   },
 
