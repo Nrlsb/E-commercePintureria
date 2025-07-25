@@ -9,8 +9,7 @@ import {
   deleteProduct,
   getProductReviews,
   createProductReview,
-  getProductSuggestions,
-  getRelatedProducts, // Importar el nuevo controlador
+  getProductSuggestions, // 1. Importar el nuevo controlador
 } from '../controllers/product.controller.js';
 import { authenticateToken, isAdmin } from '../middlewares/auth.middleware.js';
 // Importamos las reglas de validación y el manejador
@@ -20,13 +19,12 @@ const router = Router();
 
 // --- Rutas de Productos ---
 router.get('/', getProducts);
+
+// 2. Añadir la nueva ruta para sugerencias de búsqueda.
+// Es importante que esté ANTES de la ruta /:productId para que no haya conflictos.
 router.get('/suggestions', getProductSuggestions);
+
 router.get('/brands', getProductBrands);
-
-// Añadir la nueva ruta para productos relacionados.
-// Debe estar antes de /:productId para que no haya conflictos de enrutamiento.
-router.get('/:productId/related', getRelatedProducts);
-
 router.get('/:productId', getProductById);
 
 // Aplicamos las reglas de validación para crear y actualizar productos

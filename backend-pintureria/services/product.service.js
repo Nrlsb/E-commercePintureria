@@ -3,8 +3,7 @@ import db from '../db.js';
 import redisClient from '../redisClient.js';
 import logger from '../logger.js';
 
-const CACHE_EXPIRATION = 3600; // 1 hora
-const RELATED_PRODUCTS_CACHE_EXPIRATION = 86400; // 24 horas
+const CACHE_EXPIRATION = 3600; // 1 hora en segundos
 
 // --- Helper para parsear la URL de la imagen ---
 const parseImageUrl = (imageUrl) => {
@@ -20,110 +19,7 @@ const parseImageUrl = (imageUrl) => {
   return { small: imageUrl, medium: imageUrl, large: imageUrl };
 };
 
-// --- NUEVO: Servicio para obtener productos relacionados ---
-export const fetchRelatedProducts = async (productId) => {
-  const cacheKey = `related-products:${productId}`;
-
-  // 1. Verificar la caché primero
-  try {
-    if (redisClient.isReady) {
-      const cachedData = await redisClient.get(cacheKey);
-      if (cachedData) {
-        logger.debug(`Cache HIT para productos relacionados: ${cacheKey}`);
-        const parsedCache = JSON.parse(cachedData);
-        return parsedCache.map(p => ({
-          ...p,
-          imageUrl: parseImageUrl(p.imageUrl)
-        }));
-      }
-    }
-  } catch (err) {
-    logger.error('Error al leer de la caché de Redis para productos relacionados:', err);
-  }
-
-  logger.debug(`Cache MISS para productos relacionados: ${cacheKey}. Consultando base de datos.`);
-
-  try {
-    // 2. Lógica de "Frecuentemente comprados juntos"
-    const query = `
-      WITH orders_with_product AS (
-        SELECT order_id FROM order_items WHERE product_id = $1
-      )
-      SELECT
-        p.id, p.name, p.brand, p.price, p.old_price as "oldPrice",
-        p.image_url as "imageUrl", p.stock, p.category,
-        COALESCE(avg_reviews.avg_rating, 0) as "averageRating",
-        COALESCE(avg_reviews.review_count, 0) as "reviewCount",
-        COUNT(oi.product_id) as co_purchase_count
-      FROM order_items oi
-      JOIN products p ON oi.product_id = p.id
-      LEFT JOIN (
-          SELECT product_id, AVG(rating) as avg_rating, COUNT(id) as review_count 
-          FROM reviews GROUP BY product_id
-      ) as avg_reviews ON p.id = avg_reviews.product_id
-      WHERE
-        oi.order_id IN (SELECT order_id FROM orders_with_product)
-        AND oi.product_id != $1
-        AND p.is_active = true
-      GROUP BY p.id, avg_reviews.avg_rating, avg_reviews.review_count
-      ORDER BY co_purchase_count DESC, "averageRating" DESC
-      LIMIT 4;
-    `;
-
-    const result = await db.query(query, [productId]);
-    let relatedProducts = result.rows;
-
-    // 3. Lógica de respaldo: si no hay suficientes, buscar en la misma categoría
-    if (relatedProducts.length < 4) {
-      const productResult = await db.query('SELECT category FROM products WHERE id = $1', [productId]);
-      if (productResult.rows.length > 0) {
-        const category = productResult.rows[0].category;
-        const needed = 4 - relatedProducts.length;
-        const existingIds = relatedProducts.map(p => p.id);
-        
-        const fallbackQuery = `
-          SELECT 
-            p.id, p.name, p.brand, p.price, p.old_price as "oldPrice", 
-            p.image_url as "imageUrl", p.stock, p.category,
-            COALESCE(avg_reviews.avg_rating, 0) as "averageRating",
-            COALESCE(avg_reviews.review_count, 0) as "reviewCount"
-          FROM products p
-          LEFT JOIN (
-              SELECT product_id, AVG(rating) as avg_rating, COUNT(id) as review_count 
-              FROM reviews GROUP BY product_id
-          ) as avg_reviews ON p.id = avg_reviews.product_id
-          WHERE p.category = $1 AND p.id != $2 AND p.is_active = true
-          AND p.id NOT IN (${existingIds.length > 0 ? existingIds.map(id => `'${id}'`).join(',') : "''"})
-          ORDER BY "averageRating" DESC, "reviewCount" DESC
-          LIMIT $3;
-        `;
-        const fallbackResult = await db.query(fallbackQuery, [category, productId, needed]);
-        relatedProducts = [...relatedProducts, ...fallbackResult.rows];
-      }
-    }
-
-    // 4. Parsear URLs de imagen antes de cachear y devolver
-    const finalProducts = relatedProducts.map(p => ({
-      ...p,
-      imageUrl: parseImageUrl(p.imageUrl)
-    }));
-
-    // 5. Guardar el resultado en la caché
-    try {
-      if (redisClient.isReady) {
-        await redisClient.setEx(cacheKey, RELATED_PRODUCTS_CACHE_EXPIRATION, JSON.stringify(finalProducts));
-      }
-    } catch (err) {
-      logger.error('Error al escribir en la caché de Redis para productos relacionados:', err);
-    }
-
-    return finalProducts;
-  } catch (error) {
-    logger.error(`Error fetching related products for ID ${productId}:`, error);
-    throw error;
-  }
-};
-
+// --- NUEVO: Servicio para obtener sugerencias de búsqueda ---
 export const fetchProductSuggestions = async (query) => {
   if (!query || query.trim().length < 2) {
     return { products: [], categories: [], brands: [] };
@@ -153,6 +49,7 @@ export const fetchProductSuggestions = async (query) => {
       brandsQuery,
     ]);
 
+    // Parseamos las imágenes de los productos sugeridos
     const products = productsResult.rows.map(p => ({
       ...p,
       imageUrl: parseImageUrl(p.imageUrl)?.small || 'https://placehold.co/40x40'
