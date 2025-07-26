@@ -6,6 +6,7 @@ import ProductCard from '../components/ProductCard.jsx';
 import StarRating from '../components/StarRating.jsx';
 import ReviewList from '../components/ReviewList.jsx';
 import ReviewForm from '../components/ReviewForm.jsx';
+import Spinner from '../components/Spinner.jsx'; // Importar el componente Spinner
 import { useProductStore } from '../stores/useProductStore.js';
 import { useCartStore } from '../stores/useCartStore.js';
 import { useAuthStore } from '../stores/useAuthStore.js';
@@ -27,6 +28,7 @@ const ProductDetailPage = () => {
   const [error, setError] = useState(null);
   const [quantity, setQuantity] = useState(1);
   const [activeTab, setActiveTab] = useState('description');
+  const [addingToCart, setAddingToCart] = useState(false); // Nuevo estado para el botón de agregar al carrito
 
   const fetchProductAndReviews = useCallback(async () => {
     try {
@@ -64,9 +66,16 @@ const ProductDetailPage = () => {
     });
   };
 
-  const handleAddToCartClick = () => {
-    addToCart(product, quantity);
-    showNotification(`${quantity} unidades de ${product.name} agregadas al carrito.`);
+  const handleAddToCartClick = async () => {
+    setAddingToCart(true); // Iniciar estado de carga
+    try {
+      await addToCart(product, quantity);
+      showNotification(`${quantity} unidades de ${product.name} agregadas al carrito.`);
+    } catch (err) {
+      showNotification('Error al agregar al carrito.', 'error');
+    } finally {
+      setAddingToCart(false); // Finalizar estado de carga
+    }
   };
 
   const handleDeleteReview = async (reviewId) => {
@@ -98,8 +107,13 @@ const ProductDetailPage = () => {
     ? products.filter(p => p.category === product.category && p.id !== product.id).slice(0, 4)
     : [];
 
-  if (loading) return <div className="text-center p-10" role="status" aria-live="polite">Cargando producto...</div>; // role="status" y aria-live="polite" para anunciar cambios de estado
-  if (error) return <div className="text-center p-10 text-red-500" role="alert" aria-live="assertive">Error: {error}</div>; // role="alert" y aria-live="assertive" para errores críticos
+  if (loading) return (
+    <div className="flex justify-center items-center h-screen" role="status" aria-live="polite">
+      <Spinner className="w-10 h-10 text-[#0F3460]" /> {/* Usar el Spinner */}
+      <span className="ml-3 text-lg text-gray-700">Cargando producto...</span>
+    </div>
+  );
+  if (error) return <div className="text-center p-10 text-red-500" role="alert" aria-live="assertive">Error: {error}</div>;
   if (!product) return null;
   
   const imageUrls = product.imageUrl;
@@ -166,7 +180,7 @@ const ProductDetailPage = () => {
             <div className="flex items-center border border-gray-300 rounded-md">
               <button 
                 onClick={() => handleQuantityChange(-1)} 
-                disabled={product.stock === 0 || quantity === 1} // Deshabilitar si la cantidad es 1 o no hay stock
+                disabled={product.stock === 0 || quantity === 1 || addingToCart} // Deshabilitar si la cantidad es 1 o no hay stock, o si se está agregando al carrito
                 className="px-4 py-2 text-xl font-bold hover:bg-gray-100 rounded-l-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 aria-label={`Disminuir cantidad de ${product.name}`} // Aria-label para el botón de disminución
               >
@@ -185,7 +199,7 @@ const ProductDetailPage = () => {
               />
               <button 
                 onClick={() => handleQuantityChange(1)} 
-                disabled={product.stock === 0 || (product.stock > 0 && quantity >= product.stock)} // Deshabilitar si no hay stock o se alcanza el máximo
+                disabled={product.stock === 0 || (product.stock > 0 && quantity >= product.stock) || addingToCart} // Deshabilitar si no hay stock o se alcanza el máximo, o si se está agregando al carrito
                 className="px-4 py-2 text-xl font-bold hover:bg-gray-100 rounded-r-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 aria-label={`Aumentar cantidad de ${product.name}`} // Aria-label para el botón de aumento
               >
@@ -201,11 +215,17 @@ const ProductDetailPage = () => {
           <motion.button 
             whileTap={{ scale: 0.97 }}
             onClick={handleAddToCartClick} 
-            disabled={product.stock === 0}
-            className="w-full bg-[#0F3460] text-white py-4 px-6 rounded-lg font-bold text-lg hover:bg-[#1a4a8a] transition-colors duration-300 disabled:bg-gray-400 disabled:cursor-not-allowed"
-            aria-label={product.stock > 0 ? `Agregar ${quantity} unidades de ${product.name} al carrito` : `Producto sin stock, no se puede agregar al carrito`} // Aria-label más descriptivo
+            disabled={product.stock === 0 || addingToCart} // Deshabilitar si no hay stock o se está agregando al carrito
+            className="w-full bg-[#0F3460] text-white py-4 px-6 rounded-lg font-bold text-lg hover:bg-[#1a4a8a] transition-colors duration-300 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center"
+            aria-label={product.stock > 0 ? `Agregar ${quantity} unidades de ${product.name} al carrito` : `Producto sin stock, no se puede agregar al carrito`}
           >
-            {product.stock > 0 ? 'Agregar al Carrito' : 'Sin Stock'}
+            {addingToCart ? (
+              <Spinner className="w-6 h-6 text-white" /> // Mostrar spinner si se está agregando
+            ) : (
+              <>
+                {product.stock > 0 ? 'Agregar al Carrito' : 'Sin Stock'}
+              </>
+            )}
           </motion.button>
         </div>
       </motion.div>
@@ -217,11 +237,11 @@ const ProductDetailPage = () => {
             <button
               onClick={() => setActiveTab('description')}
               className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${activeTab === 'description' ? 'border-[#0F3460] text-[#0F3460]' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
-              role="tab" // Indica que es un elemento de pestaña
-              aria-selected={activeTab === 'description'} // Indica si la pestaña está seleccionada
-              aria-controls="panel-description" // Asocia la pestaña con su panel de contenido
-              id="tab-description" // ID único para la pestaña
-              tabIndex={activeTab === 'description' ? 0 : -1} // tabIndex para la navegación por teclado
+              role="tab"
+              aria-selected={activeTab === 'description'}
+              aria-controls="panel-description"
+              id="tab-description"
+              tabIndex={activeTab === 'description' ? 0 : -1}
             >
               Descripción
             </button>
@@ -251,14 +271,14 @@ const ProductDetailPage = () => {
         </div>
         <div className="py-6">
           {activeTab === 'description' && (
-            <div role="tabpanel" id="panel-description" aria-labelledby="tab-description"> {/* Panel de contenido asociado a la pestaña */}
+            <div role="tabpanel" id="panel-description" aria-labelledby="tab-description">
               <p className="text-gray-700 leading-relaxed">{product.description || 'No hay descripción disponible para este producto.'}</p>
             </div>
           )}
           {activeTab === 'details' && (
             <div role="tabpanel" id="panel-details" aria-labelledby="tab-details">
               <div className="text-gray-700">
-                <h3 className="sr-only">Detalles Técnicos del Producto</h3> {/* sr-only para ocultar visualmente pero visible para lectores de pantalla */}
+                <h3 className="sr-only">Detalles Técnicos del Producto</h3>
                 <ul>
                   <li><strong>Marca:</strong> {product.brand}</li>
                   <li><strong>Categoría:</strong> {product.category}</li>
@@ -273,7 +293,7 @@ const ProductDetailPage = () => {
               {user ? (
                 <ReviewForm productId={productId} token={token} onReviewSubmitted={fetchProductAndReviews} />
               ) : (
-                <p className="text-center bg-gray-100 p-4 rounded-lg" role="note"> {/* role="note" para indicar que es un comentario o nota */}
+                <p className="text-center bg-gray-100 p-4 rounded-lg" role="note">
                   <Link to="/login" className="font-bold text-[#0F3460] hover:underline">Inicia sesión</Link> para dejar una reseña.
                 </p>
               )}
@@ -284,8 +304,8 @@ const ProductDetailPage = () => {
       </div>
 
       {relatedProducts.length > 0 && (
-        <section className="mt-16" aria-labelledby="related-products-heading"> {/* Usar <section> como landmark y aria-labelledby */}
-          <h2 id="related-products-heading" className="text-2xl font-bold text-gray-800 mb-6">También te puede interesar</h2> {/* ID para asociar con aria-labelledby */}
+        <section className="mt-16" aria-labelledby="related-products-heading">
+          <h2 id="related-products-heading" className="text-2xl font-bold text-gray-800 mb-6">También te puede interesar</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {relatedProducts.map(p => (
               <ProductCard key={p.id} product={p} />
