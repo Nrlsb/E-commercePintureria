@@ -5,9 +5,8 @@ import { sendOrderConfirmationEmail, sendBankTransferInstructionsEmail } from '.
 import logger from '../logger.js';
 
 const { MercadoPagoConfig, Payment, PaymentRefund } = mercadopago;
-// Asegúrate de que MERCADOPAGO_ACCESS_TOKEN esté configurado correctamente en tus variables de entorno
 const client = new MercadoPagoConfig({ accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN });
-const MIN_TRANSACTION_AMOUNT = 100; // Define esto si no está en config/index.js o similar
+const MIN_TRANSACTION_AMOUNT = 100;
 
 export const confirmTransferPayment = async (req, res, next) => {
   const { orderId } = req.params;
@@ -275,7 +274,7 @@ export const getAllOrders = async (req, res, next) => {
         paramIndex++;
     }
 
-    const whereString = whereClauses.length > 0 ? ` WHERE ${whereClaClauses.join(' AND ')}` : '';
+    const whereString = whereClauses.length > 0 ? ` WHERE ${whereClauses.join(' AND ')}` : '';
 
     try {
         // 2. Crear una consulta para obtener el conteo total de órdenes que coinciden con los filtros
@@ -311,80 +310,43 @@ export const getAllOrders = async (req, res, next) => {
 
 export const cancelOrder = async (req, res, next) => {
     const { orderId } = req.params;
-    let dbClient; // Declara dbClient aquí para que esté disponible en el bloque finally
+    const dbClient = await db.connect();
     try {
-        dbClient = await db.connect(); // Conecta con la base de datos
-        await dbClient.query('BEGIN'); // Inicia una transacción
-
-        logger.info(`Intentando cancelar la orden #${orderId}`);
-
+        await dbClient.query('BEGIN');
         const orderResult = await dbClient.query('SELECT * FROM orders WHERE id = $1', [orderId]);
         if (orderResult.rows.length === 0) {
-            logger.warn(`Intento de cancelar orden no encontrada: #${orderId}`);
-            await dbClient.query('ROLLBACK'); // Asegúrate de hacer rollback si no se encuentra la orden
             return res.status(404).json({ message: 'Orden no encontrada.' });
         }
         const order = orderResult.rows[0];
 
         if (order.status === 'cancelled') {
-            logger.warn(`Intento de cancelar orden #${orderId} que ya está cancelada.`);
-            await dbClient.query('ROLLBACK'); // Asegúrate de hacer rollback si la orden ya está cancelada
             return res.status(400).json({ message: 'La orden ya ha sido cancelada.' });
         }
 
-        // Lógica para reembolso de Mercado Pago
         if (order.mercadopago_transaction_id) {
-            logger.info(`Orden #${orderId} tiene ID de transacción de Mercado Pago: ${order.mercadopago_transaction_id}. Intentando reembolso.`);
-            try {
-                const refundClient = new PaymentRefund(client);
-                const refundResponse = await refundClient.create({
-                    payment_id: order.mercadopago_transaction_id
-                });
-                logger.info(`Reembolso de Mercado Pago para la orden #${orderId} exitoso. Respuesta:`, refundResponse);
-            } catch (mpError) {
-                // Captura y loguea específicamente los errores de Mercado Pago
-                logger.error(`Error al procesar el reembolso de Mercado Pago para la orden #${orderId} (ID de transacción: ${order.mercadopago_transaction_id}):`, mpError.message || mpError);
-                // Si el reembolso falla, puedes decidir si abortar la cancelación de la orden o continuar.
-                // Por ahora, el error se propagará y la transacción de DB se revertirá.
-                throw new Error(`Fallo el reembolso de Mercado Pago: ${mpError.message || 'Error desconocido'}`);
-            }
-        } else {
-            logger.info(`Orden #${orderId} no tiene ID de transacción de Mercado Pago. No se requiere reembolso.`);
+            const refundClient = new PaymentRefund(client);
+            await refundClient.create({
+                payment_id: order.mercadopago_transaction_id
+            });
         }
 
-        // Actualizar el estado de la orden a 'cancelled'
         const updatedOrderResult = await dbClient.query(
             "UPDATE orders SET status = 'cancelled' WHERE id = $1 RETURNING *",
             [orderId]
         );
-        logger.info(`Estado de la orden #${orderId} actualizado a 'cancelled'.`);
-
-        // Devolver el stock de los productos
+        
         const orderItemsResult = await dbClient.query('SELECT product_id, quantity FROM order_items WHERE order_id = $1', [orderId]);
-        if (orderItemsResult.rows.length > 0) {
-            for (const item of orderItemsResult.rows) {
-                await dbClient.query('UPDATE products SET stock = stock + $1 WHERE id = $2', [item.quantity, item.product_id]);
-                logger.info(`Stock del producto ID ${item.product_id} incrementado en ${item.quantity} unidades para la orden #${orderId}.`);
-            }
-        } else {
-            logger.warn(`No se encontraron ítems para la orden #${orderId} al intentar devolver el stock.`);
+        for (const item of orderItemsResult.rows) {
+            await dbClient.query('UPDATE products SET stock = stock + $1 WHERE id = $2', [item.quantity, item.product_id]);
         }
 
-        await dbClient.query('COMMIT'); // Confirma la transacción
-        logger.info(`Orden #${orderId} cancelada y reembolso/stock procesado exitosamente.`);
+        await dbClient.query('COMMIT');
+        logger.info(`Orden #${orderId} cancelada y reembolso procesado exitosamente.`);
         res.status(200).json({ message: 'Orden cancelada y reembolso procesado con éxito.', order: updatedOrderResult.rows[0] });
     } catch (error) {
-        if (dbClient) { // Asegura que dbClient existe antes de intentar el rollback
-            await dbClient.query('ROLLBACK'); // Revierte todos los cambios en la base de datos si algo falla
-            logger.error(`Transacción de base de datos revertida para la orden #${orderId}.`);
-        }
-        // Loguea el error completo para depuración
-        logger.error(`Error inesperado al cancelar la orden #${orderId}:`, error);
-        next(error); // Pasa el error al siguiente middleware de manejo de errores
+        await dbClient.query('ROLLBACK');
+        next(error);
     } finally {
-        if (dbClient) { // Asegura que dbClient existe antes de liberarlo
-            dbClient.release(); // Libera el cliente de la base de datos para que vuelva a la pool
-            logger.debug(`Cliente de base de datos liberado para la orden #${orderId}.`);
-        }
+        dbClient.release();
     }
 };

@@ -55,9 +55,8 @@ const ProductDetailPage = () => {
     window.scrollTo(0, 0);
   }, [productId, fetchProductAndReviews]);
 
-  // --- INICIO DE MEJORAS SEO ---
+  // Actualizar el título de la página y la meta descripción para SEO
   useEffect(() => {
-    // Actualizar el título de la página y la meta descripción para SEO
     if (product) {
       document.title = `${product.name} - Pinturerías Mercurio`;
       
@@ -71,7 +70,6 @@ const ProductDetailPage = () => {
         ? `Comprar ${product.name} de la marca ${product.brand} en Pinturerías Mercurio. ${product.description.substring(0, 150)}...`
         : `Comprar ${product.name} de la marca ${product.brand} en Pinturerías Mercurio.`;
     } else {
-      // Valores por defecto si el producto no está cargado
       document.title = "Detalle del Producto - Pinturerías Mercurio";
       let metaDescriptionTag = document.querySelector('meta[name="description"]');
       if (metaDescriptionTag) {
@@ -93,14 +91,14 @@ const ProductDetailPage = () => {
       "name": product.name,
       "image": mainImageUrl,
       "description": product.description || `Producto de pintura: ${product.name} de la marca ${product.brand}.`,
-      "sku": product.id, // Usar el ID del producto como SKU
+      "sku": product.id,
       "brand": {
         "@type": "Brand",
         "name": product.brand
       },
       "offers": {
         "@type": "Offer",
-        "url": window.location.href, // URL canónica de la página actual
+        "url": window.location.href,
         "priceCurrency": "ARS",
         "price": product.price,
         "itemCondition": "https://schema.org/NewCondition",
@@ -118,7 +116,6 @@ const ProductDetailPage = () => {
 
     return JSON.stringify(schema);
   };
-  // --- FIN DE MEJORAS SEO ---
 
   const handleQuantityChange = (amount) => {
     setQuantity(prev => {
@@ -199,7 +196,8 @@ const ProductDetailPage = () => {
           <img 
             src={src}
             srcSet={srcSet}
-            sizes="(max-width: 768px) 90vw, 45vw"
+            // Se ajusta `sizes` para una mejor responsividad en diferentes viewports
+            sizes="(max-width: 640px) 100vw, (max-width: 768px) 50vw, 400px" 
             alt={`Imagen de ${product.name}`} 
             className="max-w-full h-auto max-h-[500px] object-contain"
             loading="lazy"

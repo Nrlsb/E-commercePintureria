@@ -10,7 +10,7 @@ import Spinner from './Spinner.jsx';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
-// --- Componente de Menú de Usuario para Escritorio ---
+// Componente de Menú de Usuario para Escritorio
 const UserMenuDesktop = () => {
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef(null);
@@ -39,6 +39,7 @@ const UserMenuDesktop = () => {
     <div className="relative" ref={menuRef}>
       <button onClick={() => setIsOpen(!isOpen)} className="flex items-center text-gray-300 hover:text-white transition-colors">
         <Icon path={ICONS.user} />
+        {/* Se asegura que el nombre de usuario solo se muestre en pantallas medianas y grandes */}
         <span className="hidden md:block ml-2">Hola, {user.email.split('@')[0]}</span>
         <Icon path={ICONS.chevronDown} className="hidden md:block w-4 h-4 ml-1" />
       </button>
@@ -69,7 +70,7 @@ const UserMenuDesktop = () => {
 };
 
 
-// --- Componente Principal del Header (con Autocompletar) ---
+// Componente Principal del Header (con Autocompletar)
 const Header = () => {
   const navigate = useNavigate();
   const { setSearchQuery } = useProductStore();
@@ -77,13 +78,12 @@ const Header = () => {
   const [localQuery, setLocalQuery] = useState('');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   
-  // --- NUEVO: Estados para el autocompletar ---
   const [suggestions, setSuggestions] = useState({ products: [], categories: [], brands: [] });
   const [isSuggestionsOpen, setIsSuggestionsOpen] = useState(false);
   const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
   const searchContainerRef = useRef(null);
 
-  // --- Efecto para obtener sugerencias con Debounce ---
+  // Efecto para obtener sugerencias con Debounce
   useEffect(() => {
     if (localQuery.trim().length < 2) {
       setSuggestions({ products: [], categories: [], brands: [] });
@@ -103,12 +103,12 @@ const Header = () => {
       } finally {
         setIsLoadingSuggestions(false);
       }
-    }, 300); // 300ms de espera
+    }, 300);
 
     return () => clearTimeout(timerId);
   }, [localQuery]);
 
-  // --- Efecto para cerrar las sugerencias al hacer clic fuera ---
+  // Efecto para cerrar las sugerencias al hacer clic fuera
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (searchContainerRef.current && !searchContainerRef.current.contains(event.target)) {
@@ -157,7 +157,8 @@ const Header = () => {
             Pinturerías Mercurio
           </Link>
 
-          {/* --- Contenedor de Búsqueda Modificado --- */}
+          {/* Contenedor de Búsqueda Modificado para responsividad */}
+          {/* Se muestra en pantallas medianas y grandes, oculto en pequeñas */}
           <div ref={searchContainerRef} className="hidden md:flex flex-1 justify-center px-8">
             <form onSubmit={handleSubmit} className="relative w-full max-w-lg">
               <input 
@@ -172,7 +173,7 @@ const Header = () => {
                 {isLoadingSuggestions ? <Spinner className="w-5 h-5 text-gray-500" /> : <Icon path={ICONS.search} className="w-5 h-5 text-gray-500" />}
               </button>
               
-              {/* --- Panel de Sugerencias --- */}
+              {/* Panel de Sugerencias */}
               {isSuggestionsOpen && (
                 <div className="absolute top-full mt-2 w-full bg-white rounded-lg shadow-xl overflow-hidden z-50 text-gray-800">
                   {suggestions.products.length === 0 && suggestions.categories.length === 0 && suggestions.brands.length === 0 ? (
@@ -225,7 +226,7 @@ const Header = () => {
             </form>
           </div>
 
-          {/* Menú para Escritorio */}
+          {/* Menú para Escritorio - Se muestra solo en pantallas medianas y grandes */}
           <div className="hidden md:flex items-center space-x-4">
             {user ? (
               <UserMenuDesktop />
@@ -247,7 +248,7 @@ const Header = () => {
             </Link>
           </div>
 
-          {/* Botones para Móvil */}
+          {/* Botones para Móvil - Se muestran solo en pantallas pequeñas */}
           <div className="md:hidden flex items-center space-x-4">
              <Link to="/cart" className="text-white relative">
               <Icon path={ICONS.shoppingCart} className="w-6 h-6" />
@@ -273,6 +274,7 @@ const Header = () => {
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
               </button>
               
+              {/* Barra de búsqueda móvil */}
               <form onSubmit={handleSubmit} className="mb-8">
                 <input type="search" placeholder="Buscar..." value={localQuery} onChange={(e) => setLocalQuery(e.target.value)} className="w-full py-2 px-4 text-gray-900 bg-gray-100 rounded-full focus:outline-none focus:ring-2 focus:ring-[#E9D502]"/>
               </form>
