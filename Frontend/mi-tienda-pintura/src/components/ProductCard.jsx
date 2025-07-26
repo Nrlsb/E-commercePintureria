@@ -1,11 +1,11 @@
 // src/components/ProductCard.jsx
-import React, { useState } from 'react'; // Importar useState
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import Icon from './Icon.jsx';
 import { ICONS } from '../data/icons.js';
 import StarRating from './StarRating.jsx';
-import Spinner from './Spinner.jsx'; // Importar el componente Spinner
+import Spinner from './Spinner.jsx';
 import { useCartStore } from '../stores/useCartStore.js';
 import { useNotificationStore } from '../stores/useNotificationStore.js';
 import { useWishlistStore } from '../stores/useWishlistStore.js';
@@ -21,29 +21,45 @@ const ProductCard = React.memo(({ product }) => {
   const { user, token } = useAuthStore();
   const isWishlisted = wishlistProductIds.has(product.id);
 
-  const [addingToCart, setAddingToCart] = useState(false); // Nuevo estado para el botón de agregar al carrito
-  const [togglingWishlist, setTogglingWishlist] = useState(false); // Nuevo estado para el botón de lista de deseos
+  const [addingToCart, setAddingToCart] = useState(false);
+  const [togglingWishlist, setTogglingWishlist] = useState(false);
 
-  const imageUrls = product.imageUrl;
   let src, srcSet;
+  let parsedImageUrls = product.imageUrl; // Inicializamos con el valor crudo
 
-  if (imageUrls && typeof imageUrls === 'object') {
-    src = imageUrls.medium || imageUrls.small;
-    srcSet = `${imageUrls.small} 400w, ${imageUrls.medium} 800w, ${imageUrls.large} 1200w`;
+  // Intentamos parsear la cadena JSON si parece ser una
+  if (typeof parsedImageUrls === 'string' && parsedImageUrls.startsWith('{')) {
+    try {
+      parsedImageUrls = JSON.parse(parsedImageUrls);
+    } catch (e) {
+      console.error("Error parsing product.imageUrl JSON string:", e);
+      parsedImageUrls = null; // Si falla el parseo, tratamos como null
+    }
+  }
+
+  // Ahora, manejamos parsedImageUrls que puede ser un objeto, una URL string o null
+  if (parsedImageUrls && typeof parsedImageUrls === 'object') {
+    src = parsedImageUrls.medium || parsedImageUrls.small;
+    srcSet = '';
+    if (parsedImageUrls.small) srcSet += `${parsedImageUrls.small} 400w, `;
+    if (parsedImageUrls.medium) srcSet += `${parsedImageUrls.medium} 800w, `;
+    if (parsedImageUrls.large) srcSet += `${parsedImageUrls.large} 1200w`;
+    srcSet = srcSet.trim().replace(/,$/, ''); // Eliminar la última coma si existe
   } else {
-    src = imageUrls || `https://placehold.co/300x224/cccccc/ffffff?text=${encodeURIComponent(product.name)}`;
+    // Si parsedImageUrls es una URL string directa o null/undefined
+    src = parsedImageUrls || `https://placehold.co/300x224/cccccc/ffffff?text=${encodeURIComponent(product.name || 'Producto')}`;
     srcSet = null;
   }
 
   const handleAddToCart = async () => {
-    setAddingToCart(true); // Iniciar estado de carga
+    setAddingToCart(true);
     try {
       await addToCart(product);
       showNotification(`${product.name} ha sido agregado al carrito.`);
     } catch (err) {
       showNotification('Error al agregar al carrito.', 'error');
     } finally {
-      setAddingToCart(false); // Finalizar estado de carga
+      setAddingToCart(false);
     }
   };
 
@@ -54,13 +70,13 @@ const ProductCard = React.memo(({ product }) => {
         showNotification('Debes iniciar sesión para usar la lista de deseos.', 'error');
         return;
     }
-    setTogglingWishlist(true); // Iniciar estado de carga
+    setTogglingWishlist(true);
     try {
       await toggleWishlistItem(product, token);
     } catch (err) {
       showNotification('Error al actualizar la lista de deseos.', 'error');
     } finally {
-      setTogglingWishlist(false); // Finalizar estado de carga
+      setTogglingWishlist(false);
     }
   };
   
@@ -88,13 +104,13 @@ const ProductCard = React.memo(({ product }) => {
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
             onClick={handleWishlistToggle}
-            className="absolute top-3 right-3 z-10 p-2 bg-white/70 backdrop-blur-sm rounded-full text-gray-600 hover:text-red-500 transition-colors flex items-center justify-center" // Añadir flex para centrar spinner
+            className="absolute top-3 right-3 z-10 p-2 bg-white/70 backdrop-blur-sm rounded-full text-gray-600 hover:text-red-500 transition-colors flex items-center justify-center"
             aria-label={isWishlisted ? `Quitar ${product.name} de la lista de deseos` : `Añadir ${product.name} a la lista de deseos`}
             title={isWishlisted ? `Quitar ${product.name} de la lista de deseos` : `Añadir ${product.name} a la lista de deseos`}
-            disabled={togglingWishlist} // Deshabilitar durante la carga
+            disabled={togglingWishlist}
         >
             {togglingWishlist ? (
-              <Spinner className="w-5 h-5 text-gray-600" /> // Spinner para lista de deseos
+              <Spinner className="w-5 h-5 text-gray-600" />
             ) : (
               <Icon path={ICONS.heart} className={`w-6 h-6 ${isWishlisted ? 'text-red-500 fill-current' : 'fill-transparent stroke-current stroke-2'}`} />
             )}
@@ -110,14 +126,13 @@ const ProductCard = React.memo(({ product }) => {
           src={src}
           srcSet={srcSet}
           sizes="(max-width: 640px) 90vw, (max-width: 1024px) 45vw, 23vw"
-          alt={`Imagen de ${product.name}, marca ${product.brand}`}
+          alt={`Imagen de ${product.name || 'producto'}, marca ${product.brand || 'desconocida'}`} // Fallback para product.name
           className="w-full h-full object-contain"
           loading="lazy"
           width="300"
           height="224"
           onError={(e) => { e.target.onerror = null; e.target.src=`https://placehold.co/300x224/cccccc/ffffff?text=Imagen+no+disponible`; }}
         />
-        {/* Botón de Vista Rápida que aparece al hacer hover */}
         <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-opacity duration-300 flex items-center justify-center">
             <motion.button
                 initial={{ opacity: 0, y: 20 }}
@@ -154,12 +169,12 @@ const ProductCard = React.memo(({ product }) => {
           <motion.button
               whileTap={{ scale: 0.95 }}
               onClick={handleAddToCart}
-              disabled={product.stock === 0 || addingToCart} // Deshabilitar durante la carga
+              disabled={product.stock === 0 || addingToCart}
               className="w-full flex items-center justify-center bg-[#0F3460] text-white py-2.5 px-4 rounded-lg font-semibold hover:bg-[#1a4a8a] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#0F3460] transition-colors duration-300 disabled:bg-gray-400 disabled:cursor-not-allowed"
               aria-label={product.stock > 0 ? `Agregar ${product.name} al carrito` : `Sin stock de ${product.name}`}
           >
               {addingToCart ? (
-                <Spinner className="w-5 h-5 text-white" /> // Mostrar spinner si se está agregando
+                <Spinner className="w-5 h-5 text-white" />
               ) : (
                 <>
                   <Icon path={ICONS.shoppingCart} className="w-5 h-5 mr-2" />

@@ -6,7 +6,7 @@ import ProductCard from '../components/ProductCard.jsx';
 import StarRating from '../components/StarRating.jsx';
 import ReviewList from '../components/ReviewList.jsx';
 import ReviewForm from '../components/ReviewForm.jsx';
-import Spinner from '../components/Spinner.jsx'; // Importar el componente Spinner
+import Spinner from '../components/Spinner.jsx';
 import { useProductStore } from '../stores/useProductStore.js';
 import { useCartStore } from '../stores/useCartStore.js';
 import { useAuthStore } from '../stores/useAuthStore.js';
@@ -28,7 +28,7 @@ const ProductDetailPage = () => {
   const [error, setError] = useState(null);
   const [quantity, setQuantity] = useState(1);
   const [activeTab, setActiveTab] = useState('description');
-  const [addingToCart, setAddingToCart] = useState(false); // Nuevo estado para el botón de agregar al carrito
+  const [addingToCart, setAddingToCart] = useState(false);
 
   const fetchProductAndReviews = useCallback(async () => {
     try {
@@ -67,19 +67,18 @@ const ProductDetailPage = () => {
   };
 
   const handleAddToCartClick = async () => {
-    setAddingToCart(true); // Iniciar estado de carga
+    setAddingToCart(true);
     try {
       await addToCart(product, quantity);
       showNotification(`${quantity} unidades de ${product.name} agregadas al carrito.`);
     } catch (err) {
       showNotification('Error al agregar al carrito.', 'error');
     } finally {
-      setAddingToCart(false); // Finalizar estado de carga
+      setAddingToCart(false);
     }
   };
 
   const handleDeleteReview = async (reviewId) => {
-    // Nota: window.confirm es un bloqueo y no es accesible. Se recomienda reemplazarlo con un modal de confirmación personalizado.
     if (window.confirm('¿Estás seguro de que quieres eliminar esta reseña?')) {
       try {
         const response = await fetch(`${API_URL}/api/reviews/${reviewId}`, {
@@ -109,34 +108,54 @@ const ProductDetailPage = () => {
 
   if (loading) return (
     <div className="flex justify-center items-center h-screen" role="status" aria-live="polite">
-      <Spinner className="w-10 h-10 text-[#0F3460]" /> {/* Usar el Spinner */}
+      <Spinner className="w-10 h-10 text-[#0F3460]" />
       <span className="ml-3 text-lg text-gray-700">Cargando producto...</span>
     </div>
   );
   if (error) return <div className="text-center p-10 text-red-500" role="alert" aria-live="assertive">Error: {error}</div>;
   if (!product) return null;
   
-  const imageUrls = product.imageUrl;
-  const src = imageUrls?.large || imageUrls || 'https://placehold.co/500x500/cccccc/ffffff?text=Imagen+no+disponible';
-  const srcSet = imageUrls && typeof imageUrls === 'object'
-    ? `${imageUrls.small} 400w, ${imageUrls.medium} 800w, ${imageUrls.large} 1200w`
-    : null;
+  let src, srcSet;
+  let parsedImageUrls = product.imageUrl; // Inicializamos con el valor crudo
+
+  // Intentamos parsear la cadena JSON si parece ser una
+  if (typeof parsedImageUrls === 'string' && parsedImageUrls.startsWith('{')) {
+    try {
+      parsedImageUrls = JSON.parse(parsedImageUrls);
+    } catch (e) {
+      console.error("Error parsing product.imageUrl JSON string:", e);
+      parsedImageUrls = null; // Si falla el parseo, tratamos como null
+    }
+  }
+
+  // Ahora, manejamos parsedImageUrls que puede ser un objeto, una URL string o null
+  if (parsedImageUrls && typeof parsedImageUrls === 'object') {
+    src = parsedImageUrls.large || parsedImageUrls.medium || parsedImageUrls.small;
+    srcSet = '';
+    if (parsedImageUrls.small) srcSet += `${parsedImageUrls.small} 400w, `;
+    if (parsedImageUrls.medium) srcSet += `${parsedImageUrls.medium} 800w, `;
+    if (parsedImageUrls.large) srcSet += `${parsedImageUrls.large} 1200w`;
+    srcSet = srcSet.trim().replace(/,$/, '');
+  } else {
+    // Si parsedImageUrls es una URL string directa o null/undefined
+    src = parsedImageUrls || `https://placehold.co/500x500/cccccc/ffffff?text=${encodeURIComponent(product.name || 'Producto')}`; // Fallback para product.name
+    srcSet = null;
+  }
 
   return (
     <div className="container mx-auto px-4 py-8">
-      {/* Breadcrumbs con navegación semántica y aria-label */}
       <nav aria-label="Ruta de navegación" className="text-sm text-gray-500 mb-6">
         <ol className="flex items-center space-x-2">
           <li>
             <Link to="/" className="hover:text-[#0F3460]">Inicio</Link>
           </li>
           <li>
-            <span className="mx-2" aria-hidden="true">&gt;</span> {/* aria-hidden="true" para ocultar caracteres decorativos de lectores de pantalla */}
+            <span className="mx-2" aria-hidden="true">&gt;</span>
             <Link to={`/category/${product.category}`} className="hover:text-[#0F3460]">{product.category}</Link>
           </li>
           <li>
             <span className="mx-2" aria-hidden="true">&gt;</span>
-            <span aria-current="page" className="font-medium text-gray-700">{product.name}</span> {/* aria-current="page" para indicar la página actual */}
+            <span aria-current="page" className="font-medium text-gray-700">{product.name}</span>
           </li>
         </ol>
       </nav>
@@ -152,7 +171,7 @@ const ProductDetailPage = () => {
             src={src}
             srcSet={srcSet}
             sizes="(max-width: 768px) 90vw, 45vw"
-            alt={`Imagen principal de ${product.name}, marca ${product.brand}`} // Alt text más descriptivo para la imagen principal
+            alt={`Imagen principal de ${product.name || 'producto'}, marca ${product.brand || 'desconocida'}`} // Fallback para product.name
             className="max-w-full h-auto max-h-[500px] object-contain"
             loading="lazy"
             width="500"
@@ -175,38 +194,36 @@ const ProductDetailPage = () => {
           </div>
           
           <div className="flex items-center space-x-4 mb-6">
-            {/* Etiqueta asociada al input de cantidad para accesibilidad */}
             <label htmlFor="quantity-input" className="font-semibold text-lg">Cantidad:</label> 
             <div className="flex items-center border border-gray-300 rounded-md">
               <button 
                 onClick={() => handleQuantityChange(-1)} 
-                disabled={product.stock === 0 || quantity === 1 || addingToCart} // Deshabilitar si la cantidad es 1 o no hay stock, o si se está agregando al carrito
+                disabled={product.stock === 0 || quantity === 1 || addingToCart}
                 className="px-4 py-2 text-xl font-bold hover:bg-gray-100 rounded-l-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                aria-label={`Disminuir cantidad de ${product.name}`} // Aria-label para el botón de disminución
+                aria-label={`Disminuir cantidad de ${product.name}`}
               >
                 -
               </button>
               <input 
-                id="quantity-input" // ID para asociar con la etiqueta
+                id="quantity-input"
                 type="number" 
                 value={product.stock > 0 ? quantity : 0} 
-                readOnly // El input es solo de lectura, se controla con los botones
+                readOnly
                 className="px-6 py-2 text-lg font-semibold w-20 text-center bg-transparent focus:outline-none"
-                aria-live="polite" // Anunciar cambios en la cantidad a lectores de pantalla
-                aria-atomic="true" // Anunciar todo el contenido del elemento cuando cambia
-                min="1" // Establecer el mínimo para el input numérico
-                max={product.stock} // Establecer el máximo para el input numérico
+                aria-live="polite"
+                aria-atomic="true"
+                min="1"
+                max={product.stock}
               />
               <button 
                 onClick={() => handleQuantityChange(1)} 
-                disabled={product.stock === 0 || (product.stock > 0 && quantity >= product.stock) || addingToCart} // Deshabilitar si no hay stock o se alcanza el máximo, o si se está agregando al carrito
+                disabled={product.stock === 0 || (product.stock > 0 && quantity >= product.stock) || addingToCart}
                 className="px-4 py-2 text-xl font-bold hover:bg-gray-100 rounded-r-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                aria-label={`Aumentar cantidad de ${product.name}`} // Aria-label para el botón de aumento
+                aria-label={`Aumentar cantidad de ${product.name}`}
               >
                 +
               </button>
             </div>
-            {/* Mensajes de stock con aria-live para anunciar cambios dinámicos */}
             {product.stock > 0 && product.stock <= 5 && <span className="text-sm text-red-500 font-semibold" aria-live="polite">¡Últimas {product.stock} unidades!</span>}
             {product.stock > 5 && <span className="text-sm text-gray-500" aria-live="polite">({product.stock} disponibles)</span>}
             {product.stock === 0 && <span className="text-sm text-red-600 font-semibold" aria-live="assertive">Producto sin stock.</span>}
@@ -215,12 +232,12 @@ const ProductDetailPage = () => {
           <motion.button 
             whileTap={{ scale: 0.97 }}
             onClick={handleAddToCartClick} 
-            disabled={product.stock === 0 || addingToCart} // Deshabilitar si no hay stock o se está agregando al carrito
+            disabled={product.stock === 0 || addingToCart}
             className="w-full bg-[#0F3460] text-white py-4 px-6 rounded-lg font-bold text-lg hover:bg-[#1a4a8a] transition-colors duration-300 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center"
             aria-label={product.stock > 0 ? `Agregar ${quantity} unidades de ${product.name} al carrito` : `Producto sin stock, no se puede agregar al carrito`}
           >
             {addingToCart ? (
-              <Spinner className="w-6 h-6 text-white" /> // Mostrar spinner si se está agregando
+              <Spinner className="w-6 h-6 text-white" />
             ) : (
               <>
                 {product.stock > 0 ? 'Agregar al Carrito' : 'Sin Stock'}
@@ -231,7 +248,6 @@ const ProductDetailPage = () => {
       </motion.div>
       
       <div className="mt-16">
-        {/* Navegación por pestañas con patrón ARIA para accesibilidad */}
         <div className="border-b border-gray-200">
           <nav className="-mb-px flex space-x-8" aria-label="Pestañas de información del producto" role="tablist">
             <button
