@@ -1,6 +1,7 @@
 // src/pages/ResetPasswordPage.jsx
 import React, { useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
+import Spinner from '../components/Spinner'; // Importar Spinner
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
@@ -11,7 +12,7 @@ const ResetPasswordPage = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(false); // Estado de carga
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -24,7 +25,7 @@ const ResetPasswordPage = () => {
       return;
     }
 
-    setLoading(true);
+    setLoading(true); // Activar spinner
     setMessage('');
     setError('');
 
@@ -46,7 +47,7 @@ const ResetPasswordPage = () => {
     } catch (err) {
       setError(err.message);
     } finally {
-      setLoading(false);
+      setLoading(false); // Desactivar spinner
     }
   };
 
@@ -82,10 +83,10 @@ const ResetPasswordPage = () => {
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading} // Deshabilitar botón mientras carga
               className="w-full px-8 py-3 bg-[#0F3460] text-white font-semibold rounded-lg hover:bg-[#1a4a8a] transition-colors disabled:bg-gray-400"
             >
-              {loading ? 'Guardando...' : 'Actualizar Contraseña'}
+              {loading ? <Spinner /> : 'Actualizar Contraseña'} {/* Mostrar Spinner si está cargando */}
             </button>
           </form>
         </div>

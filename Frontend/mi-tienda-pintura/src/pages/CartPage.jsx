@@ -12,7 +12,7 @@ const CartPage = () => {
   
   const [localPostalCode, setLocalPostalCode] = useState(postalCode);
   const [couponCode, setCouponCode] = useState('');
-  const [loadingShipping, setLoadingShipping] = useState(false);
+  const [loadingShipping, setLoadingShipping] = useState(false); // Estado de carga para el envío
 
   const calculateSubtotal = (item) => item.price * item.quantity;
   const cartSubtotal = cart.reduce((total, item) => total + calculateSubtotal(item), 0);
@@ -23,9 +23,9 @@ const CartPage = () => {
       alert('Por favor, ingresa un código postal válido de 4 dígitos.');
       return;
     }
-    setLoadingShipping(true);
+    setLoadingShipping(true); // Activar spinner
     await calculateShipping(localPostalCode);
-    setLoadingShipping(false);
+    setLoadingShipping(false); // Desactivar spinner
   };
 
   const handleApplyCoupon = () => {
@@ -125,8 +125,12 @@ const CartPage = () => {
                   <h3 className="font-semibold mb-2">Calcular Envío</h3>
                   <div className="flex items-center space-x-2">
                     <input type="text" value={localPostalCode} onChange={(e) => setLocalPostalCode(e.target.value)} placeholder="Cód. Postal" className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#0F3460]" />
-                    <button onClick={handleShippingCalculation} disabled={loadingShipping} className="bg-gray-200 px-4 py-2 rounded-md hover:bg-gray-300 disabled:opacity-50">
-                      {loadingShipping ? <Spinner className="w-5 h-5 text-gray-700" /> : 'OK'}
+                    <button 
+                      onClick={handleShippingCalculation} 
+                      disabled={loadingShipping} // Deshabilitar botón mientras carga
+                      className="bg-gray-200 px-4 py-2 rounded-md hover:bg-gray-300 disabled:opacity-50 flex items-center justify-center w-24"
+                    >
+                      {loadingShipping ? <Spinner className="w-5 h-5 text-gray-700" /> : 'OK'} {/* Mostrar Spinner */}
                     </button>
                   </div>
                 </div>

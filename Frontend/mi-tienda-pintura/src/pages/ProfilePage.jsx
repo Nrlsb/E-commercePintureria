@@ -14,7 +14,7 @@ const ProfileInformation = ({ user, token }) => {
         lastName: user.lastName || '',
         phone: user.phone || ''
     });
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(false); // Estado de carga
     const showNotification = useNotificationStore(state => state.showNotification);
     const login = useAuthStore(state => state.login);
 
@@ -24,7 +24,7 @@ const ProfileInformation = ({ user, token }) => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        setLoading(true);
+        setLoading(true); // Activar spinner
         try {
             const response = await fetch(`${API_URL}/api/user/profile`, {
                 method: 'PUT',
@@ -49,7 +49,7 @@ const ProfileInformation = ({ user, token }) => {
         } catch (err) {
             showNotification(err.message, 'error');
         } finally {
-            setLoading(false);
+            setLoading(false); // Desactivar spinner
         }
     };
 
@@ -70,8 +70,12 @@ const ProfileInformation = ({ user, token }) => {
                     <input type="text" name="phone" value={formData.phone} onChange={handleChange} className="mt-1 block w-full p-2 border border-gray-300 rounded-md" />
                 </div>
                 <div className="text-right">
-                    <button type="submit" disabled={loading} className="px-6 py-2 bg-[#0F3460] text-white font-semibold rounded-lg hover:bg-[#1a4a8a] disabled:bg-gray-400">
-                        {loading ? <Spinner /> : 'Guardar Cambios'}
+                    <button 
+                        type="submit" 
+                        disabled={loading} // Deshabilitar botón mientras carga
+                        className="px-6 py-2 bg-[#0F3460] text-white font-semibold rounded-lg hover:bg-[#1a4a8a] disabled:bg-gray-400"
+                    >
+                        {loading ? <Spinner /> : 'Guardar Cambios'} {/* Mostrar Spinner si está cargando */}
                     </button>
                 </div>
             </form>

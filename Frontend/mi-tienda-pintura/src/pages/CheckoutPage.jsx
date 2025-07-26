@@ -84,8 +84,12 @@ const CheckoutPage = () => {
               </div>
               <p className="text-sm text-gray-600 mt-4">Al confirmar, tu orden quedará pendiente y recibirás un email con estas instrucciones. El stock de tus productos será reservado por 48 horas.</p>
               {/* 4. El botón de transferencia ahora llama a la función del hook */}
-              <button onClick={submitBankTransfer} disabled={isProcessing} className="w-full mt-6 bg-[#0F3460] text-white font-bold py-3 rounded-lg hover:bg-[#1a4a8a] transition-colors disabled:bg-gray-400">
-                {isProcessing ? <Spinner /> : 'Confirmar y Finalizar Compra'}
+              <button 
+                onClick={submitBankTransfer} 
+                disabled={isProcessing} // Deshabilitar botón mientras carga
+                className="w-full mt-6 bg-[#0F3460] text-white font-bold py-3 rounded-lg hover:bg-[#1a4a8a] transition-colors disabled:bg-gray-400 flex items-center justify-center"
+              >
+                {isProcessing ? <Spinner /> : 'Confirmar y Finalizar Compra'} {/* Mostrar Spinner */}
               </button>
             </div>
           )}

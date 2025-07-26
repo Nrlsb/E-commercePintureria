@@ -20,7 +20,7 @@ const LoginPage = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(false); // Estado de carga
   const navigate = useNavigate();
   
   const login = useAuthStore(state => state.login);
@@ -28,7 +28,7 @@ const LoginPage = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    setLoading(true);
+    setLoading(true); // Activar spinner
     try {
       const response = await fetch(`${API_URL}/api/auth/login`, {
         method: 'POST',
@@ -46,7 +46,7 @@ const LoginPage = () => {
     } catch (err) {
       setError(err.message);
     } finally {
-      setLoading(false);
+      setLoading(false); // Desactivar spinner
     }
   };
 
@@ -83,7 +83,7 @@ const LoginPage = () => {
                   disabled={loading}
                   className="w-32 flex justify-center items-center px-8 py-3 bg-[#0F3460] text-white font-semibold rounded-lg hover:bg-[#1a4a8a] transition-colors disabled:bg-gray-400 disabled:cursor-wait"
                 >
-                  {loading ? <Spinner /> : 'Ingresar'}
+                  {loading ? <Spinner /> : 'Ingresar'} {/* Mostrar Spinner si está cargando */}
                 </button>
             </div>
           </form>

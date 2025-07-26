@@ -26,7 +26,7 @@ const AdminProductsPage = () => {
   const [deletingId, setDeletingId] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [productToDelete, setProductToDelete] = useState(null);
-  const [isClearingCache, setIsClearingCache] = useState(false);
+  const [isClearingCache, setIsClearingCache] = useState(false); // Estado de carga para limpiar caché
 
   const token = useAuthStore(state => state.token);
   const showNotification = useNotificationStore(state => state.showNotification);
@@ -85,7 +85,7 @@ const AdminProductsPage = () => {
     if (!window.confirm('¿Estás seguro de que quieres limpiar toda la caché de productos? Esto puede hacer que el sitio cargue más lento temporalmente.')) {
       return;
     }
-    setIsClearingCache(true);
+    setIsClearingCache(true); // Activar spinner para limpiar caché
     try {
       const response = await fetch(`${API_URL}/api/utils/clear-cache`, {
         method: 'POST',
@@ -99,7 +99,7 @@ const AdminProductsPage = () => {
     } catch (err) {
       showNotification(err.message, 'error');
     } finally {
-      setIsClearingCache(false);
+      setIsClearingCache(false); // Desactivar spinner
     }
   };
 
@@ -150,7 +150,7 @@ const AdminProductsPage = () => {
                 <span>Asociación Masiva con IA</span>
             </Link>
             <button onClick={handleClearCache} disabled={isClearingCache} className="bg-yellow-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-yellow-600 transition-colors flex items-center justify-center space-x-2 disabled:bg-gray-400">
-                {isClearingCache ? <Spinner className="w-5 h-5" /> : <Icon path={ICONS.cache} className="w-5 h-5" />}
+                {isClearingCache ? <Spinner className="w-5 h-5" /> : <Icon path={ICONS.cache} className="w-5 h-5" />} {/* Mostrar Spinner */}
                 <span>Limpiar Caché</span>
             </button>
         </div>

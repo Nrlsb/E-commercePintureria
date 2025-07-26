@@ -1,6 +1,7 @@
 // src/pages/RegisterPage.jsx
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import Spinner from '../components/Spinner'; // Importar Spinner
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
@@ -25,6 +26,7 @@ const RegisterPage = () => {
   });
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [loading, setLoading] = useState(false); // Estado de carga
   const navigate = useNavigate();
 
   const handleChange = (e) => {
@@ -39,17 +41,22 @@ const RegisterPage = () => {
     e.preventDefault();
     setError('');
     setSuccess('');
+    setLoading(true); // Activar spinner
 
     if (formData.email !== formData.emailConfirm) {
+      setLoading(false);
       return setError('Los correos electrónicos no coinciden.');
     }
     if (formData.password !== formData.passwordConfirm) {
+      setLoading(false);
       return setError('Las contraseñas no coinciden.');
     }
     if (formData.password.length < 6) {
+      setLoading(false);
       return setError('La contraseña debe tener al menos 6 caracteres.');
     }
     if (!formData.terms) {
+      setLoading(false);
       return setError('Debes aceptar los términos y condiciones.');
     }
 
@@ -73,6 +80,8 @@ const RegisterPage = () => {
       setTimeout(() => navigate('/login'), 3000);
     } catch (err) {
       setError(err.message);
+    } finally {
+      setLoading(false); // Desactivar spinner
     }
   };
 
@@ -109,8 +118,12 @@ const RegisterPage = () => {
               {success && <p className="text-green-500 text-sm text-center pt-2">{success}</p>}
 
               <div className="flex justify-end pt-4">
-                <button type="submit" className="px-8 py-3 bg-[#0F3460] text-white font-semibold rounded-lg hover:bg-[#1a4a8a] transition-colors">
-                  Registrarme
+                <button 
+                  type="submit" 
+                  disabled={loading} // Deshabilitar botón mientras carga
+                  className="px-8 py-3 bg-[#0F3460] text-white font-semibold rounded-lg hover:bg-[#1a4a8a] transition-colors disabled:bg-gray-400 disabled:cursor-wait"
+                >
+                  {loading ? <Spinner /> : 'Registrarme'} {/* Mostrar Spinner si está cargando */}
                 </button>
               </div>
             </div>
