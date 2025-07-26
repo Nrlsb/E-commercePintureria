@@ -4,9 +4,6 @@ import { Routes, Route, useLocation } from 'react-router-dom';
 import { initMercadoPago } from '@mercadopago/sdk-react';
 import { AnimatePresence, motion } from 'framer-motion';
 
-import { useProductStore } from './stores/useProductStore';
-import { useNotificationStore } from './stores/useNotificationStore';
-
 // Componentes principales
 import Header from './components/Header.jsx';
 import Navbar from './components/Navbar.jsx';
@@ -25,11 +22,9 @@ const ScrollToTop = () => {
   return null;
 };
 
-// --- NUEVO: Importar la página de callback ---
-const AuthCallbackPage = lazy(() => import('./pages/AuthCallbackPage.jsx'));
-// --- FIN DE LA MODIFICACIÓN ---
-
 // Lazy Loading de Páginas
+// Todos los componentes de página se importan de forma perezosa usando React.lazy()
+const AuthCallbackPage = lazy(() => import('./pages/AuthCallbackPage.jsx'));
 const HomePage = lazy(() => import('./pages/HomePage.jsx'));
 const ProductDetailPage = lazy(() => import('./pages/ProductDetailPage.jsx'));
 const CartPage = lazy(() => import('./pages/CartPage.jsx'));
@@ -88,6 +83,7 @@ export default function App() {
         transition={{ duration: 0.3 }}
         className="flex-grow container mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col"
       >
+        {/* Suspense se encarga de mostrar un fallback (como un spinner) mientras el componente de página se carga */}
         <Suspense fallback={
             <div className="flex-grow flex items-center justify-center">
               <Spinner className="w-12 h-12 text-[#0F3460]" />
@@ -103,9 +99,7 @@ export default function App() {
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
             
-            {/* --- NUEVA RUTA --- */}
             <Route path="/auth/callback" element={<AuthCallbackPage />} />
-            {/* --- FIN DE LA NUEVA RUTA --- */}
 
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
