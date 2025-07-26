@@ -80,8 +80,12 @@ const QuickViewModal = ({ product, onClose }) => {
                         {product.oldPrice && (<p className="text-lg text-gray-400 line-through ml-3">${new Intl.NumberFormat('es-AR').format(product.oldPrice)}</p>)}
                     </div>
 
+                    {/* FIX: Add a conditional check for product.description to prevent substring error */}
                     <p className="text-gray-600 text-sm mb-6 flex-grow overflow-y-auto">
-                        {product.description.substring(0, 150)}{product.description.length > 150 && '...'}
+                        {product.description 
+                            ? `${product.description.substring(0, 150)}${product.description.length > 150 ? '...' : ''}`
+                            : 'No hay descripción disponible para este producto.'
+                        }
                     </p>
 
                     <div className="flex items-center space-x-4 mb-6">
