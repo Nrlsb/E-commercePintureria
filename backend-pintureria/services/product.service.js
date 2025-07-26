@@ -19,6 +19,65 @@ const parseImageUrl = (imageUrl) => {
   return { small: imageUrl, medium: imageUrl, large: imageUrl };
 };
 
+// --- NUEVO: Función para limpiar la caché de marcas ---
+const BRANDS_CACHE_KEY = 'product_brands';
+
+export const clearBrandsCache = async () => {
+  try {
+    if (redisClient.isReady) {
+      await redisClient.del(BRANDS_CACHE_KEY);
+      logger.info('Caché de marcas de productos invalidada.');
+    }
+  } catch (err) {
+    logger.error('Error al invalidar la caché de marcas:', err);
+  }
+};
+
+// --- NUEVO: Servicio para obtener marcas de productos con caché ---
+export const fetchProductBrands = async () => {
+  try {
+    if (redisClient.isReady) {
+      const cachedData = await redisClient.get(BRANDS_CACHE_KEY);
+      if (cachedData) {
+        logger.debug(`Cache HIT para marcas: ${BRANDS_CACHE_KEY}`);
+        return JSON.parse(cachedData);
+      }
+    }
+  } catch (err) {
+    logger.error('Error al leer la caché de marcas de Redis:', err);
+  }
+
+  logger.debug(`Cache MISS para marcas: ${BRANDS_CACHE_KEY}. Consultando base de datos.`);
+  try {
+    const result = await db.query('SELECT DISTINCT brand FROM products WHERE is_active = true ORDER BY brand ASC');
+    const brands = result.rows.map(row => row.brand);
+
+    if (redisClient.isReady) {
+      await redisClient.setEx(BRANDS_CACHE_KEY, CACHE_EXPIRATION, JSON.stringify(brands));
+    }
+    return brands;
+  } catch (err) {
+    logger.error('Error al obtener marcas de la base de datos:', err);
+    throw err;
+  }
+};
+
+
+// --- Función para limpiar la caché de productos ---
+const clearProductsCache = async () => {
+  try {
+    if (redisClient.isReady) {
+      const keys = await redisClient.keys('products:*');
+      if (keys.length > 0) {
+        await redisClient.del(keys);
+        logger.info('Caché de lista de productos invalidada.');
+      }
+    }
+  } catch (err) {
+    logger.error('Error al invalidar la caché de productos:', err);
+  }
+};
+
 // --- NUEVO: Servicio para obtener sugerencias de búsqueda ---
 export const fetchProductSuggestions = async (query) => {
   if (!query || query.trim().length < 2) {
