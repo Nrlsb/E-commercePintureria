@@ -33,13 +33,13 @@ export const clearBrandsCache = async () => {
   }
 };
 
-// --- NUEVO: Servicio para obtener marcas de productos con caché ---
+// --- NUEVO: Servicio para obtener marcas de productos con caché y logging de caché ---
 export const fetchProductBrands = async () => {
   try {
     if (redisClient.isReady) {
       const cachedData = await redisClient.get(BRANDS_CACHE_KEY);
       if (cachedData) {
-        logger.debug(`Cache HIT para marcas: ${BRANDS_CACHE_KEY}`);
+        logger.debug(`Cache HIT: Marcas de productos`); // Log de cache hit
         return JSON.parse(cachedData);
       }
     }
@@ -47,7 +47,7 @@ export const fetchProductBrands = async () => {
     logger.error('Error al leer la caché de marcas de Redis:', err);
   }
 
-  logger.debug(`Cache MISS para marcas: ${BRANDS_CACHE_KEY}. Consultando base de datos.`);
+  logger.debug(`Cache MISS: Marcas de productos. Consultando base de datos.`); // Log de cache miss
   try {
     const result = await db.query('SELECT DISTINCT brand FROM products WHERE is_active = true ORDER BY brand ASC');
     const brands = result.rows.map(row => row.brand);
@@ -63,7 +63,7 @@ export const fetchProductBrands = async () => {
 };
 
 
-// --- Función para limpiar la caché de productos ---
+// --- Función para limpiar la caché de productos (ya existente) ---
 const clearProductsCache = async () => {
   try {
     if (redisClient.isReady) {
@@ -78,7 +78,7 @@ const clearProductsCache = async () => {
   }
 };
 
-// --- NUEVO: Servicio para obtener sugerencias de búsqueda ---
+// --- NUEVO: Servicio para obtener sugerencias de búsqueda (ya existente) ---
 export const fetchProductSuggestions = async (query) => {
   if (!query || query.trim().length < 2) {
     return { products: [], categories: [], brands: [] };
@@ -132,7 +132,7 @@ export const getActiveProducts = async (filters) => {
     if (redisClient.isReady) {
       const cachedData = await redisClient.get(cacheKey);
       if (cachedData) {
-        logger.debug(`Cache HIT para la clave: ${cacheKey}`);
+        logger.debug(`Cache HIT: Lista de productos para filtros ${JSON.stringify(filters)}`); // Log de cache hit
         const parsedCache = JSON.parse(cachedData);
         parsedCache.products = parsedCache.products.map(p => ({
           ...p,
@@ -145,7 +145,7 @@ export const getActiveProducts = async (filters) => {
     logger.error('Error al leer de la caché de Redis:', err);
   }
 
-  logger.debug(`Cache MISS para la clave: ${cacheKey}. Consultando base de datos.`);
+  logger.debug(`Cache MISS: Lista de productos para filtros ${JSON.stringify(filters)}. Consultando base de datos.`); // Log de cache miss
   const { category, sortBy, brands, minPrice, maxPrice, page = 1, limit = 12, searchQuery } = filters;
   const queryParams = [];
   let whereClauses = ['p.is_active = true'];
@@ -232,7 +232,7 @@ export const getActiveProductById = async (productId) => {
     if (redisClient.isReady) {
       const cachedData = await redisClient.get(cacheKey);
       if (cachedData) {
-        logger.debug(`Cache HIT para la clave: ${cacheKey}`);
+        logger.debug(`Cache HIT: Producto ${productId}`); // Log de cache hit
         const parsedProduct = JSON.parse(cachedData);
         parsedProduct.imageUrl = parseImageUrl(parsedProduct.imageUrl);
         return parsedProduct;
@@ -242,7 +242,7 @@ export const getActiveProductById = async (productId) => {
     logger.error('Error al leer de la caché de Redis:', err);
   }
 
-  logger.debug(`Cache MISS para la clave: ${cacheKey}. Consultando base de datos.`);
+  logger.debug(`Cache MISS: Producto ${productId}. Consultando base de datos.`); // Log de cache miss
   const query = `
     SELECT 
       p.id, p.name, p.brand, p.category, p.price,
