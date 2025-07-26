@@ -7,22 +7,39 @@ import { Link } from 'react-router-dom';
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
 const HeroBanner = () => {
-  // 1. Obtenemos la URL del backend desde las variables de entorno.
-  // const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
-
-  // 2. Asumiendo que la imagen hero-banner.jpg está en la carpeta public/images/
-  // Para acceder a archivos en la carpeta 'public', se usa una ruta relativa a la raíz del servidor.
-  const heroBannerPublicPath = '/images/hero-banner.jpg'; 
+  // --- INICIO DE MEJORAS DE OPTIMIZACIÓN DE IMÁGENES ---
+  // Para servir imágenes optimizadas y responsivas, deberías tener varias versiones
+  // del hero banner (ej. small, medium, large) en formato WebP en tu carpeta public.
+  // Aquí usamos rutas de ejemplo que deberías reemplazar con tus imágenes reales.
+  const heroBannerOptimized = {
+    small: '/images/hero-banner-small.webp', // Ejemplo: para pantallas pequeñas (ej. 640px)
+    medium: '/images/hero-banner-medium.webp', // Ejemplo: para pantallas medianas (ej. 1024px)
+    large: '/images/hero-banner-large.webp', // Ejemplo: para pantallas grandes (ej. 1920px)
+    default: '/images/hero-banner.jpg', // Fallback si WebP no es soportado o no hay versiones optimizadas
+  };
+  // --- FIN DE MEJORAS DE OPTIMIZACIÓN DE IMÁGENES ---
 
   return (
     <div className="container mx-auto my-8 rounded-xl overflow-hidden">
       <div className="relative w-full h-96 bg-gray-200 flex items-center justify-center">
-        {/* Usamos la ruta pública directamente para la imagen */}
+        {/*
+          Usamos srcset para servir la imagen más adecuada según el tamaño de pantalla.
+          El navegador elegirá la imagen del srcset basada en el atributo 'sizes'.
+          Se recomienda convertir hero-banner.jpg a WebP y generar 2-3 tamaños diferentes.
+        */}
         <img 
-          src={heroBannerPublicPath} 
+          src={heroBannerOptimized.default} // Fallback para navegadores antiguos o si no hay srcset
+          srcSet={`${heroBannerOptimized.small} 640w,
+                   ${heroBannerOptimized.medium} 1024w,
+                   ${heroBannerOptimized.large} 1920w`}
+          sizes="(max-width: 640px) 100vw,
+                 (max-width: 1024px) 100vw,
+                 100vw"
           alt="Banner principal: La pintura completa la imagen que ahora estará en nuestro backend." 
           className="absolute inset-0 w-full h-full object-cover" 
           loading="lazy"
+          width="1920" // Ancho intrínseco de la imagen más grande
+          height="400" // Alto intrínseco (ajusta según tu diseño)
           onError={(e) => { 
             e.target.onerror = null; 
             e.target.src='https://placehold.co/1200x400/cccccc/ffffff?text=Imagen+no+disponible'; 
