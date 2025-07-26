@@ -5,7 +5,7 @@ import Icon from './Icon.jsx';
 import { ICONS } from '../data/icons.js';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useCartStore } from '../stores/useCartStore';
-import { useProductStore } from '../stores/useProductStore';
+import { useProductStore } from '../stores/useProductStore'; // <--- ¡Asegúrate de que esta línea esté presente!
 import Spinner from './Spinner.jsx';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
