@@ -4,6 +4,9 @@ import { Routes, Route, useLocation } from 'react-router-dom';
 import { initMercadoPago } from '@mercadopago/sdk-react';
 import { AnimatePresence, motion } from 'framer-motion';
 
+import { useProductStore } from './stores/useProductStore';
+import { useNotificationStore } from './stores/useNotificationStore';
+
 // Componentes principales
 import Header from './components/Header.jsx';
 import Navbar from './components/Navbar.jsx';
