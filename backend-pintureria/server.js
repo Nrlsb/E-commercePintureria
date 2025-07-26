@@ -3,6 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import passport from 'passport';
+import compression from 'compression'; // Importar el middleware de compresión
 import './config/passport-setup.js';
 import { startCancelPendingOrdersJob } from './services/cronService.js';
 import expressWinston from 'express-winston';
@@ -70,6 +71,10 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
+
+// --- NUEVO: Usar el middleware de compresión ---
+// Esto debe ir al principio de los middlewares para asegurar que todas las respuestas se compriman.
+app.use(compression()); 
 
 app.use(passport.initialize());
 
