@@ -1,17 +1,22 @@
 // src/pages/ProductDetailPage.jsx
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, Suspense, lazy } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import ProductCard from '../components/ProductCard.jsx';
 import StarRating from '../components/StarRating.jsx';
-import ReviewList from '../components/ReviewList.jsx';
-import ReviewForm from '../components/ReviewForm.jsx';
+// Importamos Spinner para el fallback de Suspense
+import Spinner from '../components/Spinner.jsx'; 
+
 import { useProductStore } from '../stores/useProductStore.js';
 import { useCartStore } from '../stores/useCartStore.js';
 import { useAuthStore } from '../stores/useAuthStore.js';
 import { useNotificationStore } from '../stores/useNotificationStore.js';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+
+// Lazy load de los componentes de reseñas
+const ReviewList = lazy(() => import('../components/ReviewList.jsx'));
+const ReviewForm = lazy(() => import('../components/ReviewForm.jsx'));
 
 const ProductDetailPage = () => {
   const { productId } = useParams();
@@ -36,6 +41,9 @@ const ProductDetailPage = () => {
       const productData = await productResponse.json();
       setProduct(productData);
 
+      // Solo cargamos las reseñas si la pestaña de reseñas está activa
+      // o si necesitamos el conteo inicial para la pestaña (aunque el conteo puede venir del producto)
+      // Para simplificar, las cargamos siempre con el producto para asegurar el reviewCount
       const reviewsResponse = await fetch(`${API_URL}/api/products/${productId}/reviews`);
       if (!reviewsResponse.ok) throw new Error('Error al cargar las reseñas');
       const reviewsData = await reviewsResponse.json();
@@ -131,6 +139,9 @@ const ProductDetailPage = () => {
   };
 
   const handleDeleteReview = async (reviewId) => {
+    // Usamos un modal de confirmación en lugar de window.confirm
+    // Para esta demostración, mantendremos window.confirm por simplicidad,
+    // pero en una aplicación real se usaría un componente de modal.
     if (window.confirm('¿Estás seguro de que quieres eliminar esta reseña?')) {
       try {
         const response = await fetch(`${API_URL}/api/reviews/${reviewId}`, {
@@ -280,7 +291,13 @@ const ProductDetailPage = () => {
             </div>
           )}
           {activeTab === 'reviews' && (
-            <div>
+            // Usamos Suspense para mostrar un fallback mientras los componentes de reseña se cargan
+            <Suspense fallback={
+                <div className="flex justify-center items-center p-8">
+                    <Spinner className="w-8 h-8 text-[#0F3460]" />
+                    <span className="ml-2 text-gray-600">Cargando reseñas...</span>
+                </div>
+            }>
               {user ? (
                 <ReviewForm productId={productId} token={token} onReviewSubmitted={fetchProductAndReviews} />
               ) : (
@@ -289,7 +306,7 @@ const ProductDetailPage = () => {
                 </p>
               )}
               <ReviewList reviews={reviews} user={user} onDelete={handleDeleteReview} />
-            </div>
+            </Suspense>
           )}
         </div>
       </div>
