@@ -1,7 +1,7 @@
 // src/pages/ProductDetailPage.jsx
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { motion } from 'framer-motion'; // 1. Importar motion
+import { motion } from 'framer-motion';
 import ProductCard from '../components/ProductCard.jsx';
 import StarRating from '../components/StarRating.jsx';
 import ReviewList from '../components/ReviewList.jsx';
@@ -66,9 +66,11 @@ const ProductDetailPage = () => {
 
   const handleAddToCartClick = () => {
     addToCart(product, quantity);
+    showNotification(`${quantity} unidades de ${product.name} agregadas al carrito.`);
   };
 
   const handleDeleteReview = async (reviewId) => {
+    // Nota: window.confirm es un bloqueo y no es accesible. Se recomienda reemplazarlo con un modal de confirmación personalizado.
     if (window.confirm('¿Estás seguro de que quieres eliminar esta reseña?')) {
       try {
         const response = await fetch(`${API_URL}/api/reviews/${reviewId}`, {
@@ -96,8 +98,8 @@ const ProductDetailPage = () => {
     ? products.filter(p => p.category === product.category && p.id !== product.id).slice(0, 4)
     : [];
 
-  if (loading) return <div className="text-center p-10">Cargando...</div>;
-  if (error) return <div className="text-center p-10 text-red-500">Error: {error}</div>;
+  if (loading) return <div className="text-center p-10" role="status" aria-live="polite">Cargando producto...</div>; // role="status" y aria-live="polite" para anunciar cambios de estado
+  if (error) return <div className="text-center p-10 text-red-500" role="alert" aria-live="assertive">Error: {error}</div>; // role="alert" y aria-live="assertive" para errores críticos
   if (!product) return null;
   
   const imageUrls = product.imageUrl;
@@ -108,15 +110,23 @@ const ProductDetailPage = () => {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <div className="text-sm text-gray-500 mb-6">
-        <Link to="/" className="hover:text-[#0F3460]">Inicio</Link>
-        <span className="mx-2">&gt;</span>
-        <Link to={`/category/${product.category}`} className="hover:text-[#0F3460]">{product.category}</Link>
-        <span className="mx-2">&gt;</span>
-        <span className="font-medium text-gray-700">{product.name}</span>
-      </div>
+      {/* Breadcrumbs con navegación semántica y aria-label */}
+      <nav aria-label="Ruta de navegación" className="text-sm text-gray-500 mb-6">
+        <ol className="flex items-center space-x-2">
+          <li>
+            <Link to="/" className="hover:text-[#0F3460]">Inicio</Link>
+          </li>
+          <li>
+            <span className="mx-2" aria-hidden="true">&gt;</span> {/* aria-hidden="true" para ocultar caracteres decorativos de lectores de pantalla */}
+            <Link to={`/category/${product.category}`} className="hover:text-[#0F3460]">{product.category}</Link>
+          </li>
+          <li>
+            <span className="mx-2" aria-hidden="true">&gt;</span>
+            <span aria-current="page" className="font-medium text-gray-700">{product.name}</span> {/* aria-current="page" para indicar la página actual */}
+          </li>
+        </ol>
+      </nav>
 
-      {/* 2. Envolver el grid principal con motion.div para animar su aparición */}
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -128,7 +138,7 @@ const ProductDetailPage = () => {
             src={src}
             srcSet={srcSet}
             sizes="(max-width: 768px) 90vw, 45vw"
-            alt={`Imagen de ${product.name}`} 
+            alt={`Imagen principal de ${product.name}, marca ${product.brand}`} // Alt text más descriptivo para la imagen principal
             className="max-w-full h-auto max-h-[500px] object-contain"
             loading="lazy"
             width="500"
@@ -146,26 +156,54 @@ const ProductDetailPage = () => {
           </div>
 
           <div className="flex items-baseline mb-6">
-            <p className="text-4xl font-bold text-[#0F3460]">${new Intl.NumberFormat('es-AR').format(product.price)}</p>
-            {product.oldPrice && (<p className="text-xl text-gray-400 line-through ml-3">${new Intl.NumberFormat('es-AR').format(product.oldPrice)}</p>)}
+            <p className="text-4xl font-bold text-[#0F3460]" aria-label={`Precio: ${product.price} pesos argentinos`}>${new Intl.NumberFormat('es-AR').format(product.price)}</p>
+            {product.oldPrice && (<p className="text-xl text-gray-400 line-through ml-3" aria-label={`Precio anterior: ${product.oldPrice} pesos argentinos`}>${new Intl.NumberFormat('es-AR').format(product.oldPrice)}</p>)}
           </div>
           
           <div className="flex items-center space-x-4 mb-6">
-            <p className="font-semibold text-lg">Cantidad:</p>
+            {/* Etiqueta asociada al input de cantidad para accesibilidad */}
+            <label htmlFor="quantity-input" className="font-semibold text-lg">Cantidad:</label> 
             <div className="flex items-center border border-gray-300 rounded-md">
-              <button onClick={() => handleQuantityChange(-1)} disabled={product.stock === 0} className="px-4 py-2 text-xl font-bold hover:bg-gray-100 rounded-l-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed">-</button>
-              <span className="px-6 py-2 text-lg font-semibold">{product.stock > 0 ? quantity : 0}</span>
-              <button onClick={() => handleQuantityChange(1)} disabled={product.stock === 0} className="px-4 py-2 text-xl font-bold hover:bg-gray-100 rounded-r-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed">+</button>
+              <button 
+                onClick={() => handleQuantityChange(-1)} 
+                disabled={product.stock === 0 || quantity === 1} // Deshabilitar si la cantidad es 1 o no hay stock
+                className="px-4 py-2 text-xl font-bold hover:bg-gray-100 rounded-l-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                aria-label={`Disminuir cantidad de ${product.name}`} // Aria-label para el botón de disminución
+              >
+                -
+              </button>
+              <input 
+                id="quantity-input" // ID para asociar con la etiqueta
+                type="number" 
+                value={product.stock > 0 ? quantity : 0} 
+                readOnly // El input es solo de lectura, se controla con los botones
+                className="px-6 py-2 text-lg font-semibold w-20 text-center bg-transparent focus:outline-none"
+                aria-live="polite" // Anunciar cambios en la cantidad a lectores de pantalla
+                aria-atomic="true" // Anunciar todo el contenido del elemento cuando cambia
+                min="1" // Establecer el mínimo para el input numérico
+                max={product.stock} // Establecer el máximo para el input numérico
+              />
+              <button 
+                onClick={() => handleQuantityChange(1)} 
+                disabled={product.stock === 0 || (product.stock > 0 && quantity >= product.stock)} // Deshabilitar si no hay stock o se alcanza el máximo
+                className="px-4 py-2 text-xl font-bold hover:bg-gray-100 rounded-r-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                aria-label={`Aumentar cantidad de ${product.name}`} // Aria-label para el botón de aumento
+              >
+                +
+              </button>
             </div>
-            {product.stock > 0 && product.stock <= 5 && <span className="text-sm text-red-500 font-semibold">¡Últimas {product.stock} unidades!</span>}
-            {product.stock > 5 && <span className="text-sm text-gray-500">({product.stock} disponibles)</span>}
+            {/* Mensajes de stock con aria-live para anunciar cambios dinámicos */}
+            {product.stock > 0 && product.stock <= 5 && <span className="text-sm text-red-500 font-semibold" aria-live="polite">¡Últimas {product.stock} unidades!</span>}
+            {product.stock > 5 && <span className="text-sm text-gray-500" aria-live="polite">({product.stock} disponibles)</span>}
+            {product.stock === 0 && <span className="text-sm text-red-600 font-semibold" aria-live="assertive">Producto sin stock.</span>}
           </div>
           
           <motion.button 
-            whileTap={{ scale: 0.97 }} // 3. Añadir feedback al botón
+            whileTap={{ scale: 0.97 }}
             onClick={handleAddToCartClick} 
             disabled={product.stock === 0}
             className="w-full bg-[#0F3460] text-white py-4 px-6 rounded-lg font-bold text-lg hover:bg-[#1a4a8a] transition-colors duration-300 disabled:bg-gray-400 disabled:cursor-not-allowed"
+            aria-label={product.stock > 0 ? `Agregar ${quantity} unidades de ${product.name} al carrito` : `Producto sin stock, no se puede agregar al carrito`} // Aria-label más descriptivo
           >
             {product.stock > 0 ? 'Agregar al Carrito' : 'Sin Stock'}
           </motion.button>
@@ -173,23 +211,39 @@ const ProductDetailPage = () => {
       </motion.div>
       
       <div className="mt-16">
+        {/* Navegación por pestañas con patrón ARIA para accesibilidad */}
         <div className="border-b border-gray-200">
-          <nav className="-mb-px flex space-x-8" aria-label="Tabs">
+          <nav className="-mb-px flex space-x-8" aria-label="Pestañas de información del producto" role="tablist">
             <button
               onClick={() => setActiveTab('description')}
               className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${activeTab === 'description' ? 'border-[#0F3460] text-[#0F3460]' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+              role="tab" // Indica que es un elemento de pestaña
+              aria-selected={activeTab === 'description'} // Indica si la pestaña está seleccionada
+              aria-controls="panel-description" // Asocia la pestaña con su panel de contenido
+              id="tab-description" // ID único para la pestaña
+              tabIndex={activeTab === 'description' ? 0 : -1} // tabIndex para la navegación por teclado
             >
               Descripción
             </button>
             <button
               onClick={() => setActiveTab('details')}
               className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${activeTab === 'details' ? 'border-[#0F3460] text-[#0F3460]' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+              role="tab"
+              aria-selected={activeTab === 'details'}
+              aria-controls="panel-details"
+              id="tab-details"
+              tabIndex={activeTab === 'details' ? 0 : -1}
             >
               Detalles Técnicos
             </button>
             <button
               onClick={() => setActiveTab('reviews')}
               className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${activeTab === 'reviews' ? 'border-[#0F3460] text-[#0F3460]' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+              role="tab"
+              aria-selected={activeTab === 'reviews'}
+              aria-controls="panel-reviews"
+              id="tab-reviews"
+              tabIndex={activeTab === 'reviews' ? 0 : -1}
             >
               Reseñas ({product.reviewCount})
             </button>
@@ -197,24 +251,29 @@ const ProductDetailPage = () => {
         </div>
         <div className="py-6">
           {activeTab === 'description' && (
-            <p className="text-gray-700 leading-relaxed">{product.description || 'No hay descripción disponible para este producto.'}</p>
+            <div role="tabpanel" id="panel-description" aria-labelledby="tab-description"> {/* Panel de contenido asociado a la pestaña */}
+              <p className="text-gray-700 leading-relaxed">{product.description || 'No hay descripción disponible para este producto.'}</p>
+            </div>
           )}
           {activeTab === 'details' && (
-            <div className="text-gray-700">
-              <ul>
-                <li><strong>Marca:</strong> {product.brand}</li>
-                <li><strong>Categoría:</strong> {product.category}</li>
-                <li><strong>Acabado:</strong> Mate (Ejemplo)</li>
-                <li><strong>Rendimiento:</strong> 10 m²/L (Ejemplo)</li>
-              </ul>
+            <div role="tabpanel" id="panel-details" aria-labelledby="tab-details">
+              <div className="text-gray-700">
+                <h3 className="sr-only">Detalles Técnicos del Producto</h3> {/* sr-only para ocultar visualmente pero visible para lectores de pantalla */}
+                <ul>
+                  <li><strong>Marca:</strong> {product.brand}</li>
+                  <li><strong>Categoría:</strong> {product.category}</li>
+                  <li><strong>Acabado:</strong> Mate (Ejemplo)</li>
+                  <li><strong>Rendimiento:</strong> 10 m²/L (Ejemplo)</li>
+                </ul>
+              </div>
             </div>
           )}
           {activeTab === 'reviews' && (
-            <div>
+            <div role="tabpanel" id="panel-reviews" aria-labelledby="tab-reviews">
               {user ? (
                 <ReviewForm productId={productId} token={token} onReviewSubmitted={fetchProductAndReviews} />
               ) : (
-                <p className="text-center bg-gray-100 p-4 rounded-lg">
+                <p className="text-center bg-gray-100 p-4 rounded-lg" role="note"> {/* role="note" para indicar que es un comentario o nota */}
                   <Link to="/login" className="font-bold text-[#0F3460] hover:underline">Inicia sesión</Link> para dejar una reseña.
                 </p>
               )}
@@ -225,14 +284,14 @@ const ProductDetailPage = () => {
       </div>
 
       {relatedProducts.length > 0 && (
-        <div className="mt-16">
-          <h2 className="text-2xl font-bold text-gray-800 mb-6">También te puede interesar</h2>
+        <section className="mt-16" aria-labelledby="related-products-heading"> {/* Usar <section> como landmark y aria-labelledby */}
+          <h2 id="related-products-heading" className="text-2xl font-bold text-gray-800 mb-6">También te puede interesar</h2> {/* ID para asociar con aria-labelledby */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {relatedProducts.map(p => (
               <ProductCard key={p.id} product={p} />
             ))}
           </div>
-        </div>
+        </section>
       )}
     </div>
   );
