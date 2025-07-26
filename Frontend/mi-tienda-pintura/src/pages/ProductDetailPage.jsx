@@ -1,7 +1,7 @@
 // src/pages/ProductDetailPage.jsx
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { motion } from 'framer-motion'; // 1. Importar motion
+import { motion } from 'framer-motion';
 import ProductCard from '../components/ProductCard.jsx';
 import StarRating from '../components/StarRating.jsx';
 import ReviewList from '../components/ReviewList.jsx';
@@ -54,6 +54,71 @@ const ProductDetailPage = () => {
     setActiveTab('description');
     window.scrollTo(0, 0);
   }, [productId, fetchProductAndReviews]);
+
+  // --- INICIO DE MEJORAS SEO ---
+  useEffect(() => {
+    // Actualizar el título de la página y la meta descripción para SEO
+    if (product) {
+      document.title = `${product.name} - Pinturerías Mercurio`;
+      
+      let metaDescriptionTag = document.querySelector('meta[name="description"]');
+      if (!metaDescriptionTag) {
+        metaDescriptionTag = document.createElement('meta');
+        metaDescriptionTag.name = 'description';
+        document.head.appendChild(metaDescriptionTag);
+      }
+      metaDescriptionTag.content = product.description 
+        ? `Comprar ${product.name} de la marca ${product.brand} en Pinturerías Mercurio. ${product.description.substring(0, 150)}...`
+        : `Comprar ${product.name} de la marca ${product.brand} en Pinturerías Mercurio.`;
+    } else {
+      // Valores por defecto si el producto no está cargado
+      document.title = "Detalle del Producto - Pinturerías Mercurio";
+      let metaDescriptionTag = document.querySelector('meta[name="description"]');
+      if (metaDescriptionTag) {
+        metaDescriptionTag.content = "Descubre los detalles de nuestros productos de pintura y accesorios.";
+      }
+    }
+  }, [product]);
+
+  // Generar datos estructurados (Schema.org) para el producto
+  const getProductSchema = (product) => {
+    if (!product) return null;
+
+    const imageUrls = product.imageUrl;
+    const mainImageUrl = imageUrls?.large || imageUrls?.medium || imageUrls?.small || 'https://placehold.co/500x500/cccccc/ffffff?text=Imagen+no+disponible';
+
+    const schema = {
+      "@context": "https://schema.org",
+      "@type": "Product",
+      "name": product.name,
+      "image": mainImageUrl,
+      "description": product.description || `Producto de pintura: ${product.name} de la marca ${product.brand}.`,
+      "sku": product.id, // Usar el ID del producto como SKU
+      "brand": {
+        "@type": "Brand",
+        "name": product.brand
+      },
+      "offers": {
+        "@type": "Offer",
+        "url": window.location.href, // URL canónica de la página actual
+        "priceCurrency": "ARS",
+        "price": product.price,
+        "itemCondition": "https://schema.org/NewCondition",
+        "availability": product.stock > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock"
+      }
+    };
+
+    if (product.averageRating > 0 && product.reviewCount > 0) {
+      schema.aggregateRating = {
+        "@type": "AggregateRating",
+        "ratingValue": product.averageRating,
+        "reviewCount": product.reviewCount
+      };
+    }
+
+    return JSON.stringify(schema);
+  };
+  // --- FIN DE MEJORAS SEO ---
 
   const handleQuantityChange = (amount) => {
     setQuantity(prev => {
@@ -108,6 +173,14 @@ const ProductDetailPage = () => {
 
   return (
     <div className="container mx-auto px-4 py-8">
+      {/* Script para datos estructurados (Schema.org) */}
+      {product && (
+        <script 
+          type="application/ld+json" 
+          dangerouslySetInnerHTML={{ __html: getProductSchema(product) }} 
+        />
+      )}
+
       <div className="text-sm text-gray-500 mb-6">
         <Link to="/" className="hover:text-[#0F3460]">Inicio</Link>
         <span className="mx-2">&gt;</span>
@@ -116,7 +189,6 @@ const ProductDetailPage = () => {
         <span className="font-medium text-gray-700">{product.name}</span>
       </div>
 
-      {/* 2. Envolver el grid principal con motion.div para animar su aparición */}
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -162,7 +234,7 @@ const ProductDetailPage = () => {
           </div>
           
           <motion.button 
-            whileTap={{ scale: 0.97 }} // 3. Añadir feedback al botón
+            whileTap={{ scale: 0.97 }}
             onClick={handleAddToCartClick} 
             disabled={product.stock === 0}
             className="w-full bg-[#0F3460] text-white py-4 px-6 rounded-lg font-bold text-lg hover:bg-[#1a4a8a] transition-colors duration-300 disabled:bg-gray-400 disabled:cursor-not-allowed"
