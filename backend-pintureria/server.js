@@ -2,8 +2,8 @@
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import passport from 'passport'; // 1. Importar passport
-import './config/passport-setup.js'; // 2. Importar la configuración para que se ejecute
+import passport from 'passport';
+import './config/passport-setup.js';
 import { startCancelPendingOrdersJob } from './services/cronService.js';
 import expressWinston from 'express-winston';
 import logger from './logger.js';
@@ -32,33 +32,46 @@ const PORT = config.port;
 app.use(helmet());
 app.set('trust proxy', 1);
 
-const whitelist = [
-  'http://localhost:5173',
-  'https://e-commerce-pintureria.vercel.app',
-  config.frontendUrl,
-  /^https:\/\/e-commerce-pintureria-.*\.vercel\.app$/
-];
-
+// --- MODIFICACIÓN: Configuración de CORS más estricta en producción ---
 const corsOptions = {
   origin: (origin, callback) => {
-    if (!origin || whitelist.some(allowedOrigin =>
-        typeof allowedOrigin === 'string'
-          ? allowedOrigin === origin
-          : allowedOrigin.test(origin)
-    )) {
+    const isProduction = config.nodeEnv === 'production';
+    let allowedOrigins = [];
+
+    if (isProduction) {
+      // En producción, solo permite el origen explícito del frontend.
+      // Es crucial que config.frontendUrl apunte a tu dominio de producción (ej. 'https://e-commerce-pintureria.vercel.app').
+      allowedOrigins.push(config.frontendUrl);
+    } else {
+      // En desarrollo o testing, permite localhost y las URLs de previsualización de Vercel.
+      allowedOrigins.push('http://localhost:5173');
+      allowedOrigins.push(config.frontendUrl); // También permite la URL de producción en desarrollo
+      allowedOrigins.push(/^https:\/\/e-commerce-pintureria-.*\.vercel\.app$/); // Para previsualizaciones de Vercel
+    }
+
+    // Verifica si el origen de la solicitud está en la lista de permitidos.
+    // Si no hay un origen (ej. solicitudes del mismo origen o herramientas como Postman), se permite.
+    const isAllowed = allowedOrigins.some(allowedOrigin => {
+      if (typeof allowedOrigin === 'string') {
+        return allowedOrigin === origin;
+      } else { // Es una expresión regular
+        return allowedOrigin.test(origin);
+      }
+    });
+
+    if (!origin || isAllowed) {
       callback(null, true);
     } else {
-      callback(new Error('Not allowed by CORS'));
+      // Si el origen no está permitido, se rechaza la solicitud CORS.
+      callback(new Error(`Not allowed by CORS: ${origin}`));
     }
   },
-  optionsSuccessStatus: 200
+  optionsSuccessStatus: 200 // Para solicitudes OPTIONS preflight
 };
 
 app.use(cors(corsOptions));
 
-// --- NUEVO: Inicializar Passport ---
 app.use(passport.initialize());
-// --- FIN DE LA MODIFICACIÓN ---
 
 app.post('/api/payment/notification', express.raw({ type: 'application/json' }), handlePaymentNotification);
 
