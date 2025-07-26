@@ -1,5 +1,6 @@
 // backend-pintureria/middlewares/errorHandler.js
 import logger from '../logger.js';
+import config from '../config/index.js'; // Importamos la configuración
 
 /**
  * Middleware centralizado para el manejo de errores.
@@ -20,9 +21,10 @@ const errorHandler = (err, req, res, next) => {
 
   // Se envía una respuesta JSON estandarizada.
   // En producción, no se expone el stack del error por seguridad.
+  // Se utiliza config.nodeEnv para determinar el entorno.
   res.json({
-    message: err.message,
-    stack: process.env.NODE_ENV === 'production' ? null : err.stack,
+    message: err.message || 'Error interno del servidor', // Mensaje genérico si no hay mensaje de error
+    stack: config.nodeEnv === 'development' ? err.stack : null, // Solo stack en desarrollo
   });
 };
 

@@ -3,7 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import passport from 'passport';
-import compression from 'compression'; // Importar el middleware de compresión
+import compression from 'compression';
 import './config/passport-setup.js';
 import { startCancelPendingOrdersJob } from './services/cronService.js';
 import expressWinston from 'express-winston';
@@ -72,8 +72,7 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 
-// --- NUEVO: Usar el middleware de compresión ---
-// Esto debe ir al principio de los middlewares para asegurar que todas las respuestas se compriman.
+// Usar el middleware de compresión
 app.use(compression()); 
 
 app.use(passport.initialize());
@@ -113,6 +112,21 @@ startCancelPendingOrdersJob();
 app.use(expressWinston.errorLogger({
   winstonInstance: logger
 }));
+
+// --- NUEVO: Manejo de errores no capturados (unhandledRejection, uncaughtException) ---
+// Captura promesas rechazadas no manejadas.
+process.on('unhandledRejection', (reason, promise) => {
+  logger.error('Unhandled Rejection at Promise:', promise, 'reason:', reason);
+  // Termina el proceso para evitar un estado inconsistente, permitiendo que un reiniciador de procesos lo levante.
+  process.exit(1); 
+});
+
+// Captura excepciones no capturadas.
+process.on('uncaughtException', (error) => {
+  logger.error('Uncaught Exception:', error);
+  // Termina el proceso para evitar un estado inconsistente.
+  process.exit(1);
+});
 
 app.use(errorHandler);
 
