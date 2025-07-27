@@ -1,12 +1,12 @@
 // Frontend/mi-tienda-pintura/src/App.jsx
 import React, { Suspense, lazy, useEffect } from 'react';
-import { Routes, Route, useLocation } from 'react-router-dom';
+import { Routes, Route, useLocation, useNavigate } from 'react-router-dom'; // Import useNavigate
 import { initMercadoPago } from '@mercadopago/sdk-react';
 import { AnimatePresence, motion } from 'framer-motion';
 
 import { useProductStore } from './stores/useProductStore';
 import { useNotificationStore } from './stores/useNotificationStore';
-import { useAuthStore } from './stores/useAuthStore'; // Importar useAuthStore
+import { useAuthStore } from './stores/useAuthStore';
 
 // Componentes principales
 import Header from './components/Header.jsx';
@@ -27,7 +27,6 @@ const ScrollToTop = () => {
 };
 
 // Lazy Loading de Páginas
-// Todos los componentes de página se importan de forma perezosa usando React.lazy()
 const HomePage = lazy(() => import('./pages/HomePage.jsx'));
 const ProductDetailPage = lazy(() => import('./pages/ProductDetailPage.jsx'));
 const CategoryPage = lazy(() => import('./pages/CategoryPage.jsx'));
@@ -63,25 +62,28 @@ initMercadoPago(import.meta.env.VITE_MERCADOPAGO_PUBLIC_KEY, {
 // Variable para controlar si el interceptor ya fue configurado
 let isInterceptorSetup = false;
 
+// Define API_URL here for the interceptor
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+
+
 function App() {
   const location = useLocation();
+  const navigate = useNavigate(); // Initialize useNavigate
   const showNotification = useNotificationStore((state) => state.showNotification);
-  const { token, user, logout, refreshToken } = useAuthStore(); // Obtener token, user, logout y refreshToken del store
+  const { token, user, logout, refreshToken } = useAuthStore();
 
   // NUEVO: Configuración del interceptor de fetch para manejar el refresco de tokens
   useEffect(() => {
-    if (!token || isInterceptorSetup) return; // Solo configurar una vez y si hay token
+    if (!token || isInterceptorSetup) return;
 
     const originalFetch = window.fetch;
 
     window.fetch = async (...args) => {
       let [resource, options] = args;
       
-      // Asegurarse de que las opciones existan
       options = options || {};
       options.headers = options.headers || {};
 
-      // Añadir el token actual a la cabecera de autorización si no está ya presente
       if (token && !options.headers['Authorization']) {
         options.headers['Authorization'] = `Bearer ${token}`;
       }
@@ -89,37 +91,27 @@ function App() {
       try {
         let response = await originalFetch(resource, options);
 
-        // Clonar la respuesta para poder leer el cuerpo varias veces si es necesario
         const clonedResponse = response.clone();
 
-        // Si la respuesta es 403 y el token necesita refrescarse (marcado por el backend)
-        // y la petición no es la de refresco de token en sí misma
         if (
           response.status === 403 &&
           user?.needsTokenRefresh &&
           resource !== `${API_URL}/api/auth/refresh-token`
         ) {
           console.warn("Token antiguo detectado, intentando refrescar...");
-          const newToken = await refreshToken(); // Intentar refrescar el token
+          const newToken = await refreshToken();
 
           if (newToken) {
-            // Reintentar la petición original con el nuevo token
             options.headers['Authorization'] = `Bearer ${newToken}`;
-            response = await originalFetch(resource, options); // Reintentar la petición
+            response = await originalFetch(resource, options);
             console.log("Petición reintentada con nuevo token.");
-            return response; // Devolver la respuesta de la petición reintentada
+            return response;
           } else {
-            // Si el refresco falla, el refreshToken() ya maneja el logout.
-            // No se necesita hacer nada más aquí, simplemente devolver la respuesta 403 original
-            // o una nueva respuesta de error si se prefiere.
             console.error("No se pudo refrescar el token, devolviendo error original.");
-            return clonedResponse; // Devolver la respuesta original (403)
+            return clonedResponse;
           }
         }
 
-        // Si la respuesta es 401 (Unauthorized) y no es la ruta de login/register/forgot/reset
-        // y no es la ruta de refresco de token, forzar logout.
-        // Esto captura casos donde el token es completamente inválido o expiró sin una clave anterior.
         if (
           response.status === 401 &&
           !resource.includes('/api/auth/login') &&
@@ -131,27 +123,25 @@ function App() {
           console.error("Petición 401 no autorizada, forzando logout.");
           logout();
           showNotification('Tu sesión ha expirado. Por favor, inicia sesión de nuevo.', 'error');
-          // Puedes redirigir al login si lo deseas
-          // navigate('/login'); 
+          navigate('/login'); // Redirect to login page
         }
 
-        return response; // Devolver la respuesta original si no se necesita refrescar
+        return response;
       } catch (error) {
         console.error("Error en el interceptor de fetch:", error);
-        throw error; // Propagar el error
+        throw error;
       }
     };
 
-    isInterceptorSetup = true; // Marcar que el interceptor ya está configurado
+    isInterceptorSetup = true;
     console.log("Interceptor de fetch configurado.");
 
-    // Limpiar el interceptor al desmontar el componente
     return () => {
       window.fetch = originalFetch;
       isInterceptorSetup = false;
       console.log("Interceptor de fetch limpiado.");
     };
-  }, [token, user, logout, refreshToken, showNotification]); // Dependencias del useEffect
+  }, [token, user, logout, refreshToken, showNotification, navigate]); // Added navigate to dependencies
 
   return (
     <div className="flex flex-col min-h-screen font-inter antialiased bg-gray-50">
@@ -194,6 +184,8 @@ function App() {
 
                 {/* Rutas Protegidas para Administradores */}
                 <Route element={<AdminRoute />}>
+                  {/* Redirect /admin to /admin/dashboard */}
+                  <Route path="/admin" element={<AdminDashboardPage />} /> {/* Changed this to directly render dashboard for /admin */}
                   <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
                   <Route path="/admin/products" element={<AdminProductsPage />} />
                   <Route path="/admin/products/new" element={<ProductFormPage />} />
