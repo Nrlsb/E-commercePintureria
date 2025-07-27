@@ -9,27 +9,29 @@ import {
   deleteProduct,
   getProductReviews,
   createProductReview,
-  getProductSuggestions, // 1. Importar el nuevo controlador
+  getProductSuggestions,
 } from '../controllers/product.controller.js';
 import { authenticateToken, isAdmin } from '../middlewares/auth.middleware.js';
 // Importamos las reglas de validación y el manejador
-import { productRules, reviewRules, validate } from '../middlewares/validators.js';
+import { productRules, reviewRules, productQueryParamsRules, validate } from '../middlewares/validators.js'; // Importar productQueryParamsRules
 
 const router = Router();
 
 // --- Rutas de Productos ---
-router.get('/', getProducts);
+// Aplicar validación para los parámetros de consulta de productos
+router.get('/', productQueryParamsRules(), validate, getProducts);
 
 // 2. Añadir la nueva ruta para sugerencias de búsqueda.
 // Es importante que esté ANTES de la ruta /:productId para que no haya conflictos.
-router.get('/suggestions', getProductSuggestions);
+// Aplicar validación para la consulta de sugerencias
+router.get('/suggestions', productQueryParamsRules(), validate, getProductSuggestions);
 
 router.get('/brands', getProductBrands);
 router.get('/:productId', getProductById);
 
 // Aplicamos las reglas de validación para crear y actualizar productos
-router.post('/', [authenticateToken, isAdmin], productRules(), validate, createProduct);
-router.put('/:id', [authenticateToken, isAdmin], productRules(), validate, updateProduct);
+router.post('/', [authenticateToken, isAdmin, productRules(), validate], createProduct);
+router.put('/:id', [authenticateToken, isAdmin, productRules(), validate], updateProduct);
 router.delete('/:id', [authenticateToken, isAdmin], deleteProduct);
 
 // --- Rutas de Reseñas anidadas bajo un producto ---

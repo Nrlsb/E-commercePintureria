@@ -9,7 +9,7 @@ import {
   deleteAddress
 } from '../controllers/user.controller.js';
 import { authenticateToken } from '../middlewares/auth.middleware.js';
-// Aquí podrías añadir reglas de validación si lo deseas
+import { updateProfileRules, addressRules, validate } from '../middlewares/validators.js'; // Importar reglas y validador
 
 const router = Router();
 
@@ -18,12 +18,15 @@ router.use(authenticateToken);
 
 // Rutas para el perfil
 router.get('/profile', getProfile);
-router.put('/profile', updateProfile);
+// Aplicar validación para la actualización del perfil
+router.put('/profile', updateProfileRules(), validate, updateProfile);
 
 // Rutas para las direcciones
 router.get('/addresses', getAddresses);
-router.post('/addresses', addAddress);
-router.put('/addresses/:addressId', updateAddress);
+// Aplicar validación para añadir una dirección
+router.post('/addresses', addressRules(), validate, addAddress);
+// Aplicar validación para actualizar una dirección
+router.put('/addresses/:addressId', addressRules(), validate, updateAddress);
 router.delete('/addresses/:addressId', deleteAddress);
 
 export default router;
