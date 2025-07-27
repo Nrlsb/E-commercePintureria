@@ -10,15 +10,20 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
  */
 async function getCsrfToken() {
   try {
+    console.log('Attempting to fetch CSRF token from:', `${API_URL}/api/csrf-token`);
     const response = await fetch(`${API_URL}/api/csrf-token`);
+    
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.message || 'Failed to fetch CSRF token. Fallo al obtener el token CSRF.');
+      const errorData = await response.json().catch(() => ({ message: 'No message provided' }));
+      console.error('Failed to fetch CSRF token. Response status:', response.status, 'Error data:', errorData);
+      throw new Error(errorData.message || `Failed to fetch CSRF token. Status: ${response.status}`);
     }
+    
     const data = await response.json();
+    console.log('Successfully fetched CSRF token:', data.csrfToken);
     return data.csrfToken;
   } catch (error) {
-    console.error('Error fetching CSRF token:', error);
+    console.error('Error in getCsrfToken:', error);
     throw error;
   }
 }
@@ -53,13 +58,15 @@ export async function fetchAuthenticated(url, options = {}, token) {
     try {
       const csrfToken = await getCsrfToken();
       headers['X-CSRF-Token'] = csrfToken;
+      console.log(`Adding X-CSRF-Token to ${method} request to ${url}:`, csrfToken);
+      
       // Ensure Content-Type is set for body-carrying requests
       // Asegurar que Content-Type esté configurado para solicitudes que llevan cuerpo
       if (options.body && !headers['Content-Type']) {
         headers['Content-Type'] = 'application/json';
       }
     } catch (error) {
-      console.error('Failed to add CSRF token to request:', error);
+      console.error('Failed to prepare authenticated request with CSRF token:', error);
       throw new Error('CSRF token missing or invalid. Please try again. Token CSRF faltante o inválido. Por favor, inténtalo de nuevo.');
     }
   }
