@@ -16,7 +16,10 @@ const config = {
     port: process.env.DB_PORT,
   },
 
+  // MODIFICACIÓN: Se añade JWT_SECRET_PREVIOUS para la rotación de claves
   jwtSecret: process.env.JWT_SECRET,
+  jwtSecretPrevious: process.env.JWT_SECRET_PREVIOUS || null, // Nueva variable para la clave anterior
+
   mercadopago: {
     accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN,
   },
@@ -33,12 +36,10 @@ const config = {
     url: process.env.REDIS_URL || 'redis://localhost:6379'
   },
 
-  // --- NUEVO: Configuración de Google OAuth ---
   google: {
-    clientId: process.env.GOOGLE_CLIENT_ID,
+    clientId: process.out.GOOGLE_CLIENT_ID,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET,
   },
-  // --- FIN DE LA MODIFICACIÓN ---
 
   email: {
     host: process.env.EMAIL_HOST,
@@ -56,3 +57,4 @@ const config = {
 };
 
 export default config;
+
