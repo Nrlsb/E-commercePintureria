@@ -73,14 +73,14 @@ export const getProductBrands = async (req, res, next) => {
 export const createProduct = async (req, res, next) => {
   const { name, brand, category, price, old_price, image_url, description, stock } = req.body;
   try {
-    // Using parameterized query to prevent SQL Injection
+    // La sanitización de 'name', 'brand', 'category', 'description' se realiza en el middleware 'validators.js'
     const result = await db.query(
       'INSERT INTO products (name, brand, category, price, old_price, image_url, description, stock) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *',
       [name, brand, category, price, old_price, image_url, description, stock]
     );
     logger.info(`Producto creado con ID: ${result.rows[0].id}`);
-    await clearProductsCache(); // Invalidate product list cache
-    await clearBrandsCache(); // Invalidate brands cache (if a new brand was added)
+    await clearProductsCache(); // Invalidar caché de listas de productos
+    await clearBrandsCache(); // Invalidar caché de marcas (por si se añadió una nueva marca)
     res.status(201).json(result.rows[0]);
   } catch (err) {
     next(err);
@@ -91,7 +91,7 @@ export const updateProduct = async (req, res, next) => {
   const { id } = req.params;
   const { name, brand, category, price, old_price, image_url, description, stock } = req.body;
   try {
-    // Using parameterized query to prevent SQL Injection
+    // La sanitización de 'name', 'brand', 'category', 'description' se realiza en el middleware 'validators.js'
     const result = await db.query(
       'UPDATE products SET name = $1, brand = $2, category = $3, price = $4, old_price = $5, image_url = $6, description = $7, stock = $8 WHERE id = $9 RETURNING *',
       [name, brand, category, price, old_price, image_url, description, stock, id]
@@ -100,11 +100,11 @@ export const updateProduct = async (req, res, next) => {
       return res.status(404).json({ message: 'Producto no encontrado' });
     }
     logger.info(`Producto actualizado con ID: ${id}`);
-    await clearProductsCache(); // Invalidate product list cache
+    await clearProductsCache(); // Invalidar caché de listas de productos
     if (redisClient.isReady) {
-      await redisClient.del(`product:${id}`); // Invalidate specific product cache
+      await redisClient.del(`product:${id}`); // Invalidar caché del producto específico
     }
-    await clearBrandsCache(); // Invalidate brands cache (if brand changed)
+    await clearBrandsCache(); // Invalidar caché de marcas (por si la marca cambió)
     res.json(result.rows[0]);
   } catch (err) {
     next(err);
@@ -125,11 +125,11 @@ export const deleteProduct = async (req, res, next) => {
     }
     
     logger.info(`Producto DESACTIVADO con ID: ${id}`);
-    await clearProductsCache(); // Invalidate product list cache
+    await clearProductsCache(); // Invalidar caché de listas de productos
     if (redisClient.isReady) {
-      await redisClient.del(`product:${id}`); // Invalidate specific product cache
+      await redisClient.del(`product:${id}`); // Invalidar caché del producto específico
     }
-    await clearBrandsCache(); // Invalidate brands cache (if the brand of the deactivated product was the only one)
+    await clearBrandsCache(); // Invalidar caché de marcas (por si la marca del producto desactivado era la única)
     res.status(200).json({ message: 'Producto desactivado con éxito' });
   } catch (err) {
     next(err);
@@ -160,7 +160,7 @@ export const createProductReview = async (req, res, next) => {
   const userId = req.user.userId;
 
   try {
-    // Using parameterized query to prevent SQL Injection
+    // La sanitización de 'comment' se realiza en el middleware 'validators.js'
     const query = `
       INSERT INTO reviews (rating, comment, product_id, user_id)
       VALUES ($1, $2, $3, $4)

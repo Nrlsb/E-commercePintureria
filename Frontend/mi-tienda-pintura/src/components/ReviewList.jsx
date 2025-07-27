@@ -21,6 +21,9 @@ const ReviewList = ({ reviews, user, onDelete }) => {
               <StarRating rating={review.rating} />
               <p className="ml-4 font-bold text-gray-800">{review.first_name} {review.last_name}</p>
             </div>
+            {/* El contenido de 'review.comment' se escapa automáticamente por React al ser renderizado en JSX.
+              Además, en el backend, el middleware de validación aplica .escape() para sanitizar este campo.
+            */}
             <p className="text-gray-600 mb-1">{review.comment}</p>
             <div className="flex justify-between items-center">
               <p className="text-xs text-gray-400">

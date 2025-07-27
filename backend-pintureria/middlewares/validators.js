@@ -18,6 +18,7 @@ export const validate = (req, res, next) => {
 export const registerRules = () => [
   body('email').isEmail().withMessage('Debe ser un correo electrónico válido.').normalizeEmail(),
   body('password').isLength({ min: 6 }).withMessage('La contraseña debe tener al menos 6 caracteres.'),
+  // Aplicamos trim() para eliminar espacios en blanco y escape() para prevenir XSS
   body('firstName').notEmpty().withMessage('El nombre es requerido.').trim().escape(),
   body('lastName').notEmpty().withMessage('El apellido es requerido.').trim().escape(),
   body('phone').optional().trim().escape(),
@@ -31,11 +32,13 @@ export const loginRules = () => [
 
 // Reglas de validación para la creación y actualización de productos
 export const productRules = () => [
+  // Aplicamos trim() y escape() para prevenir XSS en campos de texto
   body('name').notEmpty().withMessage('El nombre es requerido.').trim().escape(),
   body('brand').notEmpty().withMessage('La marca es requerida.').trim().escape(),
   body('category').notEmpty().withMessage('La categoría es requerida.').trim().escape(),
   body('price').isFloat({ gt: 0 }).withMessage('El precio debe ser un número positivo.'),
   body('stock').isInt({ min: 0 }).withMessage('El stock debe ser un número entero no negativo.'),
+  // Aplicamos trim() y escape() para prevenir XSS en la descripción
   body('description').notEmpty().withMessage('La descripción es requerida.').trim().escape(),
   body('old_price').optional({ checkFalsy: true }).isFloat({ gt: 0 }).withMessage('El precio anterior debe ser un número positivo.'),
   body('image_url').optional({ checkFalsy: true }).isURL().withMessage('La URL de la imagen no es válida.'),
@@ -44,5 +47,6 @@ export const productRules = () => [
 // Reglas de validación para crear una reseña
 export const reviewRules = () => [
   body('rating').isInt({ min: 1, max: 5 }).withMessage('La calificación debe ser un número entre 1 y 5.'),
+  // Aplicamos trim() y escape() para prevenir XSS en el comentario de la reseña
   body('comment').optional().trim().escape(),
 ];

@@ -74,9 +74,16 @@ const ProductDetailPage = () => {
         metaDescriptionTag.name = 'description';
         document.head.appendChild(metaDescriptionTag);
       }
-      metaDescriptionTag.content = product.description 
-        ? `Comprar ${product.name} de la marca ${product.brand} en Pinturerías Mercurio. ${product.description.substring(0, 150)}...`
-        : `Comprar ${product.name} de la marca ${product.brand} en Pinturerías Mercurio.`;
+
+      // Asegura que product.description sea una cadena antes de usar substring
+      // Se utiliza el operador || '' para garantizar que product.description sea una cadena vacía si es null/undefined.
+      const productDescription = product.description || ''; 
+      const baseDescription = `Comprar ${product.name} de la marca ${product.brand} en Pinturerías Mercurio.`;
+      let metaDescriptionContent = productDescription
+        ? `${baseDescription} ${productDescription.substring(0, 150)}${productDescription.length > 150 ? '...' : ''}`
+        : baseDescription;
+      
+      metaDescriptionTag.content = metaDescriptionContent;
     } else {
       document.title = "Detalle del Producto - Pinturerías Mercurio";
       let metaDescriptionTag = document.querySelector('meta[name="description"]');
@@ -174,7 +181,7 @@ const ProductDetailPage = () => {
   if (!product) return null;
   
   const imageUrls = product.imageUrl;
-  const src = imageUrls?.large || imageUrls || 'https://placehold.co/500x500/cccccc/ffffff?text=Imagen+no+disponible';
+  const src = imageUrls?.large || imageUrls?.medium || imageUrls?.small || 'https://placehold.co/500x500/cccccc/ffffff?text=Imagen+no+disponible';
   const srcSet = imageUrls && typeof imageUrls === 'object'
     ? `${imageUrls.small} 400w, ${imageUrls.medium} 800w, ${imageUrls.large} 1200w`
     : null;
@@ -278,6 +285,8 @@ const ProductDetailPage = () => {
         </div>
         <div className="py-6">
           {activeTab === 'description' && (
+            // El contenido de 'product.description' se escapa automáticamente por React al ser renderizado en JSX.
+            // Además, en el backend, el middleware de validación aplica .escape() para sanitizar este campo.
             <p className="text-gray-700 leading-relaxed">{product.description || 'No hay descripción disponible para este producto.'}</p>
           )}
           {activeTab === 'details' && (
