@@ -6,7 +6,7 @@ import {
   loginUser,
   forgotPassword,
   resetPassword,
-  refreshToken // Importamos el nuevo controlador
+  refreshToken
 } from '../controllers/auth.controller.js';
 import { registerRules, loginRules, validate } from '../middlewares/validators.js';
 import { authLimiter } from '../middlewares/rateLimiter.js';
@@ -25,8 +25,7 @@ router.post('/login', authLimiter, loginRules(), validate, loginUser);
 router.post('/forgot-password', authLimiter, forgotPassword);
 router.post('/reset-password/:token', resetPassword);
 
-// NUEVO: Ruta para refrescar el token.
-// Requiere que el usuario esté autenticado con un token (incluso si está expirado pero válido con la clave anterior).
+// Ruta para refrescar el token: Requiere que el usuario esté autenticado con un token existente.
 router.post('/refresh-token', authenticateToken, refreshToken);
 
 // Rutas para Google OAuth

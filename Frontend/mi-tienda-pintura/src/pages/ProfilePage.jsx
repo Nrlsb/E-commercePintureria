@@ -17,8 +17,6 @@ const ProfileInformation = ({ user, token }) => {
     const [loading, setLoading] = useState(false); // Estado de carga
     const showNotification = useNotificationStore(state => state.showNotification);
     const login = useAuthStore(state => state.login);
-    // NUEVO: Obtenemos la función refreshToken del store
-    const refreshToken = useAuthStore(state => state.refreshToken); 
 
     const handleChange = (e) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -28,37 +26,25 @@ const ProfileInformation = ({ user, token }) => {
         e.preventDefault();
         setLoading(true); // Activar spinner
         try {
-            // Antes de hacer la petición, aseguramos que tenemos un token válido y, si es necesario, lo refrescamos.
-            let currentToken = token;
-            if (user?.needsTokenRefresh) { // Si el middleware de backend marcó que necesita refresco
-                const newToken = await refreshToken();
-                if (newToken) {
-                    currentToken = newToken;
-                } else {
-                    // Si el refresco falla, la función refreshToken ya maneja el logout.
-                    // Detenemos la ejecución aquí.
-                    setLoading(false);
-                    return; 
-                }
-            }
-
             const response = await fetch(`${API_URL}/api/user/profile`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${currentToken}` // Usar el token (posiblemente refrescado)
+                    'Authorization': `Bearer ${token}`
                 },
                 body: JSON.stringify(formData)
             });
             const data = await response.json();
             if (!response.ok) throw new Error(data.message || 'Error al actualizar el perfil.');
             
-            // Si la actualización del perfil es exitosa, el token no necesita ser refrescado aquí
-            // porque ya lo manejamos antes de la petición o porque el token actual es válido.
-            // No es necesario llamar a login(newToken) aquí a menos que el backend devuelva un nuevo token
-            // con la respuesta de actualización de perfil, lo cual no es el caso en tu backend actual.
-            // La información del usuario en el store se actualizará automáticamente cuando se cargue el nuevo token.
-            
+            // Refrescar el token en el store para que los datos se actualicen en toda la app
+            const newTokenResponse = await fetch(`${API_URL}/api/auth/refresh-token`, { // Asumiendo que tienes este endpoint
+                 method: 'POST',
+                 headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const { token: newToken } = await newTokenResponse.json();
+            login(newToken);
+
             showNotification(data.message, 'success');
         } catch (err) {
             showNotification(err.message, 'error');

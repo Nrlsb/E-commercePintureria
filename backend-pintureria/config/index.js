@@ -17,10 +17,7 @@ const config = {
   },
 
   jwtSecret: process.env.JWT_SECRET,
-  // NUEVO: Añadimos una clave secreta anterior para la rotación de tokens.
-  // Esto permite que los tokens firmados con una clave anterior sigan siendo válidos
-  // por un tiempo, pero se les indicará al cliente que necesitan ser refrescados.
-  jwtSecretPrevious: process.env.JWT_SECRET_PREVIOUS || null, 
+  jwtSecretPrevious: process.env.JWT_SECRET_PREVIOUS || null,
 
   mercadopago: {
     accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN,
@@ -38,6 +35,7 @@ const config = {
     url: process.env.REDIS_URL || 'redis://localhost:6379'
   },
 
+  // CORRECCIÓN: Cambiado 'process.out' a 'process.env'
   google: {
     clientId: process.env.GOOGLE_CLIENT_ID,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET,

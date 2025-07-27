@@ -51,7 +51,7 @@ export const resetPassword = async (req, res, next) => {
   }
 };
 
-// NUEVO: Controlador para refrescar el token
+// --- NUEVO: Controlador para refrescar el token ---
 export const refreshToken = async (req, res, next) => {
   try {
     // req.user es añadido por el middleware authenticateToken

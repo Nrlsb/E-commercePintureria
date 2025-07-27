@@ -1,9 +1,7 @@
 // src/stores/useAuthStore.js
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { useWishlistStore } from './useWishlistStore';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+import { useWishlistStore } from './useWishlistStore'; // 1. Importar el store de wishlist
 
 const parseJwt = (token) => {
   if (!token) return null;
@@ -17,7 +15,7 @@ const parseJwt = (token) => {
 
 export const useAuthStore = create(
   persist(
-    (set, get) => ({
+    (set) => ({
       token: null,
       user: null,
 
@@ -26,7 +24,7 @@ export const useAuthStore = create(
           token: newToken,
           user: parseJwt(newToken),
         });
-        // Al iniciar sesión, cargar la lista de deseos del usuario.
+        // 2. Al iniciar sesión, cargar la lista de deseos  del usuario.
         useWishlistStore.getState().fetchWishlist(newToken);
       },
 
@@ -35,57 +33,12 @@ export const useAuthStore = create(
           token: null,
           user: null,
         });
-        // Al cerrar sesión, limpiar la lista de deseos del estado.
+        // 3. Al cerrar sesión, limpiar la lista de deseos del estado.
         useWishlistStore.getState().clearWishlist();
-      },
-
-      // NUEVO: Función para refrescar el token
-      refreshToken: async () => {
-        const currentToken = get().token;
-        if (!currentToken) {
-          console.warn("No hay token para refrescar.");
-          get().logout(); // Si no hay token, forzar logout
-          return null;
-        }
-
-        try {
-          const response = await fetch(`${API_URL}/api/auth/refresh-token`, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${currentToken}`,
-              'Content-Type': 'application/json',
-            },
-          });
-
-          if (!response.ok) {
-            // Si el refresco falla (ej. token inválido o expirado con clave anterior),
-            // el usuario debe volver a iniciar sesión.
-            console.error("Fallo al refrescar el token:", await response.json());
-            get().logout();
-            return null;
-          }
-
-          const data = await response.json();
-          const newToken = data.token;
-          
-          set({
-            token: newToken,
-            user: parseJwt(newToken),
-          });
-          console.log("Token refrescado exitosamente.");
-          return newToken;
-
-        } catch (error) {
-          console.error("Error en la solicitud de refresco de token:", error);
-          get().logout(); // Forzar logout en caso de error de red o servidor
-          return null;
-        }
       },
     }),
     {
       name: 'auth-storage',
-      // Solo persistimos el token y el usuario. La lógica de refresco no necesita ser persistida.
-      partialize: (state) => ({ token: state.token, user: state.user }),
     }
   )
 );

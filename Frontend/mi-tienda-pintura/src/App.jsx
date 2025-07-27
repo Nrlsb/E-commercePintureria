@@ -1,12 +1,11 @@
 // Frontend/mi-tienda-pintura/src/App.jsx
 import React, { Suspense, lazy, useEffect } from 'react';
-import { Routes, Route, useLocation, useNavigate } from 'react-router-dom'; // Import useNavigate
+import { Routes, Route, useLocation } from 'react-router-dom';
 import { initMercadoPago } from '@mercadopago/sdk-react';
 import { AnimatePresence, motion } from 'framer-motion';
 
 import { useProductStore } from './stores/useProductStore';
 import { useNotificationStore } from './stores/useNotificationStore';
-import { useAuthStore } from './stores/useAuthStore';
 
 // Componentes principales
 import Header from './components/Header.jsx';
@@ -27,186 +26,119 @@ const ScrollToTop = () => {
 };
 
 // Lazy Loading de Páginas
+// Todos los componentes de página se importan de forma perezosa usando React.lazy()
+const AuthCallbackPage = lazy(() => import('./pages/AuthCallbackPage.jsx'));
 const HomePage = lazy(() => import('./pages/HomePage.jsx'));
 const ProductDetailPage = lazy(() => import('./pages/ProductDetailPage.jsx'));
-const CategoryPage = lazy(() => import('./pages/CategoryPage.jsx'));
-const SearchResultsPage = lazy(() => import('./pages/SearchResultsPage.jsx'));
 const CartPage = lazy(() => import('./pages/CartPage.jsx'));
 const CheckoutPage = lazy(() => import('./pages/CheckoutPage.jsx'));
 const OrderSuccessPage = lazy(() => import('./pages/OrderSuccessPage.jsx'));
 const OrderPendingPage = lazy(() => import('./pages/OrderPendingPage.jsx'));
+const SearchResultsPage = lazy(() => import('./pages/SearchResultsPage.jsx'));
+const CategoryPage = lazy(() => import('./pages/CategoryPage.jsx'));
 const LoginPage = lazy(() => import('./pages/LoginPage.jsx'));
 const RegisterPage = lazy(() => import('./pages/RegisterPage.jsx'));
-const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage.jsx'));
-const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage.jsx'));
-const AuthCallbackPage = lazy(() => import('./pages/AuthCallbackPage.jsx'));
-const ProfilePage = lazy(() => import('./pages/ProfilePage.jsx'));
-const OrderHistoryPage = lazy(() => import('./pages/OrderHistoryPage.jsx'));
-const WishlistPage = lazy(() => import('./pages/WishlistPage.jsx'));
-
-// Páginas de Admin
 const AdminDashboardPage = lazy(() => import('./pages/AdminDashboardPage.jsx'));
 const AdminProductsPage = lazy(() => import('./pages/AdminProductsPage.jsx'));
 const ProductFormPage = lazy(() => import('./pages/ProductFormPage.jsx'));
+const OrderHistoryPage = lazy(() => import('./pages/OrderHistoryPage.jsx'));
 const AdminOrdersPage = lazy(() => import('./pages/AdminOrdersPage.jsx'));
-const AdminCouponsPage = lazy(() => import('./pages/AdminCouponsPage.jsx'));
+const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage.jsx'));
+const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage.jsx'));
 const BulkUploadPage = lazy(() => import('./pages/BulkUploadPage.jsx'));
 const BulkCreateAIPage = lazy(() => import('./pages/BulkCreateAIPage.jsx'));
 const BulkAssociateAIPage = lazy(() => import('./pages/BulkAssociateAIPage.jsx'));
+const WishlistPage = lazy(() => import('./pages/WishlistPage.jsx'));
+const ProfilePage = lazy(() => import('./pages/ProfilePage.jsx'));
+const AdminCouponsPage = lazy(() => import('./pages/AdminCouponsPage.jsx'));
 
-// Configuración de Mercado Pago
-initMercadoPago(import.meta.env.VITE_MERCADOPAGO_PUBLIC_KEY, {
-  locale: 'es-AR',
-});
+const MERCADOPAGO_PUBLIC_KEY = import.meta.env.VITE_MERCADOPAGO_PUBLIC_KEY;
 
-// Variable para controlar si el interceptor ya fue configurado
-let isInterceptorSetup = false;
+if (MERCADOPAGO_PUBLIC_KEY) {
+  initMercadoPago(MERCADOPAGO_PUBLIC_KEY, { locale: 'es-AR' });
+} else {
+  console.error("Error: La Public Key de Mercado Pago no está configurada.");
+}
 
-// Define API_URL here for the interceptor
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
-
-
-function App() {
+export default function App() {
+  const { fetchAvailableBrands, quickViewProduct, closeQuickView } = useProductStore(state => ({
+      fetchAvailableBrands: state.fetchAvailableBrands,
+      quickViewProduct: state.quickViewProduct,
+      closeQuickView: state.closeQuickView,
+  }));
+  const { message: notificationMessage, show: showNotification, type: notificationType } = useNotificationStore();
   const location = useLocation();
-  const navigate = useNavigate(); // Initialize useNavigate
-  const showNotification = useNotificationStore((state) => state.showNotification);
-  const { token, user, logout, refreshToken } = useAuthStore();
 
-  // NUEVO: Configuración del interceptor de fetch para manejar el refresco de tokens
   useEffect(() => {
-    if (!token || isInterceptorSetup) return;
-
-    const originalFetch = window.fetch;
-
-    window.fetch = async (...args) => {
-      let [resource, options] = args;
-      
-      options = options || {};
-      options.headers = options.headers || {};
-
-      if (token && !options.headers['Authorization']) {
-        options.headers['Authorization'] = `Bearer ${token}`;
-      }
-
-      try {
-        let response = await originalFetch(resource, options);
-
-        const clonedResponse = response.clone();
-
-        if (
-          response.status === 403 &&
-          user?.needsTokenRefresh &&
-          resource !== `${API_URL}/api/auth/refresh-token`
-        ) {
-          console.warn("Token antiguo detectado, intentando refrescar...");
-          const newToken = await refreshToken();
-
-          if (newToken) {
-            options.headers['Authorization'] = `Bearer ${newToken}`;
-            response = await originalFetch(resource, options);
-            console.log("Petición reintentada con nuevo token.");
-            return response;
-          } else {
-            console.error("No se pudo refrescar el token, devolviendo error original.");
-            return clonedResponse;
-          }
-        }
-
-        if (
-          response.status === 401 &&
-          !resource.includes('/api/auth/login') &&
-          !resource.includes('/api/auth/register') &&
-          !resource.includes('/api/auth/forgot-password') &&
-          !resource.includes('/api/auth/reset-password') &&
-          !resource.includes('/api/auth/refresh-token')
-        ) {
-          console.error("Petición 401 no autorizada, forzando logout.");
-          logout();
-          showNotification('Tu sesión ha expirado. Por favor, inicia sesión de nuevo.', 'error');
-          navigate('/login'); // Redirect to login page
-        }
-
-        return response;
-      } catch (error) {
-        console.error("Error en el interceptor de fetch:", error);
-        throw error;
-      }
-    };
-
-    isInterceptorSetup = true;
-    console.log("Interceptor de fetch configurado.");
-
-    return () => {
-      window.fetch = originalFetch;
-      isInterceptorSetup = false;
-      console.log("Interceptor de fetch limpiado.");
-    };
-  }, [token, user, logout, refreshToken, showNotification, navigate]); // Added navigate to dependencies
+    fetchAvailableBrands();
+  }, [fetchAvailableBrands]);
 
   return (
-    <div className="flex flex-col min-h-screen font-inter antialiased bg-gray-50">
+    <div className="bg-gray-50 min-h-screen font-sans flex flex-col relative">
       <Header />
       <Navbar />
-      <main className="flex-grow">
-        <Notification />
-        <QuickViewModal />
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={location.pathname}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-          >
-            <Suspense fallback={<div className="flex justify-center items-center h-screen"><Spinner /></div>}>
-              <ScrollToTop />
-              <Routes>
-                <Route path="/" element={<HomePage />} />
-                <Route path="/product/:id" element={<ProductDetailPage />} />
-                <Route path="/category/:categoryName" element={<CategoryPage />} />
-                <Route path="/search" element={<SearchResultsPage />} />
-                <Route path="/cart" element={<CartPage />} />
-                <Route path="/checkout" element={<CheckoutPage />} />
-                <Route path="/order-success" element={<OrderSuccessPage />} />
-                <Route path="/order-pending" element={<OrderPendingPage />} />
-                <Route path="/login" element={<LoginPage />} />
-                <Route path="/register" element={<RegisterPage />} />
-                <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-                <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
-                <Route path="/auth/callback" element={<AuthCallbackPage />} />
+      <ScrollToTop />
+      <motion.main
+        key={location.pathname}
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -20 }}
+        transition={{ duration: 0.3 }}
+        className="flex-grow container mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col"
+      >
+        {/* Suspense se encarga de mostrar un fallback (como un spinner) mientras el componente de página se carga */}
+        <Suspense fallback={
+            <div className="flex-grow flex items-center justify-center">
+              <Spinner className="w-12 h-12 text-[#0F3460]" />
+            </div>
+          }>
+          <Routes>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/product/:productId" element={<ProductDetailPage />} />
+            <Route path="/cart" element={<CartPage />} />
+            <Route path="/success" element={<OrderSuccessPage />} />
+            <Route path="/search" element={<SearchResultsPage />} />
+            <Route path="/category/:categoryName" element={<CategoryPage />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/register" element={<RegisterPage />} />
+            
+            <Route path="/auth/callback" element={<AuthCallbackPage />} />
 
-                {/* Rutas Protegidas para Usuarios Autenticados */}
-                <Route element={<ProtectedRoute />}>
-                  <Route path="/profile" element={<ProfilePage />} />
-                  <Route path="/order-history" element={<OrderHistoryPage />} />
-                  <Route path="/wishlist" element={<WishlistPage />} />
-                </Route>
+            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+            <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
 
-                {/* Rutas Protegidas para Administradores */}
-                <Route element={<AdminRoute />}>
-                  {/* Redirect /admin to /admin/dashboard */}
-                  <Route path="/admin" element={<AdminDashboardPage />} /> {/* Changed this to directly render dashboard for /admin */}
-                  <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
-                  <Route path="/admin/products" element={<AdminProductsPage />} />
-                  <Route path="/admin/products/new" element={<ProductFormPage />} />
-                  <Route path="/admin/products/edit/:id" element={<ProductFormPage />} />
-                  <Route path="/admin/orders" element={<AdminOrdersPage />} />
-                  <Route path="/admin/coupons" element={<AdminCouponsPage />} />
-                  <Route path="/admin/bulk-upload" element={<BulkUploadPage />} />
-                  <Route path="/admin/bulk-create-ai" element={<BulkCreateAIPage />} />
-                  <Route path="/admin/bulk-associate-ai" element={<BulkAssociateAIPage />} />
-                </Route>
+            <Route element={<ProtectedRoute />}>
+              <Route path="/checkout" element={<CheckoutPage />} />
+              <Route path="/my-orders" element={<OrderHistoryPage />} />
+              <Route path="/order-pending/:orderId" element={<OrderPendingPage />} />
+              <Route path="/wishlist" element={<WishlistPage />} />
+              <Route path="/profile" element={<ProfilePage />} />
+            </Route>
 
-                {/* Ruta Catch-all para 404 */}
-                <Route path="*" element={<h1 className="text-center text-2xl p-10">404 - Página no encontrada</h1>} />
-              </Routes>
-            </Suspense>
-          </motion.div>
-        </AnimatePresence>
-      </main>
+            <Route element={<AdminRoute />}>
+              <Route path="/admin" element={<AdminDashboardPage />} />
+              <Route path="/admin/products" element={<AdminProductsPage />} />
+              <Route path="/admin/orders" element={<AdminOrdersPage />} />
+              <Route path="/admin/coupons" element={<AdminCouponsPage />} />
+              <Route path="/admin/product/new" element={<ProductFormPage />} />
+              <Route path="/admin/product/edit/:productId" element={<ProductFormPage />} />
+              <Route path="/admin/product/bulk-upload" element={<BulkUploadPage />} />
+              <Route path="/admin/product/bulk-create-ai" element={<BulkCreateAIPage />} />
+              <Route path="/admin/product/bulk-associate-ai" element={<BulkAssociateAIPage />} />
+            </Route>
+          </Routes>
+        </Suspense>
+      </motion.main>
       <Footer />
+      
+      <AnimatePresence>
+        {quickViewProduct && (
+          <QuickViewModal product={quickViewProduct} onClose={closeQuickView} />
+        )}
+        {showNotification && (
+          <Notification message={notificationMessage} type={notificationType} />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
-
-export default App;
