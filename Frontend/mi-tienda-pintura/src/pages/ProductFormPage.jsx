@@ -5,6 +5,7 @@ import { useAuthStore } from '../stores/useAuthStore';
 import { useNotificationStore } from '../stores/useNotificationStore';
 import Spinner from '../components/Spinner';
 import Icon from '../components/Icon';
+import { fetchAuthenticated } from '../utils/api'; // Importar la nueva función de utilidad
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
@@ -23,11 +24,12 @@ const ImageUploader = ({ imageUrls, onUploadSuccess, onFileSelect, token }) => {
     formData.append('productImage', file);
 
     try {
-      const response = await fetch(`${API_URL}/api/uploads/single`, {
+      // Usar fetchAuthenticated para la subida de imagen (POST request)
+      const response = await fetchAuthenticated(`${API_URL}/api/uploads/single`, {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` },
+        // No es necesario establecer 'Content-Type' para FormData, el navegador lo hace automáticamente
         body: formData,
-      });
+      }, token); // Pasar el token de autenticación
 
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || 'Error al subir la imagen');
@@ -100,11 +102,12 @@ const ProductFormPage = () => {
 
   const isEditing = Boolean(productId);
 
-  // --- MODIFICADO: El fetch ahora espera `image_url` y lo parsea ---
+  // --- MODIFICADO: El fetch ahora espera `image_url` y lo parsear ---
   useEffect(() => {
     if (isEditing) {
       setLoading(true);
-      fetch(`${API_URL}/api/products/${productId}`)
+      // Para solicitudes GET, no se necesita el token CSRF, solo el de autenticación
+      fetchAuthenticated(`${API_URL}/api/products/${productId}`, {}, token)
         .then(res => res.ok ? res.json() : Promise.reject(new Error('No se pudo cargar el producto.')))
         .then(data => {
             // El servicio ya devuelve `imageUrl` como un objeto
@@ -121,7 +124,7 @@ const ProductFormPage = () => {
         })
         .finally(() => setLoading(false));
     }
-  }, [productId, isEditing, showNotification]);
+  }, [productId, isEditing, showNotification, token]); // Añadir 'token' a las dependencias
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -140,7 +143,6 @@ const ProductFormPage = () => {
   });
 
   const handleAIDataGeneration = async () => {
-    // ... (lógica sin cambios)
     if (!uploadedImageFile) {
         showNotification('Primero debes seleccionar una imagen.', 'error');
         return;
@@ -148,14 +150,12 @@ const ProductFormPage = () => {
     setIsAiLoading(true);
     try {
         const base64ImageData = await fileToBase64(uploadedImageFile);
-        const response = await fetch(`${API_URL}/api/uploads/analyze-image`, {
+        // Usar fetchAuthenticated para la generación de datos por IA (POST request)
+        const response = await fetchAuthenticated(`${API_URL}/api/uploads/analyze-image`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-            },
             body: JSON.stringify({ imageData: base64ImageData, mimeType: uploadedImageFile.type })
-        });
+        }, token); // Pasar el token de autenticación
+        
         const data = await response.json();
         if (!response.ok) throw new Error(data.message || 'La IA no pudo procesar la imagen.');
 
@@ -174,7 +174,7 @@ const ProductFormPage = () => {
     }
   };
 
-  // --- MODIFICADO: El submit ahora stringifica el objeto de URLs ---
+  // --- MODIFICADO: El submit ahora stringifica el objeto de URLs y usa fetchAuthenticated ---
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!product.image_urls || !product.image_urls.medium) {
@@ -188,9 +188,9 @@ const ProductFormPage = () => {
     const method = isEditing ? 'PUT' : 'POST';
 
     try {
-      const response = await fetch(url, {
+      // Usar fetchAuthenticated para crear/actualizar producto (POST/PUT request)
+      const response = await fetchAuthenticated(url, {
         method,
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({
             ...product,
             price: parseFloat(product.price) || 0,
@@ -198,7 +198,7 @@ const ProductFormPage = () => {
             stock: parseInt(product.stock, 10) || 0,
             image_url: JSON.stringify(product.image_urls), // Enviamos el objeto como string
         }),
-      });
+      }, token); // Pasar el token de autenticación
 
       if (!response.ok) {
         const data = await response.json();

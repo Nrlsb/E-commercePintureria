@@ -4,6 +4,8 @@ import cors from 'cors';
 import helmet from 'helmet';
 import passport from 'passport';
 import compression from 'compression';
+import cookieParser from 'cookie-parser'; // Importar cookie-parser
+import csurf from 'csurf'; // Importar csurf
 import './config/passport-setup.js';
 import { startCancelPendingOrdersJob } from './services/cronService.js';
 import expressWinston from 'express-winston';
@@ -67,6 +69,7 @@ const corsOptions = {
       callback(new Error(`Not allowed by CORS: ${origin}`));
     }
   },
+  credentials: true, // Importante para que las cookies (incluida la de CSRF) se envíen
   optionsSuccessStatus: 200 // Para solicitudes OPTIONS preflight
 };
 
@@ -74,6 +77,14 @@ app.use(cors(corsOptions));
 
 // Usar el middleware de compresión
 app.use(compression()); 
+
+// Middleware para parsear cookies. Debe ir antes de csurf.
+app.use(cookieParser());
+
+// Middleware CSRF. La cookie csrf-token se generará y se enviará al cliente.
+// El cliente debe incluir este token en el header 'X-CSRF-Token' para solicitudes POST, PUT, DELETE.
+const csrfProtection = csurf({ cookie: true });
+app.use(csrfProtection);
 
 app.use(passport.initialize());
 
@@ -92,6 +103,11 @@ app.use(expressWinston.logger({
 }));
 
 app.use(express.static('public'));
+
+// Ruta para obtener el token CSRF. El frontend llamará a esto para obtener el token.
+app.get('/api/csrf-token', (req, res) => {
+  res.json({ csrfToken: req.csrfToken() });
+});
 
 // Definición del resto de las rutas de la API
 app.use('/api/products', productRoutes);
@@ -126,6 +142,15 @@ process.on('uncaughtException', (error) => {
   logger.error('Uncaught Exception:', error);
   // Termina el proceso para evitar un estado inconsistente.
   process.exit(1);
+});
+
+// Middleware de manejo de errores de CSRF
+app.use((err, req, res, next) => {
+  if (err.code === 'EBADCSRFTOKEN') {
+    logger.warn('CSRF token validation failed for request:', req.method, req.url);
+    return res.status(403).json({ message: 'Invalid CSRF token' });
+  }
+  next(err);
 });
 
 app.use(errorHandler);
