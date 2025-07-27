@@ -1,5 +1,4 @@
 // backend-pintureria/services/auth.service.js
-// No se requieren cambios en generateToken, ya que siempre debe usar la clave actual.
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
@@ -35,10 +34,12 @@ export const findOrCreateGoogleUser = async (profile) => {
     let user = result.rows[0];
 
     if (!user) {
+      // Si no se encuentra por google_id, intenta encontrar por email
       result = await db.query('SELECT * FROM users WHERE email = $1', [email]);
       user = result.rows[0];
 
       if (user) {
+        // Si el usuario existe por email pero no tiene google_id, lo vinculamos
         result = await db.query(
           'UPDATE users SET google_id = $1 WHERE id = $2 RETURNING *',
           [googleId, user.id]
@@ -49,6 +50,7 @@ export const findOrCreateGoogleUser = async (profile) => {
     }
 
     if (!user) {
+      // Si no existe, creamos un nuevo usuario
       const newUserResult = await db.query(
         'INSERT INTO users (google_id, email, first_name, last_name) VALUES ($1, $2, $3, $4) RETURNING *',
         [googleId, email, name.givenName || displayName, name.familyName || '']
@@ -84,7 +86,7 @@ export const register = async (userData) => {
     logger.info(`Usuario registrado con éxito: ${result.rows[0].email}`);
     return result.rows[0];
   } catch (err) {
-    if (err.code === '23505') {
+    if (err.code === '23505') { // Código de error para violación de unicidad
       const error = new Error('El email ya está registrado.');
       error.statusCode = 409;
       throw error;
@@ -135,12 +137,14 @@ export const login = async (email, password) => {
 export const forgotPassword = async (email) => {
     const userResult = await db.query('SELECT * FROM users WHERE email = $1', [email]);
     if (userResult.rows.length === 0) {
+      // No revelamos si el email existe o no por seguridad
       return 'Si el correo electrónico está registrado, recibirás un enlace para restablecer tu contraseña.';
     }
 
     const resetToken = crypto.randomBytes(32).toString('hex');
+    // Hasheamos el token antes de guardarlo en la DB por seguridad
     const hashedToken = crypto.createHash('sha512').update(resetToken).digest('hex');
-    const passwordResetExpires = new Date(Date.now() + 3600000); // 1 hora
+    const passwordResetExpires = new Date(Date.now() + 3600000); // 1 hora de expiración
 
     await db.query(
       'UPDATE users SET reset_password_token = $1, reset_password_expires = $2 WHERE email = $3',
@@ -183,6 +187,7 @@ export const resetPassword = async (token, password) => {
     return 'Contraseña actualizada con éxito.';
 };
 
+// NUEVO: Función para refrescar un token JWT
 export const refreshToken = async (userId) => {
   const result = await db.query('SELECT * FROM users WHERE id = $1', [userId]);
   const user = result.rows[0];
@@ -193,6 +198,7 @@ export const refreshToken = async (userId) => {
     throw error;
   }
 
+  // Genera un nuevo token usando la clave actual
   const newToken = generateToken(user);
 
   logger.info(`Token refrescado para el usuario: ${user.email}`);

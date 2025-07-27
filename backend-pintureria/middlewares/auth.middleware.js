@@ -21,7 +21,7 @@ export const authenticateToken = (req, res, next) => {
     return res.status(401).json({ message: 'Token no proporcionado.' });
   }
 
-  // Función para intentar verificar el token con una clave específica
+  // Función interna para intentar verificar el token con una clave específica
   const verifyWithKey = (secret, callback) => {
     jwt.verify(token, secret, (err, user) => {
       callback(err, user);
@@ -42,8 +42,9 @@ export const authenticateToken = (req, res, next) => {
             return res.status(403).json({ message: 'Token inválido o expirado.' });
           }
           // Si la verificación con la clave anterior es exitosa,
-          // el token es válido pero antiguo. Se puede considerar refrescarlo en el cliente.
-          req.user = { ...prevUser, needsTokenRefresh: true }; // Se añade una bandera para el cliente
+          // el token es válido pero antiguo. Se añade una bandera para el cliente
+          // para que sepa que necesita refrescar su token.
+          req.user = { ...prevUser, needsTokenRefresh: true }; 
           logger.info(`Token validado con clave anterior para usuario ID: ${prevUser.userId}. Se sugiere refrescar token.`);
           next();
         });
@@ -72,4 +73,3 @@ export const isAdmin = (req, res, next) => {
   }
   next();
 };
-
