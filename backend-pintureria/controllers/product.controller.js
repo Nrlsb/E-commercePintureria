@@ -73,10 +73,10 @@ export const getProductBrands = async (req, res, next) => {
 export const createProduct = async (req, res, next) => {
   const { name, brand, category, price, old_price, image_url, description, stock } = req.body;
 
-  // --- INICIO DE DEPURACIÓN ---
+  // --- INICIO DE DEPURACIÓN MEJORADA ---
   logger.debug('Intentando crear producto con los siguientes datos:');
-  logger.debug({ name, brand, category, price, old_price, image_url, description, stock });
-  // --- FIN DE DEPURACIÓN ---
+  logger.debug(JSON.stringify({ name, brand, category, price, old_price, image_url, description, stock }, null, 2));
+  // --- FIN DE DEPURACIÓN MEJORADA ---
 
   try {
     // La sanitización de 'name', 'brand', 'category', 'description' se realiza en el middleware 'validators.js'
@@ -89,9 +89,12 @@ export const createProduct = async (req, res, next) => {
     await clearBrandsCache(); // Invalidar caché de marcas (por si se añadió una nueva marca)
     res.status(201).json(result.rows[0]);
   } catch (err) {
-    // --- INICIO DE DEPURACIÓN DE ERRORES ---
-    logger.error('Error al crear el producto:', err);
-    // --- FIN DE DEPURACIÓN DE ERRORES ---
+    // --- INICIO DE DEPURACIÓN DE ERRORES MEJORADA ---
+    logger.error('Error al crear el producto. Detalles del error:', err);
+    // Para ver el error completo de la base de datos, podrías loguear `err.stack` o `JSON.stringify(err)`
+    // Si `err.code` es '23505', significa una violación de unicidad.
+    // El mensaje exacto de la restricción suele estar en `err.detail` o `err.message`
+    // --- FIN DE DEPURACIÓN DE ERRORES MEJORADA ---
     if (err.code === '23505') { // Error de unicidad
       return res.status(409).json({ message: 'Ya existe un producto con las mismas características (por ejemplo, nombre o clave única).' });
     }
