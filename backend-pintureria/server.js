@@ -5,6 +5,7 @@ import helmet from 'helmet';
 import passport from 'passport';
 import compression from 'compression';
 import cookieParser from 'cookie-parser'; // Importar cookie-parser
+import session from 'express-session'; // Importar express-session
 import csurf from 'csurf'; // Importar csurf
 import './config/passport-setup.js';
 import { startCancelPendingOrdersJob } from './services/cronService.js';
@@ -49,7 +50,7 @@ const corsOptions = {
       // En desarrollo o testing, permite localhost y las URLs de previsualización de Vercel.
       allowedOrigins.push('http://localhost:5173');
       allowedOrigins.push(config.frontendUrl); // También permite la URL de producción en desarrollo
-      allowedOrigins.push(/^https:\/\/e-commerce-pintureria-.*\.vercel\.app$/); // Para previsualizaciones de Vercel
+      allowedOrigins.push(/^https:\/\/e-commercepintureria-.*\.vercel\.app$/); // Para previsualizaciones de Vercel
     }
 
     // Verifica si el origen de la solicitud está en la lista de permitidos.
@@ -78,15 +79,34 @@ app.use(cors(corsOptions));
 // Usar el middleware de compresión
 app.use(compression()); 
 
-// Middleware para parsear cookies. Debe ir antes de csurf.
+// Middleware para parsear cookies. Debe ir antes de express-session y csurf.
 app.use(cookieParser());
+
+// Configuración de express-session.
+// Es crucial para csurf y para mantener la sesión de usuario.
+app.use(session({
+  secret: config.sessionSecret, // Usa una clave secreta robusta de tus variables de entorno
+  resave: false,
+  saveUninitialized: false,
+  cookie: { 
+    secure: config.nodeEnv === 'production', // true en producción (HTTPS)
+    httpOnly: true, // La cookie no es accesible por JavaScript en el navegador
+    maxAge: 24 * 60 * 60 * 1000, // 1 día (ajusta según tus necesidades)
+    sameSite: 'Lax', // Protege contra CSRF en algunos escenarios
+    // domain: '.e-commercepintureria.onrender.com' // Descomentar si tienes problemas con subdominios
+  }
+}));
+
 
 // Middleware CSRF. La cookie csrf-token se generará y se enviará al cliente.
 // El cliente debe incluir este token en el header 'X-CSRF-Token' para solicitudes POST, PUT, DELETE.
+// Asegúrate de que este middleware se aplique *después* de express-session.
 const csrfProtection = csurf({ cookie: true });
 app.use(csrfProtection);
 
 app.use(passport.initialize());
+app.use(passport.session()); // Si usas sesiones de Passport, esto es necesario
+
 
 app.post('/api/payment/notification', express.raw({ type: 'application/json' }), handlePaymentNotification);
 
@@ -106,6 +126,7 @@ app.use(express.static('public'));
 
 // Ruta para obtener el token CSRF. El frontend llamará a esto para obtener el token.
 app.get('/api/csrf-token', (req, res) => {
+  // req.csrfToken() ahora depende de la sesión de express-session
   res.json({ csrfToken: req.csrfToken() });
 });
 
