@@ -5,7 +5,9 @@ import { authenticateToken } from '../middlewares/auth.middleware.js';
 
 const router = Router();
 
-// Esta ruta manejará las peticiones a DELETE /api/reviews/:reviewId
+// Esta ruta manejará las peticiones a DELETE /api/reviews/:reviewId.
+// Requiere autenticación. La lógica de autorización (si es el propio usuario o un admin)
+// se maneja dentro del controlador `deleteReview`.
 router.delete('/:reviewId', authenticateToken, deleteReview);
 
 export default router;

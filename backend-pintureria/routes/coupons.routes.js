@@ -14,18 +14,20 @@ const router = Router();
 
 // --- Rutas para Clientes ---
 // Ruta para que los usuarios validen un cupón.
-// Aplicar validación para la validación de cupones
+// Requiere autenticación para saber qué usuario lo está aplicando.
 router.post('/validate', authenticateToken, validateCouponRules(), validate, validateCoupon);
 
 // --- Rutas para Administradores ---
-// Se agrupan las rutas de admin bajo un middleware común.
+// Se agrupan las rutas de admin bajo un middleware común, asegurando que solo admins autenticados puedan acceder.
 router.use('/admin', authenticateToken, isAdmin);
 
+// Obtener todos los cupones (solo para administradores)
 router.get('/admin', getAllCoupons);
-// Aplicar validación para la creación de cupones
+// Crear un nuevo cupón (solo para administradores)
 router.post('/admin', couponRules(), validate, createCoupon);
-// Aplicar validación para la actualización de cupones
+// Actualizar un cupón existente (solo para administradores)
 router.put('/admin/:id', couponRules(), validate, updateCoupon);
+// Eliminar un cupón (solo para administradores)
 router.delete('/admin/:id', deleteCoupon);
 
 export default router;

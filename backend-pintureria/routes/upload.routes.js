@@ -7,18 +7,24 @@ import {
   handleSingleImageUpload,
   analyzeImageWithAI,
   bulkCreateProductsWithAI,
-  bulkAssociateImagesWithAI // <-- NUEVO: Importamos el controlador
+  bulkAssociateImagesWithAI
 } from '../controllers/upload.controller.js';
 import { authenticateToken, isAdmin } from '../middlewares/auth.middleware.js';
 
 const router = Router();
 
-router.post('/', [authenticateToken, isAdmin, uploadMultipleImages], processAndAssociateImages);
-router.post('/single', [authenticateToken, isAdmin, uploadSingleImage], handleSingleImageUpload);
-router.post('/analyze-image', [authenticateToken, isAdmin], analyzeImageWithAI);
-router.post('/bulk-create-ai', [authenticateToken, isAdmin, uploadMultipleImages], bulkCreateProductsWithAI);
+// Todas las rutas de subida y procesamiento de imágenes son para uso administrativo.
+// Requieren autenticación y que el usuario tenga rol de administrador.
 
-// --- NUEVO: Endpoint para asociación masiva de imágenes con IA ---
+// Carga masiva de imágenes (asociación por nombre de archivo)
+router.post('/', [authenticateToken, isAdmin, uploadMultipleImages], processAndAssociateImages);
+// Carga de una sola imagen (para formulario de producto)
+router.post('/single', [authenticateToken, isAdmin, uploadSingleImage], handleSingleImageUpload);
+// Análisis de imagen con IA (para sugerir datos de producto)
+router.post('/analyze-image', [authenticateToken, isAdmin], analyzeImageWithAI);
+// Creación masiva de productos con IA (genera productos a partir de imágenes)
+router.post('/bulk-create-ai', [authenticateToken, isAdmin, uploadMultipleImages], bulkCreateProductsWithAI);
+// Asociación masiva de imágenes a productos existentes con IA
 router.post('/bulk-associate-ai', [authenticateToken, isAdmin, uploadMultipleImages], bulkAssociateImagesWithAI);
 
 export default router;

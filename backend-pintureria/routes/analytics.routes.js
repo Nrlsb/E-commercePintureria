@@ -7,6 +7,7 @@ const router = Router();
 
 // Ruta para obtener todas las analíticas del dashboard.
 // Protegida para que solo los administradores puedan acceder.
+// Requiere autenticación (authenticateToken) y verificación de rol de administrador (isAdmin).
 router.get('/', [authenticateToken, isAdmin], getDashboardAnalytics);
 
 export default router;

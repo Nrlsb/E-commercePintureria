@@ -10,33 +10,39 @@ import {
   getProductReviews,
   createProductReview,
   getProductSuggestions,
+  deleteReview // Importar el controlador de eliminación de reseñas
 } from '../controllers/product.controller.js';
 import { authenticateToken, isAdmin } from '../middlewares/auth.middleware.js';
 // Importamos las reglas de validación y el manejador
-import { productRules, reviewRules, productQueryParamsRules, validate } from '../middlewares/validators.js'; // Importar productQueryParamsRules
+import { productRules, reviewRules, productQueryParamsRules, validate } from '../middlewares/validators.js';
 
 const router = Router();
 
-// --- Rutas de Productos ---
-// Aplicar validación para los parámetros de consulta de productos
+// --- Rutas Públicas (no requieren autenticación) ---
+// Obtener lista de productos con filtros y paginación.
 router.get('/', productQueryParamsRules(), validate, getProducts);
-
-// 2. Añadir la nueva ruta para sugerencias de búsqueda.
-// Es importante que esté ANTES de la ruta /:productId para que no haya conflictos.
-// Aplicar validación para la consulta de sugerencias
+// Obtener sugerencias de búsqueda.
 router.get('/suggestions', productQueryParamsRules(), validate, getProductSuggestions);
-
+// Obtener marcas de productos.
 router.get('/brands', getProductBrands);
+// Obtener detalles de un producto por ID.
 router.get('/:productId', getProductById);
-
-// Aplicamos las reglas de validación para crear y actualizar productos
-router.post('/', [authenticateToken, isAdmin, productRules(), validate], createProduct);
-router.put('/:id', [authenticateToken, isAdmin, productRules(), validate], updateProduct);
-router.delete('/:id', [authenticateToken, isAdmin], deleteProduct);
-
-// --- Rutas de Reseñas anidadas bajo un producto ---
+// Obtener reseñas de un producto.
 router.get('/:productId/reviews', getProductReviews);
-// Aplicamos las reglas de validación para crear una reseña
+
+// --- Rutas Protegidas para Usuarios Autenticados ---
+// Crear una reseña de producto: Requiere autenticación.
 router.post('/:productId/reviews', authenticateToken, reviewRules(), validate, createProductReview);
+// Eliminar una reseña: Requiere autenticación (y la lógica del controlador verifica si es el dueño o un admin).
+router.delete('/reviews/:reviewId', authenticateToken, deleteReview);
+
+
+// --- Rutas Protegidas para Administradores ---
+// Crear producto: Requiere autenticación y rol de administrador.
+router.post('/', [authenticateToken, isAdmin, productRules(), validate], createProduct);
+// Actualizar producto: Requiere autenticación y rol de administrador.
+router.put('/:id', [authenticateToken, isAdmin, productRules(), validate], updateProduct);
+// Eliminar/desactivar producto: Requiere autenticación y rol de administrador.
+router.delete('/:id', [authenticateToken, isAdmin], deleteProduct);
 
 export default router;

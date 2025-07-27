@@ -15,15 +15,21 @@ import { orderQueryParamsRules, validate } from '../middlewares/validators.js'; 
 const router = Router();
 
 // --- Rutas de Administrador (Más específicas primero) ---
-// Aplicar validación para los parámetros de consulta de órdenes
+// Obtener todas las órdenes: Requiere autenticación y rol de administrador.
 router.get('/admin', [authenticateToken, isAdmin, orderQueryParamsRules(), validate], getAllOrders);
-router.post('/:orderId/cancel', [authenticateToken, isAdmin], cancelOrder); // orderId es un param, se valida en el controller si es necesario
-router.post('/:orderId/confirm-payment', [authenticateToken, isAdmin], confirmTransferPayment); // orderId es un param
+// Cancelar una orden: Requiere autenticación y rol de administrador.
+router.post('/:orderId/cancel', [authenticateToken, isAdmin], cancelOrder);
+// Confirmar pago por transferencia: Requiere autenticación y rol de administrador.
+router.post('/:orderId/confirm-payment', [authenticateToken, isAdmin], confirmTransferPayment);
 
 // --- Rutas de Usuario (Más genéricas después) ---
+// Obtener historial de órdenes del usuario autenticado.
 router.get('/', authenticateToken, getOrderHistory);
+// Obtener detalles de una orden específica (el usuario solo puede ver sus propias órdenes).
 router.get('/:orderId', authenticateToken, getOrderById);
+// Procesar pago con tarjeta (Mercado Pago): Requiere autenticación.
 router.post('/process-payment', authenticateToken, processPayment);
+// Crear orden por transferencia bancaria: Requiere autenticación.
 router.post('/bank-transfer', authenticateToken, createBankTransferOrder);
 
 export default router;
