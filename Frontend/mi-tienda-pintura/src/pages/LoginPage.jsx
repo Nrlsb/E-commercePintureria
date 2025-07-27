@@ -3,7 +3,6 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/useAuthStore';
 import Spinner from '../components/Spinner.jsx';
-import { fetchAuthenticated } from '../utils/api'; // Importar la nueva función de utilidad
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
@@ -25,20 +24,17 @@ const LoginPage = () => {
   const navigate = useNavigate();
   
   const login = useAuthStore(state => state.login);
-  const token = useAuthStore(state => state.token); // Obtener el token de autenticación
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setLoading(true); // Activar spinner
     try {
-      // Usar fetchAuthenticated para la solicitud de login (POST request)
-      const response = await fetchAuthenticated(`${API_URL}/api/auth/login`, {
+      const response = await fetch(`${API_URL}/api/auth/login`, {
         method: 'POST',
-        // fetchAuthenticated ya establece Content-Type: application/json si hay body
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
-      }, token); // Pasar el token de autenticación (si ya existe, aunque para login suele ser nulo inicialmente)
-
+      });
       const data = await response.json();
       if (!response.ok) {
         throw new Error(data.message || 'Error al iniciar sesión');

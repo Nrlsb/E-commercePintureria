@@ -7,9 +7,7 @@
   "scripts": {
     "start": "node server.js",
     "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest",
-    "build": "npm install && npm install --platform=linux --arch=x64 sharp",
-    "docker:build": "docker build -t pintureria-backend .",
-    "docker:run": "docker run -p 5001:5001 --env-file ./.env pintureria-backend"
+    "build": "npm install && npm install --platform=linux --arch=x64 sharp"
   },
   "keywords": [
     "ecommerce",
@@ -22,14 +20,11 @@
   "dependencies": {
     "@google-cloud/storage": "^7.16.0",
     "bcryptjs": "^3.0.2",
-    "compression": "^1.7.4",
-    "cookie-parser": "^1.4.6",
+    "compression": "^1.8.1",
     "cors": "^2.8.5",
-    "csurf": "^1.11.0",
     "dotenv": "^17.1.0",
     "express": "^5.1.0",
     "express-rate-limit": "^7.3.1",
-    "express-session": "^1.18.0",
     "express-validator": "^7.1.0",
     "express-winston": "^4.2.0",
     "helmet": "^7.2.0",
