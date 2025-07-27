@@ -69,7 +69,7 @@ const corsOptions = {
       callback(new Error(`Not allowed by CORS: ${origin}`));
     }
   },
-  credentials: true, // Importante para que las cookies (incluida la de CSRF) se envíen
+  credentials: true, // ¡IMPORTANTE! Esto permite que las cookies se envíen y reciban.
   optionsSuccessStatus: 200 // Para solicitudes OPTIONS preflight
 };
 
