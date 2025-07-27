@@ -1,0 +1,66 @@
+# docker-compose.yml
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend-pintureria # Ruta al Dockerfile del backend
+      dockerfile: Dockerfile
+    ports:
+      - "5001:5001" # Mapea el puerto 5001 del host al puerto 5001 del contenedor
+    env_file:
+      - ./backend-pintureria/.env # Carga las variables de entorno para el backend
+    depends_on:
+      # Si usas un servicio de base de datos local con Docker Compose, descomenta esto:
+      # - db
+      - redis # Depende del servicio Redis
+    networks:
+      - app-network
+
+  frontend:
+    build:
+      context: ./Frontend/mi-tienda-pintura # Ruta al Dockerfile del frontend
+      dockerfile: Dockerfile
+    ports:
+      - "5173:80" # Mapea el puerto 5173 del host al puerto 80 del contenedor (Nginx)
+    environment:
+      # Inyecta la URL del backend en el frontend.
+      # Asegúrate de que VITE_API_URL en tu .env.local del frontend apunte a la IP de Docker si es necesario,
+      # o usa el nombre del servicio 'backend' si se comunican dentro de la red Docker.
+      # En este caso, el frontend se comunicará con el backend a través de la red Docker.
+      VITE_API_URL: "http://backend:5001"
+      VITE_MERCADOPAGO_PUBLIC_KEY: "${VITE_MERCADOPAGO_PUBLIC_KEY}" # Carga desde el .env.local del frontend
+    depends_on:
+      - backend # El frontend depende del backend
+    networks:
+      - app-network
+
+  redis:
+    image: redis:7-alpine # Usar una imagen oficial de Redis
+    ports:
+      - "6379:6379" # Mapea el puerto 6379 del host al puerto 6379 del contenedor
+    networks:
+      - app-network
+    command: redis-server --appendonly yes # Habilita la persistencia básica
+
+  # Si decides usar PostgreSQL localmente con Docker Compose en lugar de Supabase,
+  # descomenta el siguiente bloque y ajusta las variables de entorno en backend/.env
+  # db:
+  #   image: postgres:16-alpine
+  #   ports:
+  #     - "5432:5432"
+  #   environment:
+  #     POSTGRES_DB: ${DB_DATABASE}
+  #     POSTGRES_USER: ${DB_USER}
+  #     POSTGRES_PASSWORD: ${DB_PASSWORD}
+  #   volumes:
+  #     - db-data:/var/lib/postgresql/data # Persistencia de datos de la DB
+  #   networks:
+  #     - app-network
+
+networks:
+  app-network:
+    driver: bridge
+
+# volumes:
+#   db-data: # Volumen para persistir los datos de PostgreSQL
