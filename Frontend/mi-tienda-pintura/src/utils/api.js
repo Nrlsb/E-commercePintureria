@@ -4,15 +4,16 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
 /**
  * Fetches the CSRF token from the backend.
- * @returns {Promise<string>} The CSRF token.
- * @throws {Error} If the CSRF token cannot be fetched.
+ * Obtiene el token CSRF del backend.
+ * @returns {Promise<string>} The CSRF token. El token CSRF.
+ * @throws {Error} If the CSRF token cannot be fetched. Si el token CSRF no puede ser obtenido.
  */
 async function getCsrfToken() {
   try {
     const response = await fetch(`${API_URL}/api/csrf-token`);
     if (!response.ok) {
       const errorData = await response.json();
-      throw new Error(errorData.message || 'Failed to fetch CSRF token.');
+      throw new Error(errorData.message || 'Failed to fetch CSRF token. Fallo al obtener el token CSRF.');
     }
     const data = await response.json();
     return data.csrfToken;
@@ -25,12 +26,14 @@ async function getCsrfToken() {
 /**
  * A wrapper around the native `fetch` API that automatically includes
  * the Authorization header and CSRF token for state-changing requests (POST, PUT, DELETE).
+ * Un envoltorio alrededor de la API nativa `fetch` que incluye automáticamente
+ * la cabecera de Autorización y el token CSRF para solicitudes que modifican el estado (POST, PUT, DELETE).
  *
- * @param {string} url The URL to fetch.
- * @param {object} options The fetch options object.
- * @param {string} token The authentication token (JWT).
- * @returns {Promise<Response>} The fetch Response object.
- * @throws {Error} If the request fails or CSRF token cannot be obtained.
+ * @param {string} url The URL to fetch. La URL a la que hacer la solicitud.
+ * @param {object} options The fetch options object. El objeto de opciones de fetch.
+ * @param {string} token The authentication token (JWT). El token de autenticación (JWT).
+ * @returns {Promise<Response>} The fetch Response object. El objeto Response de fetch.
+ * @throws {Error} If the request fails or CSRF token cannot be obtained. Si la solicitud falla o el token CSRF no puede ser obtenido.
  */
 export async function fetchAuthenticated(url, options = {}, token) {
   const headers = {
@@ -38,23 +41,26 @@ export async function fetchAuthenticated(url, options = {}, token) {
   };
 
   // Add Authorization header if a token is provided
+  // Añadir cabecera de Autorización si se proporciona un token
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }
 
   // For state-changing methods, fetch and include the CSRF token
+  // Para métodos que modifican el estado, obtener e incluir el token CSRF
   const method = options.method ? options.method.toUpperCase() : 'GET';
   if (['POST', 'PUT', 'DELETE'].includes(method)) {
     try {
       const csrfToken = await getCsrfToken();
       headers['X-CSRF-Token'] = csrfToken;
       // Ensure Content-Type is set for body-carrying requests
+      // Asegurar que Content-Type esté configurado para solicitudes que llevan cuerpo
       if (options.body && !headers['Content-Type']) {
         headers['Content-Type'] = 'application/json';
       }
     } catch (error) {
       console.error('Failed to add CSRF token to request:', error);
-      throw new Error('CSRF token missing or invalid. Please try again.');
+      throw new Error('CSRF token missing or invalid. Please try again. Token CSRF faltante o inválido. Por favor, inténtalo de nuevo.');
     }
   }
 

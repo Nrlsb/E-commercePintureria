@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import Spinner from '../components/Spinner'; // Importar Spinner
+import { fetchAuthenticated } from '../utils/api'; // Importar la nueva función de utilidad
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
@@ -61,9 +62,9 @@ const RegisterPage = () => {
     }
 
     try {
-      const response = await fetch(`${API_URL}/api/auth/register`, {
+      // Usar fetchAuthenticated para la solicitud de registro (POST request)
+      const response = await fetchAuthenticated(`${API_URL}/api/auth/register`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           firstName: formData.firstName,
           lastName: formData.lastName,
