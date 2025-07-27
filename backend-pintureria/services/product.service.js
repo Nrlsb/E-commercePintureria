@@ -49,6 +49,7 @@ export const fetchProductBrands = async () => {
 
   logger.debug(`Cache MISS: Marcas de productos. Consultando base de datos.`); // Log de cache miss
   try {
+    // Query is static, no user input involved, so it's safe.
     const result = await db.query('SELECT DISTINCT brand FROM products WHERE is_active = true ORDER BY brand ASC');
     const brands = result.rows.map(row => row.brand);
 
@@ -87,6 +88,7 @@ export const fetchProductSuggestions = async (query) => {
   const searchTerm = `%${query.trim()}%`;
 
   try {
+    // Using parameterized queries for all search suggestions
     const productsQuery = db.query(
       'SELECT id, name, image_url as "imageUrl" FROM products WHERE name ILIKE $1 AND is_active = true LIMIT 5',
       [searchTerm]
@@ -150,6 +152,8 @@ export const getActiveProducts = async (filters) => {
   const queryParams = [];
   let whereClauses = ['p.is_active = true'];
   let paramIndex = 1;
+
+  // Using parameterized queries for all dynamic parts of the WHERE clause
   if (searchQuery) {
     whereClauses.push(`(p.name ILIKE $${paramIndex} OR p.brand ILIKE $${paramIndex})`);
     queryParams.push(`%${searchQuery}%`);
@@ -172,11 +176,15 @@ export const getActiveProducts = async (filters) => {
     whereClauses.push(`p.price <= $${paramIndex++}`);
     queryParams.push(maxPrice);
   }
+
   const whereString = `WHERE ${whereClauses.join(' AND ')}`;
+  
+  // Using parameterized query for count
   const countQuery = `SELECT COUNT(*) FROM products p ${whereString}`;
   const totalResult = await db.query(countQuery, queryParams);
   const totalProducts = parseInt(totalResult.rows[0].count, 10);
   const totalPages = Math.ceil(totalProducts / limit);
+
   let baseQuery = `
     SELECT 
       p.id, p.name, p.brand, p.category, p.price,
@@ -196,7 +204,9 @@ export const getActiveProducts = async (filters) => {
     case 'rating_desc': orderByClause = ' ORDER BY "averageRating" DESC'; break;
   }
   baseQuery += orderByClause;
+  
   const offset = (page - 1) * limit;
+  // Using parameterized query for LIMIT and OFFSET
   baseQuery += ` LIMIT $${paramIndex++} OFFSET $${paramIndex++}`;
   queryParams.push(limit, offset);
 
@@ -255,6 +265,7 @@ export const getActiveProductById = async (productId) => {
     WHERE p.id = $1 AND p.is_active = true
     GROUP BY p.id;
   `;
+  // Using parameterized query to prevent SQL Injection
   const result = await db.query(query, [productId]);
   
   if (!result.rows[0]) {

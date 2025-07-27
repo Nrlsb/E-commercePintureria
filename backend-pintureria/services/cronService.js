@@ -5,6 +5,7 @@ import { sendPaymentReminderEmail, sendOrderCancelledEmail } from '../emailServi
 import logger from '../logger.js';
 
 const getOrderDetailsForEmail = async (orderId, dbClient) => {
+  // Using parameterized query to prevent SQL Injection
   const orderQuery = `
     SELECT o.id, o.total_amount, u.email
     FROM orders o
@@ -23,21 +24,26 @@ export const startCancelPendingOrdersJob = () => {
       await dbClient.query('BEGIN');
 
       // 1. Cancelar órdenes de más de 48hs
+      // Query is static, no user input
       const expiredOrdersResult = await dbClient.query(
         "SELECT id FROM orders WHERE status = 'pending_transfer' AND created_at < NOW() - INTERVAL '48 hours'"
       );
       for (const order of expiredOrdersResult.rows) {
         const orderDetails = await getOrderDetailsForEmail(order.id, dbClient);
+        // Using parameterized query to prevent SQL Injection
         const itemsResult = await dbClient.query('SELECT product_id, quantity FROM order_items WHERE order_id = $1', [order.id]);
         for (const item of itemsResult.rows) {
+          // Using parameterized query to prevent SQL Injection
           await dbClient.query('UPDATE products SET stock = stock + $1 WHERE id = $2', [item.quantity, item.product_id]);
         }
+        // Using parameterized query to prevent SQL Injection
         await dbClient.query("UPDATE orders SET status = 'cancelled' WHERE id = $1", [order.id]);
         await sendOrderCancelledEmail(orderDetails.email, orderDetails);
         logger.info(`Orden #${order.id} cancelada y email enviado.`);
       }
 
       // 2. Enviar recordatorio para órdenes entre 24 y 25 horas de antigüedad
+      // Query is static, no user input
       const reminderOrdersResult = await dbClient.query(
         "SELECT id FROM orders WHERE status = 'pending_transfer' AND created_at BETWEEN NOW() - INTERVAL '25 hours' AND NOW() - INTERVAL '24 hours'"
       );

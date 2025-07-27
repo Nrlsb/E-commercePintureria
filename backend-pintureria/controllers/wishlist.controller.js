@@ -8,6 +8,7 @@ import logger from '../logger.js';
 export const getWishlist = async (req, res, next) => {
   const { userId } = req.user;
   try {
+    // Using parameterized query to prevent SQL Injection
     const query = `
       SELECT p.id, p.name, p.brand, p.price, p.image_url as "imageUrl", p.stock
       FROM wishlist_items wi
@@ -35,7 +36,7 @@ export const addToWishlist = async (req, res, next) => {
   }
 
   try {
-    // Usamos ON CONFLICT DO NOTHING para evitar errores si el item ya existe.
+    // Using parameterized query with ON CONFLICT DO NOTHING to prevent SQL Injection
     const query = `
       INSERT INTO wishlist_items (user_id, product_id)
       VALUES ($1, $2)
@@ -64,6 +65,7 @@ export const removeFromWishlist = async (req, res, next) => {
   const { productId } = req.params;
 
   try {
+    // Using parameterized query to prevent SQL Injection
     const query = `
       DELETE FROM wishlist_items
       WHERE user_id = $1 AND product_id = $2;

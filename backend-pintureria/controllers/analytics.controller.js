@@ -8,6 +8,7 @@ import logger from '../logger.js';
 export const getDashboardAnalytics = async (req, res, next) => {
   try {
     // 1. Métricas clave (KPIs)
+    // Todas las consultas aquí son estáticas y no usan entrada de usuario, por lo que son seguras.
     const kpiQuery = `
       SELECT
         (SELECT SUM(total_amount) FROM orders WHERE status = 'approved') as "totalRevenue",

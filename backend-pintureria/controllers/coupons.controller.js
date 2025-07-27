@@ -7,6 +7,7 @@ import logger from '../logger.js';
 export const createCoupon = async (req, res, next) => {
     const { code, discount_type, discount_value, expires_at, min_purchase_amount, usage_limit, description } = req.body;
     try {
+        // Usando parámetros de consulta para prevenir SQL Injection
         const result = await db.query(
             'INSERT INTO coupons (code, discount_type, discount_value, expires_at, min_purchase_amount, usage_limit, description) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
             [code.toUpperCase(), discount_type, discount_value, expires_at, min_purchase_amount, usage_limit, description]
@@ -23,6 +24,7 @@ export const createCoupon = async (req, res, next) => {
 
 export const getAllCoupons = async (req, res, next) => {
     try {
+        // Consulta estática, no requiere parámetros de usuario
         const result = await db.query('SELECT * FROM coupons ORDER BY created_at DESC');
         res.json(result.rows);
     } catch (error) {
@@ -34,6 +36,7 @@ export const updateCoupon = async (req, res, next) => {
     const { id } = req.params;
     const { code, discount_type, discount_value, expires_at, is_active, min_purchase_amount, usage_limit, description } = req.body;
     try {
+        // Usando parámetros de consulta para prevenir SQL Injection
         const result = await db.query(
             'UPDATE coupons SET code = $1, discount_type = $2, discount_value = $3, expires_at = $4, is_active = $5, min_purchase_amount = $6, usage_limit = $7, description = $8 WHERE id = $9 RETURNING *',
             [code.toUpperCase(), discount_type, discount_value, expires_at, is_active, min_purchase_amount, usage_limit, description, id]
@@ -54,6 +57,7 @@ export const updateCoupon = async (req, res, next) => {
 export const deleteCoupon = async (req, res, next) => {
     const { id } = req.params;
     try {
+        // Usando parámetros de consulta para prevenir SQL Injection
         const result = await db.query('DELETE FROM coupons WHERE id = $1', [id]);
         if (result.rowCount === 0) {
             return res.status(404).json({ message: 'Cupón no encontrado.' });
@@ -77,6 +81,7 @@ export const validateCoupon = async (req, res, next) => {
   }
 
   try {
+    // Usando parámetros de consulta para prevenir SQL Injection
     const couponResult = await db.query(
       `SELECT * FROM coupons 
        WHERE code = $1 AND is_active = true AND (expires_at IS NULL OR expires_at > NOW())`,
@@ -100,6 +105,7 @@ export const validateCoupon = async (req, res, next) => {
     }
 
     // 3. Verificar si el usuario ya usó este cupón (límite de 1 por usuario)
+    // Usando parámetros de consulta para prevenir SQL Injection
     const usageResult = await db.query('SELECT id FROM coupon_usage WHERE coupon_id = $1 AND user_id = $2', [coupon.id, userId]);
     if (usageResult.rows.length > 0) {
         return res.status(400).json({ message: 'Ya has utilizado este cupón.' });

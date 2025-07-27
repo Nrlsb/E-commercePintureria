@@ -37,16 +37,19 @@ export const findOrCreateGoogleUser = async (profile) => {
 
   try {
     // 1. Buscar si el usuario ya existe con ese google_id
+    // Using parameterized query to prevent SQL Injection
     let result = await db.query('SELECT * FROM users WHERE google_id = $1', [googleId]);
     let user = result.rows[0];
 
     // 2. Si no existe por google_id, buscar por email
     if (!user) {
+      // Using parameterized query to prevent SQL Injection
       result = await db.query('SELECT * FROM users WHERE email = $1', [email]);
       user = result.rows[0];
 
       // Si existe por email pero no tiene google_id, se lo añadimos
       if (user) {
+        // Using parameterized query to prevent SQL Injection
         result = await db.query(
           'UPDATE users SET google_id = $1 WHERE id = $2 RETURNING *',
           [googleId, user.id]
@@ -58,6 +61,7 @@ export const findOrCreateGoogleUser = async (profile) => {
 
     // 3. Si el usuario no existe en absoluto, lo creamos
     if (!user) {
+      // Using parameterized query to prevent SQL Injection
       const newUserResult = await db.query(
         'INSERT INTO users (google_id, email, first_name, last_name) VALUES ($1, $2, $3, $4) RETURNING *',
         [googleId, email, name.givenName || displayName, name.familyName || '']
@@ -88,6 +92,7 @@ export const register = async (userData) => {
   try {
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(password, salt);
+    // Using parameterized query to prevent SQL Injection
     const result = await db.query(
       'INSERT INTO users (email, password_hash, first_name, last_name, phone) VALUES ($1, $2, $3, $4, $5) RETURNING id, email',
       [email, passwordHash, firstName, lastName, phone]
@@ -111,6 +116,7 @@ export const login = async (email, password) => {
     throw error;
   }
 
+  // Using parameterized query to prevent SQL Injection
   const result = await db.query('SELECT * FROM users WHERE email = $1', [email]);
   const user = result.rows[0];
 
@@ -144,6 +150,7 @@ export const login = async (email, password) => {
 };
 
 export const forgotPassword = async (email) => {
+    // Using parameterized query to prevent SQL Injection
     const userResult = await db.query('SELECT * FROM users WHERE email = $1', [email]);
     if (userResult.rows.length === 0) {
       return 'Si el correo electrónico está registrado, recibirás un enlace para restablecer tu contraseña.';
@@ -153,6 +160,7 @@ export const forgotPassword = async (email) => {
     const hashedToken = crypto.createHash('sha256').update(resetToken).digest('hex');
     const passwordResetExpires = new Date(Date.now() + 3600000); // 1 hora
 
+    // Using parameterized query to prevent SQL Injection
     await db.query(
       'UPDATE users SET reset_password_token = $1, reset_password_expires = $2 WHERE email = $3',
       [hashedToken, passwordResetExpires, email]
@@ -170,6 +178,7 @@ export const resetPassword = async (token, password) => {
     }
 
     const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+    // Using parameterized query to prevent SQL Injection
     const userResult = await db.query(
       'SELECT * FROM users WHERE reset_password_token = $1 AND reset_password_expires > NOW()',
       [hashedToken]
@@ -185,6 +194,7 @@ export const resetPassword = async (token, password) => {
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(password, salt);
 
+    // Using parameterized query to prevent SQL Injection
     await db.query(
       'UPDATE users SET password_hash = $1, reset_password_token = NULL, reset_password_expires = NULL WHERE id = $2',
       [passwordHash, user.id]
@@ -195,6 +205,7 @@ export const resetPassword = async (token, password) => {
 };
 
 export const refreshToken = async (userId) => {
+  // Using parameterized query to prevent SQL Injection
   const result = await db.query('SELECT * FROM users WHERE id = $1', [userId]);
   const user = result.rows[0];
 

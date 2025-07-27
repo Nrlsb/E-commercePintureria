@@ -8,6 +8,7 @@ import logger from '../logger.js';
 export const getProfile = async (req, res, next) => {
   const { userId } = req.user;
   try {
+    // Using parameterized query to prevent SQL Injection
     const result = await db.query(
       'SELECT id, email, first_name, last_name, phone FROM users WHERE id = $1',
       [userId]
@@ -30,7 +31,7 @@ export const updateProfile = async (req, res, next) => {
   const { firstName, lastName, phone } = req.body;
 
   try {
-    // --- CORRECCIÓN: Se elimina la asignación a la columna "updated_at" ---
+    // Using parameterized query to prevent SQL Injection
     const result = await db.query(
       'UPDATE users SET first_name = $1, last_name = $2, phone = $3 WHERE id = $4 RETURNING id, email, first_name, last_name, phone',
       [firstName, lastName, phone, userId]
@@ -52,6 +53,7 @@ export const updateProfile = async (req, res, next) => {
 export const getAddresses = async (req, res, next) => {
     const { userId } = req.user;
     try {
+        // Using parameterized query to prevent SQL Injection
         const result = await db.query('SELECT * FROM user_addresses WHERE user_id = $1 ORDER BY is_default DESC, created_at DESC', [userId]);
         res.json(result.rows);
     } catch (error) {
@@ -69,10 +71,12 @@ export const addAddress = async (req, res, next) => {
     const client = await db.connect();
     try {
         await client.query('BEGIN');
-        // Si la nueva dirección es la predeterminada, quita la marca de predeterminada de las demás.
+        // If the new address is default, unset default for others.
+        // Using parameterized query to prevent SQL Injection
         if (is_default) {
             await client.query('UPDATE user_addresses SET is_default = false WHERE user_id = $1', [userId]);
         }
+        // Using parameterized query to prevent SQL Injection
         const result = await client.query(
             'INSERT INTO user_addresses (user_id, address_line1, address_line2, city, state, postal_code, is_default) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
             [userId, address_line1, address_line2, city, state, postal_code, is_default]
@@ -99,11 +103,12 @@ export const updateAddress = async (req, res, next) => {
     const client = await db.connect();
     try {
         await client.query('BEGIN');
-        // Si se está estableciendo como predeterminada, quita la marca de las demás.
+        // If setting as default, unset default for others.
+        // Using parameterized query to prevent SQL Injection
         if (is_default) {
             await client.query('UPDATE user_addresses SET is_default = false WHERE user_id = $1', [userId]);
         }
-        // --- CORRECCIÓN: Se elimina la asignación a la columna "updated_at" ---
+        // Using parameterized query to prevent SQL Injection
         const result = await client.query(
             'UPDATE user_addresses SET address_line1 = $1, address_line2 = $2, city = $3, state = $4, postal_code = $5, is_default = $6 WHERE id = $7 AND user_id = $8 RETURNING *',
             [address_line1, address_line2, city, state, postal_code, is_default, addressId, userId]
@@ -131,6 +136,7 @@ export const deleteAddress = async (req, res, next) => {
     const { userId } = req.user;
     const { addressId } = req.params;
     try {
+        // Using parameterized query to prevent SQL Injection
         const result = await db.query('DELETE FROM user_addresses WHERE id = $1 AND user_id = $2', [addressId, userId]);
         if (result.rowCount === 0) {
             return res.status(404).json({ message: 'Dirección no encontrada o no pertenece al usuario.' });

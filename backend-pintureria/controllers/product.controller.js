@@ -36,6 +36,7 @@ const clearBrandsCache = async () => {
 
 export const getProducts = async (req, res, next) => {
   try {
+    // productService.getActiveProducts already handles parameterized queries
     const result = await productService.getActiveProducts(req.query);
     res.json(result);
   } catch (err) {
@@ -46,6 +47,7 @@ export const getProducts = async (req, res, next) => {
 export const getProductById = async (req, res, next) => {
   const { productId } = req.params;
   try {
+    // productService.getActiveProductById already handles parameterized queries
     const product = await productService.getActiveProductById(productId);
     if (product) {
       res.json(product);
@@ -60,6 +62,7 @@ export const getProductById = async (req, res, next) => {
 // --- MODIFICADO: Ahora usa el servicio con caché ---
 export const getProductBrands = async (req, res, next) => {
   try {
+    // productService.fetchProductBrands already handles parameterized queries
     const brands = await productService.fetchProductBrands();
     res.json(brands);
   } catch (err) {
@@ -70,13 +73,14 @@ export const getProductBrands = async (req, res, next) => {
 export const createProduct = async (req, res, next) => {
   const { name, brand, category, price, old_price, image_url, description, stock } = req.body;
   try {
+    // Using parameterized query to prevent SQL Injection
     const result = await db.query(
       'INSERT INTO products (name, brand, category, price, old_price, image_url, description, stock) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *',
       [name, brand, category, price, old_price, image_url, description, stock]
     );
     logger.info(`Producto creado con ID: ${result.rows[0].id}`);
-    await clearProductsCache(); // Invalidar caché de listas de productos
-    await clearBrandsCache(); // Invalidar caché de marcas (por si se añadió una nueva marca)
+    await clearProductsCache(); // Invalidate product list cache
+    await clearBrandsCache(); // Invalidate brands cache (if a new brand was added)
     res.status(201).json(result.rows[0]);
   } catch (err) {
     next(err);
@@ -87,6 +91,7 @@ export const updateProduct = async (req, res, next) => {
   const { id } = req.params;
   const { name, brand, category, price, old_price, image_url, description, stock } = req.body;
   try {
+    // Using parameterized query to prevent SQL Injection
     const result = await db.query(
       'UPDATE products SET name = $1, brand = $2, category = $3, price = $4, old_price = $5, image_url = $6, description = $7, stock = $8 WHERE id = $9 RETURNING *',
       [name, brand, category, price, old_price, image_url, description, stock, id]
@@ -95,11 +100,11 @@ export const updateProduct = async (req, res, next) => {
       return res.status(404).json({ message: 'Producto no encontrado' });
     }
     logger.info(`Producto actualizado con ID: ${id}`);
-    await clearProductsCache(); // Invalidar caché de listas de productos
+    await clearProductsCache(); // Invalidate product list cache
     if (redisClient.isReady) {
-      await redisClient.del(`product:${id}`); // Invalidar caché del producto específico
+      await redisClient.del(`product:${id}`); // Invalidate specific product cache
     }
-    await clearBrandsCache(); // Invalidar caché de marcas (por si la marca cambió)
+    await clearBrandsCache(); // Invalidate brands cache (if brand changed)
     res.json(result.rows[0]);
   } catch (err) {
     next(err);
@@ -109,6 +114,7 @@ export const updateProduct = async (req, res, next) => {
 export const deleteProduct = async (req, res, next) => {
   const { id } = req.params;
   try {
+    // Using parameterized query to prevent SQL Injection (soft delete)
     const result = await db.query(
       'UPDATE products SET is_active = false WHERE id = $1 RETURNING *',
       [id]
@@ -119,11 +125,11 @@ export const deleteProduct = async (req, res, next) => {
     }
     
     logger.info(`Producto DESACTIVADO con ID: ${id}`);
-    await clearProductsCache(); // Invalidar caché de listas de productos
+    await clearProductsCache(); // Invalidate product list cache
     if (redisClient.isReady) {
-      await redisClient.del(`product:${id}`); // Invalidar caché del producto específico
+      await redisClient.del(`product:${id}`); // Invalidate specific product cache
     }
-    await clearBrandsCache(); // Invalidar caché de marcas (por si la marca del producto desactivado era la única)
+    await clearBrandsCache(); // Invalidate brands cache (if the brand of the deactivated product was the only one)
     res.status(200).json({ message: 'Producto desactivado con éxito' });
   } catch (err) {
     next(err);
@@ -133,6 +139,7 @@ export const deleteProduct = async (req, res, next) => {
 export const getProductReviews = async (req, res, next) => {
   const { productId } = req.params;
   try {
+    // Using parameterized query to prevent SQL Injection
     const query = `
       SELECT r.*, u.first_name, u.last_name 
       FROM reviews r
@@ -153,6 +160,7 @@ export const createProductReview = async (req, res, next) => {
   const userId = req.user.userId;
 
   try {
+    // Using parameterized query to prevent SQL Injection
     const query = `
       INSERT INTO reviews (rating, comment, product_id, user_id)
       VALUES ($1, $2, $3, $4)
@@ -160,11 +168,11 @@ export const createProductReview = async (req, res, next) => {
     `;
     const result = await db.query(query, [rating, comment, productId, userId]);
     logger.info(`Nueva reseña creada para el producto ID: ${productId} por el usuario ID: ${userId}`);
-    // Invalidar la caché del producto específico ya que sus reviews cambiaron
+    // Invalidate specific product cache as its reviews changed
     if (redisClient.isReady) {
       await redisClient.del(`product:${productId}`);
     }
-    await clearProductsCache(); // También podría afectar el promedio de rating en listados
+    await clearProductsCache(); // Could also affect average rating in listings
     res.status(201).json(result.rows[0]);
   } catch (err) {
     if (err.code === '23505') { 
@@ -179,6 +187,7 @@ export const deleteReview = async (req, res, next) => {
   const { userId, role } = req.user;
 
   try {
+    // Using parameterized query
     const reviewResult = await db.query('SELECT user_id, product_id FROM reviews WHERE id = $1', [reviewId]);
     
     if (reviewResult.rows.length === 0) {
@@ -191,13 +200,14 @@ export const deleteReview = async (req, res, next) => {
       return res.status(403).json({ message: 'No tienes permiso para eliminar esta reseña.' });
     }
 
+    // Using parameterized query
     await db.query('DELETE FROM reviews WHERE id = $1', [reviewId]);
     logger.info(`Reseña ID: ${reviewId} eliminada por el usuario ID: ${userId}`);
-    // Invalidar la caché del producto afectado
+    // Invalidate affected product cache
     if (redisClient.isReady) {
       await redisClient.del(`product:${review.product_id}`);
     }
-    await clearProductsCache(); // También podría afectar el promedio de rating en listados
+    await clearProductsCache(); // Could also affect average rating in listings
     res.status(204).send();
 
   } catch (err) {
@@ -208,6 +218,7 @@ export const deleteReview = async (req, res, next) => {
 // --- NUEVO: Controlador para obtener sugerencias de búsqueda (ya existente, solo se mueve) ---
 export const getProductSuggestions = async (req, res, next) => {
   try {
+    // productService.fetchProductSuggestions already handles parameterized queries
     const { q } = req.query;
     const suggestions = await productService.fetchProductSuggestions(q);
     res.json(suggestions);

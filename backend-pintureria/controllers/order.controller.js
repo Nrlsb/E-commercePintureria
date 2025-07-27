@@ -8,28 +8,40 @@ const { MercadoPagoConfig, Payment, PaymentRefund } = mercadopago;
 const client = new MercadoPagoConfig({ accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN });
 const MIN_TRANSACTION_AMOUNT = 100;
 
+// Helper function to get order details for email, using parameterized query
+const getOrderDetailsForEmail = async (orderId, dbClient) => {
+  const orderQuery = `
+    SELECT o.id, o.total_amount, u.email
+    FROM orders o
+    JOIN users u ON o.user_id = u.id
+    WHERE o.id = $1
+  `;
+  const orderResult = await dbClient.query(orderQuery, [orderId]);
+  return orderResult.rows[0];
+};
+
 export const confirmTransferPayment = async (req, res, next) => {
   const { orderId } = req.params;
-  // --- MEJORA: Se utiliza un cliente de la pool para manejar la transacción ---
   const dbClient = await db.connect();
   try {
-    // Iniciamos la transacción
     await dbClient.query('BEGIN');
 
+    // Using parameterized query
     const result = await dbClient.query(
       "UPDATE orders SET status = 'approved' WHERE id = $1 AND status = 'pending_transfer' RETURNING *",
       [orderId]
     );
 
     if (result.rowCount === 0) {
-      // Si no se actualizó ninguna fila, hacemos rollback y notificamos
       await dbClient.query('ROLLBACK');
       return res.status(404).json({ message: 'Orden no encontrada o ya no estaba pendiente de pago.' });
     }
 
     const order = result.rows[0];
 
+    // Using parameterized query
     const userData = await dbClient.query('SELECT email FROM users WHERE id = $1', [order.user_id]);
+    // Using parameterized query
     const itemsData = await dbClient.query('SELECT p.name, oi.quantity, oi.price FROM order_items oi JOIN products p ON p.id = oi.product_id WHERE oi.order_id = $1', [orderId]);
     
     const orderForEmail = {
@@ -37,20 +49,16 @@ export const confirmTransferPayment = async (req, res, next) => {
       items: itemsData.rows,
     };
 
-    // Enviamos el email antes de confirmar la transacción. Si el envío falla, podemos hacer rollback.
     await sendOrderConfirmationEmail(userData.rows[0].email, orderForEmail);
     
-    // Si todo fue exitoso, confirmamos la transacción
     await dbClient.query('COMMIT');
 
     logger.info(`Pago por transferencia confirmado para la orden #${orderId}`);
     res.status(200).json({ message: 'Pago confirmado y email enviado con éxito.', order });
   } catch (error) {
-    // Si cualquier paso falla, revertimos todos los cambios en la base de datos
     await dbClient.query('ROLLBACK');
     next(error);
   } finally {
-    // Liberamos el cliente para que vuelva a la pool
     dbClient.release();
   }
 };
@@ -69,12 +77,14 @@ export const createBankTransferOrder = async (req, res, next) => {
     await dbClient.query('BEGIN');
 
     for (const item of cart) {
+      // Using parameterized query
       const stockResult = await dbClient.query('SELECT stock FROM products WHERE id = $1 FOR UPDATE', [item.id]);
       if (stockResult.rows.length === 0) throw new Error(`Producto "${item.name}" no encontrado.`);
       const availableStock = stockResult.rows[0].stock;
       if (item.quantity > availableStock) throw new Error(`Stock insuficiente para "${item.name}". Solo quedan ${availableStock} unidades.`);
     }
 
+    // Using parameterized query
     const orderResult = await dbClient.query(
       'INSERT INTO orders (user_id, total_amount, status, shipping_cost, postal_code) VALUES ($1, $2, $3, $4, $5) RETURNING id, created_at',
       [userId, total, 'pending_transfer', shippingCost, postalCode]
@@ -83,10 +93,12 @@ export const createBankTransferOrder = async (req, res, next) => {
     const orderId = order.id;
 
     for (const item of cart) {
+      // Using parameterized query
       await dbClient.query(
         'INSERT INTO order_items (order_id, product_id, quantity, price) VALUES ($1, $2, $3, $4)',
         [orderId, item.id, item.quantity, item.price]
       );
+      // Using parameterized query
       await dbClient.query(
         'UPDATE products SET stock = stock - $1 WHERE id = $2',
         [item.quantity, item.id]
@@ -112,13 +124,14 @@ export const processPayment = async (req, res, next) => {
     const { token, issuer_id, payment_method_id, transaction_amount, installments, payer, cart, shippingCost, postalCode } = req.body;
     const { userId } = req.user;
     const dbClient = await db.connect();
-    let orderId; // Declarar orderId aquí para que sea accesible en todo el scope
+    let orderId;
 
     try {
         await dbClient.query('BEGIN');
 
         // 1. Verificar el stock DENTRO de la transacción
         for (const item of cart) {
+            // Using parameterized query
             const stockResult = await dbClient.query('SELECT stock FROM products WHERE id = $1 FOR UPDATE', [item.id]);
             if (stockResult.rows.length === 0 || item.quantity > stockResult.rows[0].stock) {
                 throw new Error(`Stock insuficiente para "${item.name}".`);
@@ -126,6 +139,7 @@ export const processPayment = async (req, res, next) => {
         }
 
         // 2. Crear la orden con estado 'pending'
+        // Using parameterized query
         const orderResult = await dbClient.query(
             'INSERT INTO orders (user_id, total_amount, status, shipping_cost, postal_code) VALUES ($1, $2, $3, $4, $5) RETURNING id',
             [userId, transaction_amount, 'pending', shippingCost, postalCode]
@@ -134,6 +148,7 @@ export const processPayment = async (req, res, next) => {
 
         // 3. Insertar los items de la orden
         for (const item of cart) {
+            // Using parameterized query
             await dbClient.query(
                 'INSERT INTO order_items (order_id, product_id, quantity, price) VALUES ($1, $2, $3, $4)',
                 [orderId, item.id, item.quantity, item.price]
@@ -167,13 +182,12 @@ export const processPayment = async (req, res, next) => {
         // 5. Si el pago es aprobado, actualizar stock y estado de la orden
         if (paymentResult.status === 'approved') {
             for (const item of cart) {
+                // Using parameterized query
                 await dbClient.query('UPDATE products SET stock = stock - $1 WHERE id = $2', [item.quantity, item.id]);
             }
+            // Using parameterized query
             await dbClient.query("UPDATE orders SET status = 'approved', mercadopago_transaction_id = $1 WHERE id = $2", [paymentResult.id, orderId]);
             
-            // Lógica para enviar email de confirmación
-            // ...
-
             await dbClient.query('COMMIT');
             logger.info(`Pago aprobado por Mercado Pago para la orden #${orderId}`);
             res.status(201).json({ status: 'approved', orderId: orderId, paymentId: paymentResult.id });
@@ -185,7 +199,6 @@ export const processPayment = async (req, res, next) => {
         }
 
     } catch (error) {
-        // Si ocurre cualquier error, revertir la transacción
         await dbClient.query('ROLLBACK');
         logger.error(`Error procesando el pago para la orden #${orderId}:`, error);
         next(error);
@@ -200,6 +213,7 @@ export const getOrderById = async (req, res, next) => {
     try {
         let query;
         const params = [orderId];
+        // Using parameterized query for both admin and regular user cases
         if (role === 'admin') {
           query = `
             SELECT o.*, u.first_name, u.last_name, u.email, u.phone,
@@ -237,6 +251,7 @@ export const getOrderById = async (req, res, next) => {
 export const getOrderHistory = async (req, res, next) => {
     const userId = req.user.userId;
     try {
+        // Using parameterized query
         const query = `
           SELECT o.*,
           COALESCE((SELECT json_agg(items) FROM (
@@ -256,7 +271,6 @@ export const getOrderHistory = async (req, res, next) => {
 };
 
 export const getAllOrders = async (req, res, next) => {
-    // 1. Añadir page y limit a los query params, con valores por defecto
     const { status, search, page = 1, limit = 15 } = req.query;
     
     const queryParams = [];
@@ -269,6 +283,7 @@ export const getAllOrders = async (req, res, next) => {
     }
 
     if (search) {
+        // Using parameterized query for LIKE clauses
         whereClauses.push(`(u.email ILIKE $${paramIndex} OR o.id::text ILIKE $${paramIndex})`);
         queryParams.push(`%${search}%`);
         paramIndex++;
@@ -277,14 +292,14 @@ export const getAllOrders = async (req, res, next) => {
     const whereString = whereClauses.length > 0 ? ` WHERE ${whereClauses.join(' AND ')}` : '';
 
     try {
-        // 2. Crear una consulta para obtener el conteo total de órdenes que coinciden con los filtros
+        // Using parameterized query for count
         const countQuery = `SELECT COUNT(*) FROM orders o JOIN users u ON o.user_id = u.id ${whereString}`;
         const totalResult = await db.query(countQuery, queryParams);
         const totalOrders = parseInt(totalResult.rows[0].count, 10);
         const totalPages = Math.ceil(totalOrders / limit);
 
-        // 3. Modificar la consulta principal para añadir LIMIT y OFFSET para la paginación
         const offset = (page - 1) * limit;
+        // Using parameterized query for LIMIT and OFFSET
         const ordersQuery = `
             SELECT o.id, o.total_amount, o.status, o.created_at, u.email as user_email 
             FROM orders o
@@ -296,7 +311,6 @@ export const getAllOrders = async (req, res, next) => {
         
         const ordersResult = await db.query(ordersQuery, [...queryParams, limit, offset]);
 
-        // 4. Devolver un objeto con los datos de paginación
         res.json({
             orders: ordersResult.rows,
             currentPage: parseInt(page, 10),
@@ -313,6 +327,7 @@ export const cancelOrder = async (req, res, next) => {
     const dbClient = await db.connect();
     try {
         await dbClient.query('BEGIN');
+        // Using parameterized query
         const orderResult = await dbClient.query('SELECT * FROM orders WHERE id = $1', [orderId]);
         if (orderResult.rows.length === 0) {
             return res.status(404).json({ message: 'Orden no encontrada.' });
@@ -330,13 +345,16 @@ export const cancelOrder = async (req, res, next) => {
             });
         }
 
+        // Using parameterized query
         const updatedOrderResult = await dbClient.query(
             "UPDATE orders SET status = 'cancelled' WHERE id = $1 RETURNING *",
             [orderId]
         );
         
+        // Using parameterized query
         const orderItemsResult = await dbClient.query('SELECT product_id, quantity FROM order_items WHERE order_id = $1', [orderId]);
         for (const item of orderItemsResult.rows) {
+            // Using parameterized query
             await dbClient.query('UPDATE products SET stock = stock + $1 WHERE id = $2', [item.quantity, item.product_id]);
         }
 

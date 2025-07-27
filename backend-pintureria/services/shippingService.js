@@ -31,7 +31,9 @@ export const getShippingCost = async ({ postalCode, items }) => {
   // --- PUNTO DE INTEGRACIÓN REAL ---
   /*
   try {
-    // ...
+    // Si se integrara con una API externa de envíos, la llamada fetch
+    // a esa API debería manejar sus propios parámetros de forma segura.
+    // No hay riesgo de SQL Injection aquí ya que no se interactúa con la DB.
   } catch (error) {
     logger.error("Error al contactar la API de envíos:", error);
     throw new Error("No se pudo cotizar el envío en este momento.");

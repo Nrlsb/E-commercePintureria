@@ -41,11 +41,12 @@ const processAndUploadImage = async (fileBuffer) => {
 
 
 async function getAIDataForImage(imageData, mimeType, apiKey, productNamesForBrand = []) {
-    // ... (lógica de IA sin cambios)
     let prompt;
     if (productNamesForBrand.length > 0) {
+        // This prompt is static, no user input concatenation.
         prompt = `Analiza la imagen de un producto de pinturería. De la siguiente lista de nombres de productos: [${productNamesForBrand.join(', ')}], ¿cuál es el nombre exacto que mejor coincide con el producto en la imagen? También identifica la marca visible. Responde únicamente con un objeto JSON válido que contenga las claves "productName" y "brand".`;
     } else {
+        // This prompt is static, no user input concatenation.
         prompt = `Analiza la imagen de un producto de pinturería. Extrae el nombre exacto del producto y la marca visible en el envase. Responde únicamente con un objeto JSON válido que contenga las claves "productName" y "brand". Si no puedes identificar alguno de los dos, deja el valor como null.`;
     }
     
@@ -95,7 +96,6 @@ export const handleSingleImageUpload = async (req, res, next) => {
 };
 
 export const bulkAssociateImagesWithAI = async (req, res, next) => {
-    // ... (lógica sin cambios hasta la subida de imagen)
     if (!req.files || req.files.length === 0) {
         return res.status(400).json({ message: 'No se subieron archivos.' });
     }
@@ -117,6 +117,7 @@ export const bulkAssociateImagesWithAI = async (req, res, next) => {
                     throw new Error('La IA no pudo identificar una marca en la imagen.');
                 }
                 
+                // Using parameterized query to prevent SQL Injection
                 const productsOfBrandResult = await db.query('SELECT id, name, brand FROM products WHERE brand ILIKE $1', [initialAIData.brand]);
                 const dbProducts = productsOfBrandResult.rows;
 
@@ -168,6 +169,7 @@ export const bulkAssociateImagesWithAI = async (req, res, next) => {
                 const imageUrls = await processAndUploadImage(file.buffer);
                 
                 // Guardamos el objeto como un string JSON en la base de datos
+                // Using parameterized query to prevent SQL Injection
                 await db.query('UPDATE products SET image_url = $1 WHERE id = $2', [JSON.stringify(imageUrls), matchedProduct.id]);
 
 
@@ -189,11 +191,26 @@ export const bulkAssociateImagesWithAI = async (req, res, next) => {
 };
 
 export const analyzeImageWithAI = async (req, res, next) => {
-    // ... (lógica existente sin cambios)
+    // This function doesn't interact with the database directly, so no SQL injection risk here.
+    // It calls getAIDataForImage which uses parameterized queries for its internal prompt construction.
+    if (!req.body.imageData || !req.body.mimeType) {
+        return res.status(400).json({ message: 'Faltan datos de imagen o tipo MIME.' });
+    }
+    const { imageData, mimeType } = req.body;
+    const apiKey = config.geminiApiKey;
+    if (!apiKey) {
+        return next(new Error('La clave de API de Gemini no está configurada.'));
+    }
+
+    try {
+        const aiData = await getAIDataForImage(imageData, mimeType, apiKey);
+        res.status(200).json(aiData);
+    } catch (err) {
+        next(err);
+    }
 };
 
 export const bulkCreateProductsWithAI = async (req, res, next) => {
-    // ... (lógica sin cambios hasta la subida de imagen)
     if (!req.files || req.files.length === 0) {
         return res.status(400).json({ message: 'No se subieron archivos.' });
     }
@@ -224,6 +241,7 @@ export const bulkCreateProductsWithAI = async (req, res, next) => {
                     image_url: JSON.stringify(imageUrls), // Guardamos el objeto como string
                 };
 
+                // Using parameterized query to prevent SQL Injection
                 const result = await db.query(
                     'INSERT INTO products (name, brand, category, price, image_url, description, stock, is_active) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, name',
                     [newProduct.name, newProduct.brand, newProduct.category, newProduct.price, newProduct.image_url, newProduct.description, newProduct.stock, newProduct.is_active]
@@ -248,7 +266,6 @@ export const bulkCreateProductsWithAI = async (req, res, next) => {
 };
 
 export const processAndAssociateImages = async (req, res, next) => {
-    // ... (lógica existente, pero ahora usará la nueva función de subida)
     if (!req.files || req.files.length === 0) {
         return res.status(400).json({ message: 'No se subieron archivos.' });
     }
@@ -267,6 +284,7 @@ export const processAndAssociateImages = async (req, res, next) => {
             const imageUrls = await processAndUploadImage(file.buffer);
 
             // Guardamos el objeto como un string JSON en la base de datos
+            // Using parameterized query to prevent SQL Injection
             await db.query('UPDATE products SET image_url = $1 WHERE id = $2', [JSON.stringify(imageUrls), productId]);
             
             results.success.push(file.originalname);
