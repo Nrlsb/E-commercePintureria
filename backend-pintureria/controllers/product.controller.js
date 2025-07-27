@@ -72,6 +72,12 @@ export const getProductBrands = async (req, res, next) => {
 
 export const createProduct = async (req, res, next) => {
   const { name, brand, category, price, old_price, image_url, description, stock } = req.body;
+
+  // --- INICIO DE DEPURACIÓN ---
+  logger.debug('Intentando crear producto con los siguientes datos:');
+  logger.debug({ name, brand, category, price, old_price, image_url, description, stock });
+  // --- FIN DE DEPURACIÓN ---
+
   try {
     // La sanitización de 'name', 'brand', 'category', 'description' se realiza en el middleware 'validators.js'
     const result = await db.query(
@@ -83,6 +89,12 @@ export const createProduct = async (req, res, next) => {
     await clearBrandsCache(); // Invalidar caché de marcas (por si se añadió una nueva marca)
     res.status(201).json(result.rows[0]);
   } catch (err) {
+    // --- INICIO DE DEPURACIÓN DE ERRORES ---
+    logger.error('Error al crear el producto:', err);
+    // --- FIN DE DEPURACIÓN DE ERRORES ---
+    if (err.code === '23505') { // Error de unicidad
+      return res.status(409).json({ message: 'Ya existe un producto con las mismas características (por ejemplo, nombre o clave única).' });
+    }
     next(err);
   }
 };
