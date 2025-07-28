@@ -48,7 +48,8 @@ export const sendOrderConfirmationEmail = async (userEmail, order) => {
   `;
 
   const mailOptions = {
-    from: `"Pinturerías Mercurio" <onboarding@resend.dev>`,
+    // CAMBIO AQUÍ: Usa una dirección de correo electrónico de tu dominio verificado
+    from: `"Pinturerías Mercurio" <no-reply@nrlsb.com>`, // ¡REEMPLAZA "tudominio.com" con tu dominio real!
     to: userEmail,
     subject: `Confirmación de tu pedido #${order.id}`,
     html: emailHtml,
@@ -100,7 +101,8 @@ export const sendBankTransferInstructionsEmail = async (userEmail, order) => {
   `;
 
   const mailOptions = {
-    from: `"Pinturerías Mercurio" <onboarding@resend.dev>`,
+    // CAMBIO AQUÍ: Usa una dirección de correo electrónico de tu dominio verificado
+    from: `"Pinturerías Mercurio" <no-reply@nrlsb.com>`, // ¡REEMPLAZA "tudominio.com" con tu dominio real!
     to: userEmail,
     subject: `Instrucciones de pago para tu pedido #${order.id}`,
     html: emailHtml,
@@ -126,7 +128,8 @@ export const sendPaymentReminderEmail = async (userEmail, order) => {
     </div>
   `;
   const mailOptions = {
-    from: `"Pinturerías Mercurio" <onboarding@resend.dev>`,
+    // CAMBIO AQUÍ: Usa una dirección de correo electrónico de tu dominio verificado
+    from: `"Pinturerías Mercurio" <no-reply@nrlsb.com>`, // ¡REEMPLAZA "tudominio.com" con tu dominio real!
     to: userEmail,
     subject: `Recordatorio de pago para tu pedido #${order.id}`,
     html: emailHtml,
@@ -145,7 +148,8 @@ export const sendOrderCancelledEmail = async (userEmail, order) => {
     </div>
   `;
   const mailOptions = {
-    from: `"Pinturerías Mercurio" <onboarding@resend.dev>`,
+    // CAMBIO AQUÍ: Usa una dirección de correo electrónico de tu dominio verificado
+    from: `"Pinturerías Mercurio" <no-reply@nrlsb.com>`, // ¡REEMPLAZA "tudominio.com" con tu dominio real!
     to: userEmail,
     subject: `Tu pedido #${order.id} ha sido cancelado`,
     html: emailHtml,
@@ -170,7 +174,8 @@ export const sendPasswordResetEmail = async (userEmail, token) => {
     </div>
   `;
   const mailOptions = {
-    from: `"Pinturerías Mercurio" <onboarding@resend.dev>`,
+    // CAMBIO AQUÍ: Usa una dirección de correo electrónico de tu dominio verificado
+    from: `"Pinturerías Mercurio" <no-reply@nrlsb.com>`, // ¡REEMPLAZA "tudominio.com" con tu dominio real!
     to: userEmail,
     subject: 'Restablecimiento de Contraseña',
     html: emailHtml,
