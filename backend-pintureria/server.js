@@ -48,6 +48,13 @@ const corsOptions = {
       allowedOrigins.push('http://localhost:5173');
       allowedOrigins.push(config.frontendUrl); // También permite la URL de producción en desarrollo
       allowedOrigins.push(/^https:\/\/e-commerce-pintureria-.*\.vercel\.app$/); // Para previsualizaciones de Vercel
+      // AÑADIDO: Si estás en desarrollo o testing, permite también la URL del backend itself.
+      // Esto es crucial para que el backend pueda ser accedido por sí mismo (ej. webhooks internos)
+      // o por herramientas de desarrollo cuando se despliega en un entorno no productivo.
+      allowedOrigins.push(config.backendUrl); 
+      // AÑADIDO: Si tu Render URL es dinámica o tiene un patrón, puedes añadir un regex similar al de Vercel.
+      // Ejemplo: allowedOrigins.push(/^https:\/\/tu-app-.*\.onrender\.com$/);
+      // O simplemente asegúrate de que config.backendUrl esté correctamente configurado con la URL de Render.
     }
 
     // Verifica si el origen de la solicitud está en la lista de permitidos.

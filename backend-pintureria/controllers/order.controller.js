@@ -327,43 +327,64 @@ export const cancelOrder = async (req, res, next) => {
     const dbClient = await db.connect();
     try {
         await dbClient.query('BEGIN');
-        // Using parameterized query
+        
+        logger.info(`Intentando cancelar orden #${orderId}.`);
+
         const orderResult = await dbClient.query('SELECT * FROM orders WHERE id = $1', [orderId]);
         if (orderResult.rows.length === 0) {
+            await dbClient.query('ROLLBACK');
+            logger.warn(`Orden #${orderId} no encontrada para cancelación.`);
             return res.status(404).json({ message: 'Orden no encontrada.' });
         }
         const order = orderResult.rows[0];
 
         if (order.status === 'cancelled') {
+            await dbClient.query('ROLLBACK');
+            logger.warn(`Orden #${orderId} ya estaba cancelada.`);
             return res.status(400).json({ message: 'La orden ya ha sido cancelada.' });
         }
 
+        // --- Logging adicional para el reembolso de Mercado Pago ---
         if (order.mercadopago_transaction_id) {
-            const refundClient = new PaymentRefund(client);
-            await refundClient.create({
-                payment_id: order.mercadopago_transaction_id
-            });
+            logger.info(`Intentando reembolso para la orden #${orderId} con transaction_id: ${order.mercadopago_transaction_id}`);
+            try {
+                const refundClient = new PaymentRefund(client);
+                const refundResponse = await refundClient.create({
+                    payment_id: order.mercadopago_transaction_id
+                });
+                logger.info(`Respuesta de reembolso de Mercado Pago para orden #${orderId}:`, refundResponse);
+                if (refundResponse.status !== 'approved') {
+                    // Si el reembolso no es aprobado por MP, podrías querer manejarlo de forma diferente
+                    // Por ahora, lo tratamos como un error que impide la cancelación total.
+                    throw new Error(`Reembolso de Mercado Pago no aprobado: ${refundResponse.status_detail || 'Error desconocido'}`);
+                }
+            } catch (mpError) {
+                logger.error(`Error al procesar el reembolso de Mercado Pago para la orden #${orderId}:`, mpError.message);
+                logger.error(`Detalles del error de MP:`, mpError); // Log el objeto de error completo
+                throw new Error(`Fallo en el reembolso de Mercado Pago: ${mpError.message}`); // Re-lanzar para que el catch principal lo maneje
+            }
+        } else {
+            logger.info(`Orden #${orderId} no tiene transaction_id de Mercado Pago. No se requiere reembolso de MP.`);
         }
 
-        // Using parameterized query
         const updatedOrderResult = await dbClient.query(
             "UPDATE orders SET status = 'cancelled' WHERE id = $1 RETURNING *",
             [orderId]
         );
         
-        // Using parameterized query
         const orderItemsResult = await dbClient.query('SELECT product_id, quantity FROM order_items WHERE order_id = $1', [orderId]);
         for (const item of orderItemsResult.rows) {
-            // Using parameterized query
             await dbClient.query('UPDATE products SET stock = stock + $1 WHERE id = $2', [item.quantity, item.product_id]);
         }
 
         await dbClient.query('COMMIT');
-        logger.info(`Orden #${orderId} cancelada y reembolso procesado exitosamente.`);
+        logger.info(`Orden #${orderId} cancelada y reembolso (si aplica) procesado exitosamente.`);
         res.status(200).json({ message: 'Orden cancelada y reembolso procesado con éxito.', order: updatedOrderResult.rows[0] });
     } catch (error) {
         await dbClient.query('ROLLBACK');
-        next(error);
+        logger.error(`Error general al cancelar la orden #${orderId}:`, error.message);
+        logger.error(`Stack del error:`, error.stack);
+        next(error); // Pasa el error al middleware de manejo de errores
     } finally {
         dbClient.release();
     }
