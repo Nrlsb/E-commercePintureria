@@ -22,8 +22,17 @@ export const processPaymentNotification = async (topic, eventId) => {
 
   const dbClient = await db.connect();
   try {
+    // --- AÑADIDO: Log el ID del evento que se va a consultar ---
+    logger.info(`Intentando obtener detalles del pago de Mercado Pago para eventId: ${eventId}`);
+
     // Obtenemos la información del pago desde la API de Mercado Pago
+    // Es crucial que 'eventId' sea el 'id' de pago real que Mercado Pago espera.
+    // Si el webhook envía un ID de notificación diferente al ID de pago, esto fallará.
     const paymentInfo = await payment.get({ id: eventId });
+
+    // --- AÑADIDO: Log la respuesta completa de Mercado Pago para el pago ---
+    logger.info(`Respuesta de Mercado Pago para el pago ${eventId}:`, JSON.stringify(paymentInfo));
+
     const orderId = paymentInfo.external_reference;
 
     if (!orderId) {
