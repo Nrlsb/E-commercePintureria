@@ -349,6 +349,8 @@ export const cancelOrder = async (req, res, next) => {
             logger.info(`Intentando reembolso para la orden #${orderId} con transaction_id: ${order.mercadopago_transaction_id}`);
             try {
                 const refundClient = new PaymentRefund(client);
+                // --- AÑADIDO: Log del objeto que se envía a Mercado Pago ---
+                logger.info(`Enviando a Mercado Pago para reembolso (payment_id): ${order.mercadopago_transaction_id}`);
                 const refundResponse = await refundClient.create({
                     payment_id: order.mercadopago_transaction_id
                 });
@@ -360,7 +362,8 @@ export const cancelOrder = async (req, res, next) => {
                 }
             } catch (mpError) {
                 logger.error(`Error al procesar el reembolso de Mercado Pago para la orden #${orderId}:`, mpError.message);
-                logger.error(`Detalles del error de MP:`, mpError); // Log el objeto de error completo
+                // --- AÑADIDO: Log del objeto de error completo de MP ---
+                logger.error(`Detalles del error de MP:`, mpError); 
                 throw new Error(`Fallo en el reembolso de Mercado Pago: ${mpError.message}`); // Re-lanzar para que el catch principal lo maneje
             }
         } else {
