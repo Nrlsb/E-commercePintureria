@@ -33,7 +33,7 @@ const PORT = config.port;
 app.use(helmet());
 app.set('trust proxy', 1);
 
-// --- MODIFICACIÓN: Configuración de CORS más estricta en producción ---
+// --- MODIFICACIÓN: Configuración de CORS para permitir tu dominio de producción ---
 const corsOptions = {
   origin: (origin, callback) => {
     const isProduction = config.nodeEnv === 'production';
@@ -41,31 +41,22 @@ const corsOptions = {
 
     if (isProduction) {
       // En producción, solo permite el origen explícito del frontend.
-      allowedOrigins.push(config.frontendUrl);
+      // AÑADIDO: Tu dominio de frontend de producción
+      allowedOrigins.push('https://www.nrlsb.com'); // <--- AÑADE ESTA LÍNEA
+      allowedOrigins.push(config.frontendUrl); // Asegúrate de que esta variable también esté configurada correctamente
     } else {
-      // En desarrollo o testing, permite localhost y las URLs de previsualización de Vercel.
+      // En desarrollo o testing, permite localhost y las URLs de previsualización de Vercel y Render.
       allowedOrigins.push('http://localhost:5173');
-      // Asegúrate de que config.frontendUrl esté correctamente configurado para tu frontend desplegado
       allowedOrigins.push(config.frontendUrl);
-      // Para previsualizaciones de Vercel
       allowedOrigins.push(/^https:\/\/e-commercepintureria-.*\.vercel\.app$/);
-      // AÑADIDO: Si estás en desarrollo o testing, permite también la URL del backend itself.
-      // Esto es crucial para que el backend pueda ser accedido por sí mismo (ej. webhooks internos)
-      // o por herramientas de desarrollo cuando se despliega en un entorno no productivo.
-      // Si tu backend se despliega en Render, su URL también debe estar aquí si NODE_ENV=development
-      // y no es localhost.
       allowedOrigins.push(config.backendUrl);
-      // AÑADIDO: Si tu Render URL es dinámica o tiene un patrón, puedes añadir un regex similar al de Vercel.
-      // Por ejemplo, si tu backend es siempre *.onrender.com:
       allowedOrigins.push(/^https:\/\/.*\.onrender\.com$/);
     }
 
-    // Verifica si el origen de la solicitud está en la lista de permitidos.
-    // Si no hay un origen (ej. solicitudes del mismo origen o herramientas como Postman), se permite.
     const isAllowed = allowedOrigins.some(allowedOrigin => {
       if (typeof allowedOrigin === 'string') {
         return allowedOrigin === origin;
-      } else { // Es una expresión regular
+      } else {
         return allowedOrigin.test(origin);
       }
     });
@@ -73,22 +64,17 @@ const corsOptions = {
     if (!origin || isAllowed) {
       callback(null, true);
     } else {
-      // Si el origen no está permitido, se rechaza la solicitud CORS.
       callback(new Error(`Not allowed by CORS: ${origin}`));
     }
   },
-  optionsSuccessStatus: 200 // Para solicitudes OPTIONS preflight
+  optionsSuccessStatus: 200
 };
 
 app.use(cors(corsOptions));
 
-// Usar el middleware de compresión
 app.use(compression()); 
-
 app.use(passport.initialize());
-
 app.post('/api/payment/notification', express.raw({ type: 'application/json' }), handlePaymentNotification);
-
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
@@ -103,7 +89,6 @@ app.use(expressWinston.logger({
 
 app.use(express.static('public'));
 
-// Definición del resto de las rutas de la API
 app.use('/api/products', productRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/orders', orderRoutes);
@@ -123,18 +108,13 @@ app.use(expressWinston.errorLogger({
   winstonInstance: logger
 }));
 
-// --- NUEVO: Manejo de errores no capturados (unhandledRejection, uncaughtException) ---
-// Captura promesas rechazadas no manejadas.
 process.on('unhandledRejection', (reason, promise) => {
   logger.error('Unhandled Rejection at Promise:', promise, 'reason:', reason);
-  // Termina el proceso para evitar un estado inconsistente, permitiendo que un reiniciador de procesos lo levante.
   process.exit(1); 
 });
 
-// Captura excepciones no capturadas.
 process.on('uncaughtException', (error) => {
   logger.error('Uncaught Exception:', error);
-  // Termina el proceso para evitar un estado inconsistente.
   process.exit(1);
 });
 
