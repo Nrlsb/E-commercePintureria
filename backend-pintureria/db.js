@@ -13,10 +13,10 @@ if (config.database.connectionString) {
   connectionConfig = {
     connectionString: config.database.connectionString,
     ssl: {
-      // Solo habilitar SSL con rejectUnauthorized: false en producción o entornos de desarrollo seguros
-      // donde se confía en el certificado, o si la base de datos lo requiere.
-      // Render generalmente maneja SSL automáticamente, pero es bueno ser explícito.
-      rejectUnauthorized: config.nodeEnv === 'production', // Solo rechazar no autorizados en producción
+      // RESALTADO: Cambiamos rejectUnauthorized a false para producción
+      // Esto es común en entornos como Render donde el certificado puede ser auto-firmado
+      // o no reconocido por las CAs por defecto de Node.js, pero la conexión es segura.
+      rejectUnauthorized: false, 
     },
   };
   logger.info('Usando DATABASE_URL para la conexión a la base de datos.');
@@ -43,3 +43,4 @@ pool.on('error', (err, client) => {
 });
 
 export default pool;
+
