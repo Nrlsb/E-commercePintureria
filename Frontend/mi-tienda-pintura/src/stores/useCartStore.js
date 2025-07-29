@@ -151,15 +151,23 @@ export const useCartStore = create(
           set({ shippingCost: 0, postalCode: postalCode });
           return;
         }
+
+        // --- CORRECCIÓN: Asegurarse de que price y quantity sean números ---
+        const sanitizedItems = items.map(item => ({
+            ...item,
+            price: parseFloat(item.price), // Convertir a número
+            quantity: parseInt(item.quantity, 10) // Convertir a número entero
+        }));
+
         try {
           // Log the body being sent for debugging, now with pretty-print
-          const requestBody = { postalCode, items };
+          const requestBody = { postalCode, items: sanitizedItems }; // Usar los ítems sanitizados
           console.log('Sending shipping calculation request with body:', JSON.stringify(requestBody, null, 2)); // DEBUG LOG
 
           const response = await fetch(`${API_URL}/api/shipping/calculate`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(requestBody), // Use the logged requestBody
+            body: JSON.stringify(requestBody), // Usar el requestBody logeado
           });
           if (!response.ok) throw new Error('No se pudo calcular el envío.');
           const data = await response.json();
