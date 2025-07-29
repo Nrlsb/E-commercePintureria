@@ -11,7 +11,12 @@ const MIN_TRANSACTION_AMOUNT = 100;
 // Helper function to get order details for email, using parameterized query
 const getOrderDetailsForEmail = async (orderId, dbClient) => {
   const orderQuery = `
-    SELECT o.id, o.total_amount, u.email
+    SELECT o.id, o.total_amount, u.email,
+    COALESCE((SELECT json_agg(items) FROM (
+      SELECT oi.quantity, oi.price, p.name, p.image_url as "imageUrl"
+      FROM order_items oi JOIN products p ON oi.product_id = p.id
+      WHERE oi.order_id = o.id
+    ) AS items), '[]'::json) AS items
     FROM orders o
     JOIN users u ON o.user_id = u.id
     WHERE o.id = $1
@@ -173,8 +178,7 @@ export const processPayment = async (req, res, next) => {
                 first_name: payer.firstName,
                 last_name: payer.lastName
             },
-            // RESALTADO: Aquí se envía el external_reference
-            external_reference: orderId.toString(), 
+            external_reference: orderId.toString(),
             notification_url: `${process.env.BACKEND_URL}/api/payment/notification`,
         };
 
@@ -189,6 +193,21 @@ export const processPayment = async (req, res, next) => {
             // Using parameterized query
             await dbClient.query("UPDATE orders SET status = 'approved', mercadopago_transaction_id = $1 WHERE id = $2", [paymentResult.id, orderId]);
             
+            // RESALTADO: Obtener detalles completos de la orden para el email
+            const orderDetailsForEmail = await getOrderDetailsForEmail(orderId, dbClient);
+            if (orderDetailsForEmail) {
+                try {
+                    await sendOrderConfirmationEmail(orderDetailsForEmail.email, orderDetailsForEmail);
+                    logger.info(`Email de confirmación enviado exitosamente para la orden #${orderId}`);
+                } catch (emailError) {
+                    logger.error(`Error al enviar email de confirmación para la orden #${orderId}:`, emailError);
+                    // No revertimos la transacción por un fallo en el envío del email,
+                    // pero lo registramos.
+                }
+            } else {
+                logger.warn(`No se encontraron detalles para la orden #${orderId} para enviar el email de confirmación.`);
+            }
+
             await dbClient.query('COMMIT');
             logger.info(`Pago aprobado por Mercado Pago para la orden #${orderId}`);
             res.status(201).json({ status: 'approved', orderId: orderId, paymentId: paymentResult.id });
@@ -393,4 +412,3 @@ export const cancelOrder = async (req, res, next) => {
         dbClient.release();
     }
 };
-
