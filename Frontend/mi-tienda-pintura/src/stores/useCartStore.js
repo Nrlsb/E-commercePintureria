@@ -152,9 +152,9 @@ export const useCartStore = create(
           return;
         }
         try {
-          // Log the body being sent for debugging
+          // Log the body being sent for debugging, now with pretty-print
           const requestBody = { postalCode, items };
-          console.log('Sending shipping calculation request with body:', requestBody); // DEBUG LOG
+          console.log('Sending shipping calculation request with body:', JSON.stringify(requestBody, null, 2)); // DEBUG LOG
 
           const response = await fetch(`${API_URL}/api/shipping/calculate`, {
             method: 'POST',
