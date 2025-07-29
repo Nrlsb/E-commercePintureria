@@ -59,7 +59,7 @@ export const updateProfileRules = () => [
     .trim().escape(),
   body('lastName')
     .optional({ checkFalsy: true })
-    .isLength({ max: 50 }).withMessage('El apellido no puede exceder los 50 caracteres.')
+    .isLength({ max: 50 }).withMessage('El apellido no puede exceder los los 50 caracteres.')
     .trim().escape(),
   body('phone')
     .optional({ checkFalsy: true })
@@ -234,7 +234,14 @@ export const productQueryParamsRules = () => [
     .isIn(['price_asc', 'price_desc', 'rating_desc']).withMessage('Opción de ordenación inválida.'),
   query('brands')
     .optional({ checkFalsy: true })
-    .customSanitizer(value => value.split(',').map(brand => brand.trim().escape())), // Sanitiza cada marca
+    // RESALTADO: Se asegura que 'value' sea una cadena antes de procesar.
+    // Se usa .map() para aplicar trim() y escape() a cada elemento de la lista.
+    .customSanitizer(value => {
+      if (typeof value === 'string') {
+        return value.split(',').map(brand => brand.trim()).map(brand => escape(brand));
+      }
+      return value; // Si no es string, se devuelve el valor original (ej. undefined)
+    }),
   query('minPrice')
     .optional({ checkFalsy: true })
     .isFloat({ min: 0 }).withMessage('El precio mínimo debe ser un número no negativo.'),
