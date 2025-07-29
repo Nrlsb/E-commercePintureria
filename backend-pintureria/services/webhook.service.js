@@ -22,19 +22,29 @@ export const processPaymentNotification = async (topic, eventId) => {
 
   const dbClient = await db.connect();
   try {
-    // --- AÑADIDO: Log el ID del evento que se va a consultar ---
     logger.info(`Intentando obtener detalles del pago de Mercado Pago para eventId: ${eventId}`);
 
-    // Obtenemos la información del pago desde la API de Mercado Pago
-    // Es crucial que 'eventId' sea el 'id' de pago real que Mercado Pago espera.
-    // Si el webhook envía un ID de notificación diferente al ID de pago, esto fallará.
-    const paymentInfo = await payment.get({ id: eventId });
+    let paymentInfo;
+    try {
+        // Obtenemos la información del pago desde la API de Mercado Pago
+        // Es crucial que 'eventId' sea el 'id' de pago real que Mercado Pago espera.
+        // Si el webhook envía un ID de notificación diferente al ID de pago, esto fallará.
+        paymentInfo = await payment.get({ id: eventId });
+        logger.info(`Respuesta COMPLETA de Mercado Pago para el pago ${eventId}:`, JSON.stringify(paymentInfo, null, 2));
+    } catch (mpApiError) {
+        logger.error(`ERROR al consultar la API de Mercado Pago para el ID ${eventId}:`, mpApiError.message);
+        // RESALTADO: Añadimos un log más detallado del error de la API de MP
+        if (mpApiError.cause && mpApiError.cause.response) {
+            logger.error(`Detalles de la respuesta de error de MP:`, JSON.stringify(mpApiError.cause.response.data, null, 2));
+        }
+        throw new Error(`Payment not found or API error for ID ${eventId}`);
+    }
 
-    // --- AÑADIDO: Log la respuesta completa de Mercado Pago para el pago ---
-    // RESALTADO: Este log es clave para depurar la estructura de la respuesta de MP
-    logger.info(`Respuesta de Mercado Pago para el pago ${eventId}:`, JSON.stringify(paymentInfo));
+    // RESALTADO: Confirmamos que paymentInfo existe antes de acceder a sus propiedades
+    if (!paymentInfo) {
+        throw new Error(`Payment info is null or undefined for ID ${eventId}`);
+    }
 
-    // RESALTADO: Aquí se espera el external_reference
     const orderId = paymentInfo.external_reference;
 
     if (!orderId) {
