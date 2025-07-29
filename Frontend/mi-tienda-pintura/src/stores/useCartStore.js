@@ -152,10 +152,14 @@ export const useCartStore = create(
           return;
         }
         try {
+          // Log the body being sent for debugging
+          const requestBody = { postalCode, items };
+          console.log('Sending shipping calculation request with body:', requestBody); // DEBUG LOG
+
           const response = await fetch(`${API_URL}/api/shipping/calculate`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ postalCode, items }),
+            body: JSON.stringify(requestBody), // Use the logged requestBody
           });
           if (!response.ok) throw new Error('No se pudo calcular el envío.');
           const data = await response.json();
@@ -171,6 +175,9 @@ export const useCartStore = create(
 
       applyCoupon: async (code, token) => {
         const showNotification = useNotificationStore.getState().showNotification;
+        // Recalculate subtotal before applying coupon
+        const subtotal = get().cart.reduce((total, item) => total + item.price * item.quantity, 0);
+
         try {
           const response = await fetch(`${API_URL}/api/coupons/validate`, {
             method: 'POST',
@@ -178,7 +185,7 @@ export const useCartStore = create(
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${token}`,
             },
-            body: JSON.stringify({ code }),
+            body: JSON.stringify({ code, subtotal }), // Pass subtotal for validation
           });
           const data = await response.json();
           if (!response.ok) {
@@ -200,7 +207,10 @@ export const useCartStore = create(
 
       recalculateDiscount: () => {
         const { cart, appliedCoupon } = get();
-        if (!appliedCoupon) return;
+        if (!appliedCoupon) {
+            set({ discountAmount: 0 }); // Ensure discount is 0 if no coupon
+            return;
+        }
 
         const subtotal = cart.reduce((total, item) => total + item.price * item.quantity, 0);
         let discount = 0;
@@ -209,6 +219,7 @@ export const useCartStore = create(
         } else if (appliedCoupon.discountType === 'fixed') {
           discount = appliedCoupon.discountValue;
         }
+        // Ensure discount does not exceed subtotal
         set({ discountAmount: Math.min(discount, subtotal) });
       },
     }),
