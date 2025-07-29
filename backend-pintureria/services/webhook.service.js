@@ -31,8 +31,10 @@ export const processPaymentNotification = async (topic, eventId) => {
     const paymentInfo = await payment.get({ id: eventId });
 
     // --- AÑADIDO: Log la respuesta completa de Mercado Pago para el pago ---
+    // RESALTADO: Este log es clave para depurar la estructura de la respuesta de MP
     logger.info(`Respuesta de Mercado Pago para el pago ${eventId}:`, JSON.stringify(paymentInfo));
 
+    // RESALTADO: Aquí se espera el external_reference
     const orderId = paymentInfo.external_reference;
 
     if (!orderId) {
@@ -100,7 +102,7 @@ export const processPaymentNotification = async (topic, eventId) => {
       
       // Marcamos el evento del webhook como procesado
       // Using parameterized query to prevent SQL Injection
-      await dbClient.query("UPDATE webhook_events SET status = 'processed' WHERE event_id = $1", [eventId]);
+      await db.query("UPDATE webhook_events SET status = 'processed' WHERE event_id = $1", [eventId]);
       await dbClient.query('COMMIT');
       logger.info(`Webhook processed successfully: Order #${orderId} approved and stock updated.`);
     } else {
@@ -120,3 +122,4 @@ export const processPaymentNotification = async (topic, eventId) => {
     dbClient.release();
   }
 };
+
