@@ -16,7 +16,8 @@ import authRoutes from './routes/auth.routes.js';
 import orderRoutes from './routes/order.routes.js';
 import paymentRoutes from './routes/payment.routes.js';
 import shippingRoutes from './routes/shipping.routes.js';
-import reviewRoutes from './routes/reviews.routes.js'; // Asegúrate de que esta ruta exista
+// CORRECCIÓN: Cambiar 'reviews.routes.js' a 'review.routes.js'
+import reviewRoutes from './routes/review.routes.js'; 
 import couponRoutes from './routes/coupons.routes.js';
 import uploadRoutes from './routes/upload.routes.js';
 import utilsRoutes from './routes/utils.routes.js';
@@ -24,7 +25,6 @@ import analyticsRoutes from './routes/analytics.routes.js';
 import wishlistRoutes from './routes/wishlist.routes.js';
 import userRoutes from './routes/user.routes.js';
 import errorHandler from './middlewares/errorHandler.js';
-// IMPORTANTE: Importar handlePaymentNotification directamente
 import { handlePaymentNotification } from './controllers/payment.controller.js';
 
 
