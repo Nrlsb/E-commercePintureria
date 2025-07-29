@@ -40,9 +40,10 @@ const corsOptions = {
     let allowedOrigins = [];
 
     if (isProduction) {
-      // En producción, solo permite el origen explícito del frontend.
-      // AÑADIDO: Tu dominio de frontend de producción
-      allowedOrigins.push('https://www.nrlsb.com'); // <--- AÑADE ESTA LÍNEA
+      // En producción, solo permite los orígenes explícitos del frontend.
+      // RESALTADO: Añadimos ambos subdominios (con y sin www)
+      allowedOrigins.push('https://www.nrlsb.com'); 
+      allowedOrigins.push('https://nrlsb.com'); // Añadir el dominio sin www
       allowedOrigins.push(config.frontendUrl); // Asegúrate de que esta variable también esté configurada correctamente
     } else {
       // En desarrollo o testing, permite localhost y las URLs de previsualización de Vercel y Render.
@@ -64,6 +65,8 @@ const corsOptions = {
     if (!origin || isAllowed) {
       callback(null, true);
     } else {
+      // RESALTADO: Añadir un log para CORS para depuración
+      logger.warn(`CORS: Solicitud bloqueada desde el origen: ${origin}`);
       callback(new Error(`Not allowed by CORS: ${origin}`));
     }
   },
@@ -123,3 +126,4 @@ app.use(errorHandler);
 app.listen(PORT, () => {
   logger.info(`Servidor corriendo en el puerto ${PORT}`);
 });
+
