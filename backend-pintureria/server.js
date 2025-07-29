@@ -10,21 +10,22 @@ import expressWinston from 'express-winston';
 import logger from './logger.js';
 import config from './config/index.js';
 
-// Importadores de Rutas
-import productRoutes from './routes/product.routes.js';
-import authRoutes from './routes/auth.routes.js';
-import orderRoutes from './routes/order.routes.js';
-import paymentRoutes from './routes/payment.routes.js';
-import shippingRoutes from './routes/shipping.routes.js';
-import reviewRoutes from './routes/review.routes.js';
-import couponRoutes from './routes/coupons.routes.js';
-import uploadRoutes from './routes/upload.routes.js';
-import utilsRoutes from './routes/utils.routes.js';
-import analyticsRoutes from './routes/analytics.routes.js';
-import wishlistRoutes from './routes/wishlist.routes.js';
-import userRoutes from './routes/user.routes.js';
-import errorHandler from './middlewares/errorHandler.js';
-import { handlePaymentNotification } from './controllers/payment.controller.js';
+// --- INICIO DE LOGS DE DEPURACIÓN DE VARIABLES DE ENTORNO ---
+// ESTO ES SOLO PARA DEPURACIÓN. ELIMINAR EN PRODUCCIÓN.
+console.log('--- DEBUGGING ENVIRONMENT VARIABLES ---');
+console.log('NODE_ENV:', process.env.NODE_ENV);
+console.log('DATABASE_URL (first 15 chars):', process.env.DATABASE_URL ? process.env.DATABASE_URL.substring(0, 15) + '...' : 'NOT SET');
+console.log('REDIS_URL (first 15 chars):', process.env.REDIS_URL ? process.env.REDIS_URL.substring(0, 15) + '...' : 'NOT SET');
+console.log('JWT_SECRET (length):', process.env.JWT_SECRET ? process.env.JWT_SECRET.length : 'NOT SET');
+console.log('MERCADOPAGO_ACCESS_TOKEN (first 15 chars):', process.env.MERCADOPAGO_ACCESS_TOKEN ? process.env.MERCADOPAGO_ACCESS_TOKEN.substring(0, 15) + '...' : 'NOT SET');
+console.log('GEMINI_API_KEY (length):', process.env.GEMINI_API_KEY ? process.env.GEMINI_API_KEY.length : 'NOT SET');
+console.log('GCS_PROJECT_ID:', process.env.GCS_PROJECT_ID || 'NOT SET');
+console.log('GCS_BUCKET_NAME:', process.env.GCS_BUCKET_NAME || 'NOT SET');
+console.log('GCS_KEYFILE_CONTENT (length):', process.env.GCS_KEYFILE_CONTENT ? process.env.GCS_KEYFILE_CONTENT.length : 'NOT SET');
+console.log('VITE_FRONTEND_URL:', process.env.VITE_FRONTEND_URL || 'NOT SET');
+console.log('BACKEND_URL:', process.env.BACKEND_URL || 'NOT SET');
+console.log('--- END DEBUGGING ENVIRONMENT VARIABLES ---');
+// --- FIN DE LOGS DE DEPURACIÓN ---
 
 
 const app = express();
@@ -72,9 +73,9 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 
+app.post('/api/payment/notification', express.raw({ type: 'application/json' }), handlePaymentNotification);
 app.use(compression()); 
 app.use(passport.initialize());
-app.post('/api/payment/notification', express.raw({ type: 'application/json' }), handlePaymentNotification);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
