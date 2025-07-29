@@ -10,6 +10,24 @@ import expressWinston from 'express-winston';
 import logger from './logger.js';
 import config from './config/index.js';
 
+// Importadores de Rutas
+import productRoutes from './routes/product.routes.js';
+import authRoutes from './routes/auth.routes.js';
+import orderRoutes from './routes/order.routes.js';
+import paymentRoutes from './routes/payment.routes.js';
+import shippingRoutes from './routes/shipping.routes.js';
+import reviewRoutes from './routes/reviews.routes.js'; // Asegúrate de que esta ruta exista
+import couponRoutes from './routes/coupons.routes.js';
+import uploadRoutes from './routes/upload.routes.js';
+import utilsRoutes from './routes/utils.routes.js';
+import analyticsRoutes from './routes/analytics.routes.js';
+import wishlistRoutes from './routes/wishlist.routes.js';
+import userRoutes from './routes/user.routes.js';
+import errorHandler from './middlewares/errorHandler.js';
+// IMPORTANTE: Importar handlePaymentNotification directamente
+import { handlePaymentNotification } from './controllers/payment.controller.js';
+
+
 // --- INICIO DE LOGS DE DEPURACIÓN DE VARIABLES DE ENTORNO ---
 // ESTO ES SOLO PARA DEPURACIÓN. ELIMINAR EN PRODUCCIÓN.
 console.log('--- DEBUGGING ENVIRONMENT VARIABLES ---');
