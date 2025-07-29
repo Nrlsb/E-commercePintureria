@@ -9,15 +9,10 @@ const { MercadoPagoConfig, Payment } = mercadopago;
 const client = new MercadoPagoConfig({ accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN });
 
 export const handlePaymentNotification = async (req, res, next) => {
-  // --- LOG DE DEPURACIÓN 1: Verificamos si la función se está ejecutando ---
   logger.info('--- INICIANDO handlePaymentNotification ---');
 
-  // Intenta obtener topic y eventId de la query string
   let topic = req.query.topic || req.query.type;
-  let eventId = req.query.id;
-
-  // --- LOG DE DEPURACIÓN 2: Vemos qué datos iniciales tenemos de la query string ---
-  logger.info(`Webhook recibido (query string) - Topic: ${topic}, Event ID: ${eventId}`);
+  let eventId; // Inicializamos eventId sin valor por defecto de la query
 
   let payloadToStore = req.query; // Por defecto, guarda la query string
 
@@ -33,15 +28,29 @@ export const handlePaymentNotification = async (req, res, next) => {
       if (!topic || topic === 'undefined') { // 'undefined' puede ser un string si viene así en la query
         topic = parsedBody.topic || parsedBody.type;
       }
-      if (!eventId || eventId === 'undefined') {
-        eventId = parsedBody.id || parsedBody.data?.id; // Mercado Pago a veces usa data.id
+
+      // RESALTADO: Aquí está el cambio crucial
+      // Para webhooks de 'payment', el ID del pago real está en parsedBody.data.id
+      // El parsedBody.id es el ID de la notificación, no el ID del pago que se debe consultar
+      if (topic === 'payment' && parsedBody.data && parsedBody.data.id) {
+          eventId = parsedBody.data.id; // ¡Este es el ID de pago real!
+          logger.info(`Webhook recibido (body parseado) - Topic: ${topic}, ID de PAGO: ${eventId}`);
+      } else {
+          // Para otros topics o si no se encuentra data.id, usamos el id principal del payload
+          eventId = parsedBody.id; 
+          logger.info(`Webhook recibido (body parseado) - Topic: ${topic}, ID de NOTIFICACIÓN/OTRO: ${eventId}`);
       }
-      logger.info(`Webhook recibido (body parseado) - Topic: ${topic}, Event ID: ${eventId}`);
+
     } catch (e) {
       logger.error('El cuerpo del webhook no es un JSON válido o está vacío:', bodyAsString || 'vacío');
       // Si falla el parseo, sigue usando la query string como payload
       payloadToStore = req.query;
+      // Si el parseo falla, intentamos obtener el eventId de la query string como fallback
+      eventId = req.query.id;
     }
+  } else {
+      // Si el cuerpo no es un Buffer o está vacío, intentamos obtener el eventId de la query string
+      eventId = req.query.id;
   }
   
   // Si después de todas las comprobaciones, aún no tenemos topic o eventId, loggea y responde 200.
@@ -50,7 +59,6 @@ export const handlePaymentNotification = async (req, res, next) => {
     return res.sendStatus(200);
   }
 
-  // --- LOG DE DEPURACIÓN 3: Vemos el payload final que intentaremos guardar ---
   logger.info(`Payload a guardar en la BD: ${JSON.stringify(payloadToStore)}`);
 
   try {
@@ -60,18 +68,17 @@ export const handlePaymentNotification = async (req, res, next) => {
       ['mercadopago', topic, eventId, payloadToStore]
     );
 
-    // --- LOG DE DEPURACIÓN 4: Confirmamos que la inserción fue exitosa ---
     logger.info(`ÉXITO: Webhook event ${eventId} guardado en la base de datos.`);
     
     res.sendStatus(200);
 
     // Procesa la notificación de forma asíncrona
+    // Le pasamos el eventId que ahora debería ser el ID de pago real
     processPaymentNotification(topic, eventId).catch(err => {
       logger.error(`Error during async webhook processing for event ${eventId}:`, err);
     });
 
   } catch (error) {
-    // --- LOG DE DEPURACIÓN 5: Si algo falla, este será el error exacto ---
     logger.error('FALLO al intentar guardar el webhook event en la BD:', error);
     next(error);
   }
