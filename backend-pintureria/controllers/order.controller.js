@@ -173,7 +173,8 @@ export const processPayment = async (req, res, next) => {
                 first_name: payer.firstName,
                 last_name: payer.lastName
             },
-            external_reference: orderId.toString(),
+            // RESALTADO: Aquí se envía el external_reference
+            external_reference: orderId.toString(), 
             notification_url: `${process.env.BACKEND_URL}/api/payment/notification`,
         };
 
@@ -392,3 +393,4 @@ export const cancelOrder = async (req, res, next) => {
         dbClient.release();
     }
 };
+
