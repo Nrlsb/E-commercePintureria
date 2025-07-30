@@ -82,6 +82,11 @@ const Header = () => {
   const [isSuggestionsOpen, setIsSuggestionsOpen] = useState(false);
   const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
   const searchContainerRef = useRef(null);
+  const cartIconRef = useRef(null); // Referencia para el ícono del carrito
+  const miniCartRef = useRef(null); // Referencia para el mini-carrito
+
+  // NUEVO: Estado para controlar la visibilidad del mini-carrito
+  const [isMiniCartOpen, setIsMiniCartOpen] = useState(false);
 
   // Efecto para obtener sugerencias con Debounce
   useEffect(() => {
@@ -114,10 +119,15 @@ const Header = () => {
       if (searchContainerRef.current && !searchContainerRef.current.contains(event.target)) {
         setIsSuggestionsOpen(false);
       }
+      // Cierra el mini-carrito si se hace clic fuera de él o del ícono del carrito
+      if (miniCartRef.current && !miniCartRef.current.contains(event.target) &&
+          cartIconRef.current && !cartIconRef.current.contains(event.target)) {
+        setIsMiniCartOpen(false);
+      }
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [searchContainerRef]);
+  }, [searchContainerRef, cartIconRef, miniCartRef]); // Añadir refs como dependencias
 
   const handleSearch = (query) => {
     setSearchQuery(query);
@@ -136,7 +146,8 @@ const Header = () => {
   const { user, logout } = useAuthStore();
   const { cart, clearCart } = useCartStore();
   const cartItemCount = cart.reduce((total, item) => total + item.quantity, 0);
-  
+  const cartSubtotal = cart.reduce((total, item) => total + item.price * item.quantity, 0);
+
   const handleMobileLinkClick = () => setIsMenuOpen(false);
   const handleMobileLogout = () => {
     logout();
@@ -148,6 +159,14 @@ const Header = () => {
   useEffect(() => {
     document.body.style.overflow = isMenuOpen ? 'hidden' : 'auto';
   }, [isMenuOpen]);
+
+  // NUEVO: Función para obtener la URL de imagen del ítem del carrito
+  const getCartItemImageUrl = (item) => {
+    if (item.imageUrl && typeof item.imageUrl === 'object') {
+      return item.imageUrl.small || item.imageUrl.medium;
+    }
+    return item.imageUrl || `https://placehold.co/50x50/cccccc/ffffff?text=Img`;
+  };
 
   return (
     <header className="bg-[#0F3460] text-white shadow-lg sticky top-0 z-40">
@@ -237,15 +256,57 @@ const Header = () => {
               </Link>
             )}
             <div className="h-6 border-l border-gray-600"></div>
-            <Link to="/cart" className="flex items-center text-gray-300 hover:text-white transition-colors relative">
-              <Icon path={ICONS.shoppingCart} />
-              <span className="ml-2">Carrito</span>
-              {cartItemCount > 0 && (
-                <span className="absolute -top-2 -right-3 bg-[#E9D502] text-[#0F3460] text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
-                  {cartItemCount}
-                </span>
+            {/* NUEVO: Contenedor del ícono del carrito con eventos de hover */}
+            <div 
+              className="relative" 
+              onMouseEnter={() => setIsMiniCartOpen(true)} 
+              onMouseLeave={() => setIsMiniCartOpen(false)}
+              ref={cartIconRef} // Asignar la referencia
+            >
+              <Link to="/cart" className="flex items-center text-gray-300 hover:text-white transition-colors relative">
+                <Icon path={ICONS.shoppingCart} />
+                <span className="ml-2">Carrito</span>
+                {cartItemCount > 0 && (
+                  <span className="absolute -top-2 -right-3 bg-[#E9D502] text-[#0F3460] text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
+                    {cartItemCount}
+                  </span>
+                )}
+              </Link>
+
+              {/* NUEVO: Mini-carrito (dropdown) */}
+              {isMiniCartOpen && cartItemCount > 0 && (
+                <div 
+                  className="absolute right-0 mt-2 w-80 bg-white rounded-md shadow-lg py-2 z-50 text-gray-800"
+                  ref={miniCartRef} // Asignar la referencia
+                >
+                  <h4 className="px-4 pb-2 text-sm font-semibold border-b border-gray-200">Últimos Productos Añadidos</h4>
+                  <div className="max-h-60 overflow-y-auto">
+                    {cart.slice(0, 3).map(item => ( // Mostrar solo los últimos 3 ítems
+                      <div key={item.id} className="flex items-center px-4 py-2 hover:bg-gray-100 transition-colors">
+                        <img src={getCartItemImageUrl(item)} alt={item.name} className="w-12 h-12 object-cover rounded-md mr-3" />
+                        <div className="flex-grow">
+                          <p className="text-sm font-medium truncate">{item.name}</p>
+                          <p className="text-xs text-gray-500">Cant: {item.quantity} | ${new Intl.NumberFormat('es-AR').format(item.price)} c/u</p>
+                        </div>
+                        <p className="text-sm font-semibold">${new Intl.NumberFormat('es-AR').format(item.price * item.quantity)}</p>
+                      </div>
+                    ))}
+                    {cart.length > 3 && (
+                        <p className="text-center text-xs text-gray-500 py-2">... {cart.length - 3} más en el carrito</p>
+                    )}
+                  </div>
+                  <div className="border-t border-gray-200 pt-2 px-4">
+                    <div className="flex justify-between text-base font-semibold py-2">
+                      <span>Subtotal:</span>
+                      <span>${new Intl.NumberFormat('es-AR').format(cartSubtotal)}</span>
+                    </div>
+                    <Link to="/cart" onClick={() => setIsMiniCartOpen(false)} className="block w-full text-center bg-[#0F3460] text-white py-2 rounded-md hover:bg-[#1a4a8a] transition-colors text-sm font-semibold">
+                      Ver Carrito Completo
+                    </Link>
+                  </div>
+                </div>
               )}
-            </Link>
+            </div>
           </div>
 
           {/* Botones para Móvil - Se muestran solo en pantallas pequeñas */}
