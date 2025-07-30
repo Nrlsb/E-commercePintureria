@@ -1,6 +1,7 @@
 // backend-pintureria/controllers/coupons.controller.js
 import db from '../db.js';
 import logger from '../logger.js';
+import AppError from '../utils/AppError.js'; // Importar AppError
 
 // --- CRUD para Administradores ---
 
@@ -15,10 +16,11 @@ export const createCoupon = async (req, res, next) => {
         logger.info(`Nuevo cupón creado: ${code.toUpperCase()}`);
         res.status(201).json(result.rows[0]);
     } catch (error) {
-        if (error.code === '23505') { // Error de unicidad
-            return res.status(409).json({ message: 'El código de cupón ya existe.' });
+        if (error.code === '23505') { // Error de unicidad de PostgreSQL
+            // Lanzar un AppError 409 si el código de cupón ya existe
+            return next(new AppError('El código de cupón ya existe.', 409));
         }
-        next(error);
+        next(error); // Pasa otros errores al errorHandler
     }
 };
 
@@ -28,7 +30,7 @@ export const getAllCoupons = async (req, res, next) => {
         const result = await db.query('SELECT * FROM coupons ORDER BY created_at DESC');
         res.json(result.rows);
     } catch (error) {
-        next(error);
+        next(error); // Pasa cualquier error al errorHandler
     }
 };
 
@@ -42,15 +44,17 @@ export const updateCoupon = async (req, res, next) => {
             [code.toUpperCase(), discount_type, discount_value, expires_at, is_active, min_purchase_amount, usage_limit, description, id]
         );
         if (result.rowCount === 0) {
-            return res.status(404).json({ message: 'Cupón no encontrado.' });
+            // Lanzar un AppError 404 si el cupón no se encuentra
+            throw new AppError('Cupón no encontrado.', 404);
         }
         logger.info(`Cupón actualizado: ${code.toUpperCase()}`);
         res.json(result.rows[0]);
     } catch (error) {
-        if (error.code === '23505') {
-            return res.status(409).json({ message: 'El código de cupón ya existe.' });
+        if (error.code === '23505') { // Error de unicidad de PostgreSQL
+            // Lanzar un AppError 409 si el código de cupón ya existe
+            return next(new AppError('El código de cupón ya existe.', 409));
         }
-        next(error);
+        next(error); // Pasa otros errores al errorHandler
     }
 };
 
@@ -60,12 +64,13 @@ export const deleteCoupon = async (req, res, next) => {
         // Usando parámetros de consulta para prevenir SQL Injection
         const result = await db.query('DELETE FROM coupons WHERE id = $1', [id]);
         if (result.rowCount === 0) {
-            return res.status(404).json({ message: 'Cupón no encontrado.' });
+            // Lanzar un AppError 404 si el cupón no se encuentra
+            throw new AppError('Cupón no encontrado.', 404);
         }
         logger.info(`Cupón eliminado con ID: ${id}`);
         res.status(204).send();
     } catch (error) {
-        next(error);
+        next(error); // Pasa cualquier error al errorHandler
     }
 };
 
@@ -77,7 +82,8 @@ export const validateCoupon = async (req, res, next) => {
   const { userId } = req.user;
 
   if (!code) {
-    return res.status(400).json({ message: 'El código del cupón es requerido.' });
+    // Lanzar un AppError 400 si el código de cupón es requerido
+    throw new AppError('El código del cupón es requerido.', 400);
   }
 
   try {
@@ -89,26 +95,30 @@ export const validateCoupon = async (req, res, next) => {
     );
 
     if (couponResult.rows.length === 0) {
-      return res.status(404).json({ message: 'El cupón no es válido o ha expirado.' });
+      // Lanzar un AppError 404 si el cupón no es válido o ha expirado
+      throw new AppError('El cupón no es válido o ha expirado.', 404);
     }
 
     const coupon = couponResult.rows[0];
 
     // 1. Verificar monto mínimo de compra
     if (coupon.min_purchase_amount > 0 && subtotal < coupon.min_purchase_amount) {
-        return res.status(400).json({ message: `Esta compra no alcanza el monto mínimo de $${coupon.min_purchase_amount} para usar este cupón.` });
+        // Lanzar un AppError 400 si no se alcanza el monto mínimo
+        throw new AppError(`Esta compra no alcanza el monto mínimo de $${coupon.min_purchase_amount} para usar este cupón.`, 400);
     }
 
     // 2. Verificar límite de uso total
     if (coupon.usage_limit !== null && coupon.usage_count >= coupon.usage_limit) {
-        return res.status(400).json({ message: 'Este cupón ha alcanzado su límite de usos.' });
+        // Lanzar un AppError 400 si el cupón ha alcanzado su límite de usos
+        throw new AppError('Este cupón ha alcanzado su límite de usos.', 400);
     }
 
     // 3. Verificar si el usuario ya usó este cupón (límite de 1 por usuario)
     // Usando parámetros de consulta para prevenir SQL Injection
     const usageResult = await db.query('SELECT id FROM coupon_usage WHERE coupon_id = $1 AND user_id = $2', [coupon.id, userId]);
     if (usageResult.rows.length > 0) {
-        return res.status(400).json({ message: 'Ya has utilizado este cupón.' });
+        // Lanzar un AppError 400 si el usuario ya ha utilizado este cupón
+        throw new AppError('Ya has utilizado este cupón.', 400);
     }
 
     logger.info(`Cupón '${code}' validado exitosamente para el usuario ID: ${userId}`);
@@ -123,6 +133,6 @@ export const validateCoupon = async (req, res, next) => {
     });
 
   } catch (error) {
-    next(error);
+    next(error); // Pasa cualquier error al errorHandler
   }
 };

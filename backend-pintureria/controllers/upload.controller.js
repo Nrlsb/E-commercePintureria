@@ -6,6 +6,7 @@ import fetch from 'node-fetch';
 import logger from '../logger.js';
 import { uploadImageToGCS } from '../services/gcs.service.js';
 import config from '../config/index.js';
+import AppError from '../utils/AppError.js'; // Importar AppError
 
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
@@ -64,46 +65,46 @@ async function getAIDataForImage(imageData, mimeType, apiKey, productNamesForBra
 
     if (!apiResponse.ok) {
         if (apiResponse.status === 429) {
-            throw new Error('Error de la API de IA: Too Many Requests');
+            throw new AppError('Error de la API de IA: Demasiadas solicitudes. Inténtalo de nuevo más tarde.', 429);
         }
         if (apiResponse.status === 503) {
-            throw new Error('Error de la API de IA: Service Unavailable');
+            throw new AppError('Error de la API de IA: Servicio no disponible. Inténtalo de nuevo más tarde.', 503);
         }
         const errorBody = await apiResponse.text();
         logger.error("Error from Gemini API:", errorBody);
-        throw new Error(`Error de la API de IA: ${apiResponse.statusText}`);
+        throw new AppError(`Error de la API de IA: ${apiResponse.statusText}`, apiResponse.status);
     }
 
     const result = await apiResponse.json();
     if (result.candidates?.[0]?.content?.parts?.[0]?.text) {
         return JSON.parse(result.candidates[0].content.parts[0].text);
     } else {
-        throw new Error('La respuesta de la IA no tuvo el formato esperado.');
+        throw new AppError('La respuesta de la IA no tuvo el formato esperado.', 500);
     }
 }
 
 // --- MODIFICADO: Ahora usa la nueva función y devuelve un objeto de URLs ---
 export const handleSingleImageUpload = async (req, res, next) => {
     if (!req.file) {
-        return res.status(400).json({ message: 'No se subió ningún archivo.' });
+        throw new AppError('No se subió ningún archivo.', 400);
     }
     try {
         const imageUrls = await processAndUploadImage(req.file.buffer);
         res.status(201).json({ imageUrls }); // Devuelve el objeto con todas las URLs
     } catch (err) {
-        next(err);
+        next(err); // Pasa cualquier error al errorHandler
     }
 };
 
 export const bulkAssociateImagesWithAI = async (req, res, next) => {
     if (!req.files || req.files.length === 0) {
-        return res.status(400).json({ message: 'No se subieron archivos.' });
+        throw new AppError('No se subieron archivos.', 400);
     }
 
     const results = { success: [], failed: [] };
     const apiKey = config.geminiApiKey;
     if (!apiKey) {
-        return next(new Error('La clave de API de Gemini no está configurada.'));
+        throw new AppError('La clave de API de Gemini no está configurada.', 500);
     }
 
     try {
@@ -114,7 +115,7 @@ export const bulkAssociateImagesWithAI = async (req, res, next) => {
                 const base64ImageData = file.buffer.toString('base64');
                 const initialAIData = await getAIDataForImage(base64ImageData, file.mimetype, apiKey);
                 if (!initialAIData.brand) {
-                    throw new Error('La IA no pudo identificar una marca en la imagen.');
+                    throw new AppError('La IA no pudo identificar una marca en la imagen.', 400);
                 }
                 
                 // Using parameterized query to prevent SQL Injection
@@ -122,14 +123,14 @@ export const bulkAssociateImagesWithAI = async (req, res, next) => {
                 const dbProducts = productsOfBrandResult.rows;
 
                 if (dbProducts.length === 0) {
-                    throw new Error(`No se encontraron productos de la marca "${initialAIData.brand}" en la base de datos.`);
+                    throw new AppError(`No se encontraron productos de la marca "${initialAIData.brand}" en la base de datos.`, 404);
                 }
                 
                 const productNamesForBrand = dbProducts.map(p => p.name);
                 const finalAIData = await getAIDataForImage(base64ImageData, file.mimetype, apiKey, productNamesForBrand);
 
                 if (!finalAIData.productName) {
-                    throw new Error('La IA no pudo determinar el nombre del producto a partir de la lista proporcionada.');
+                    throw new AppError('La IA no pudo determinar el nombre del producto a partir de la lista proporcionada.', 400);
                 }
 
                 const stopWords = new Set(['para', 'de', 'y', 'a', 'con', 'en', 'x', 'lts', 'lt', 'blanco', 'mate', 'blanca', 'acrilico', 'acrílico']);
@@ -138,7 +139,7 @@ export const bulkAssociateImagesWithAI = async (req, res, next) => {
                 const aiKeywords = getKeywords(finalAIData.productName);
                 
                 if (aiKeywords.size === 0) {
-                    throw new Error(`No se pudieron extraer palabras clave significativas de "${finalAIData.productName}".`);
+                    throw new AppError(`No se pudieron extraer palabras clave significativas de "${finalAIData.productName}".`, 400);
                 }
 
                 let bestMatch = null;
@@ -160,7 +161,7 @@ export const bulkAssociateImagesWithAI = async (req, res, next) => {
                 }
 
                 if (!bestMatch || highestScore === 0) {
-                    throw new Error(`No se encontró un producto que coincida con las palabras clave de "${finalAIData.productName}" y marca "${finalAIData.brand}".`);
+                    throw new AppError(`No se encontró un producto que coincida con las palabras clave de "${finalAIData.productName}" y marca "${finalAIData.brand}".`, 404);
                 }
                 
                 const matchedProduct = bestMatch;
@@ -186,7 +187,7 @@ export const bulkAssociateImagesWithAI = async (req, res, next) => {
         }
         res.status(200).json({ message: 'Proceso de asociación masiva completado.', ...results });
     } catch(err) {
-        next(err);
+        next(err); // Pasa cualquier error al errorHandler
     }
 };
 
@@ -194,30 +195,30 @@ export const analyzeImageWithAI = async (req, res, next) => {
     // This function doesn't interact with the database directly, so no SQL injection risk here.
     // It calls getAIDataForImage which uses parameterized queries for its internal prompt construction.
     if (!req.body.imageData || !req.body.mimeType) {
-        return res.status(400).json({ message: 'Faltan datos de imagen o tipo MIME.' });
+        throw new AppError('Faltan datos de imagen o tipo MIME.', 400);
     }
     const { imageData, mimeType } = req.body;
     const apiKey = config.geminiApiKey;
     if (!apiKey) {
-        return next(new Error('La clave de API de Gemini no está configurada.'));
+        throw new AppError('La clave de API de Gemini no está configurada.', 500);
     }
 
     try {
         const aiData = await getAIDataForImage(imageData, mimeType, apiKey);
         res.status(200).json(aiData);
     } catch (err) {
-        next(err);
+        next(err); // Pasa cualquier error al errorHandler
     }
 };
 
 export const bulkCreateProductsWithAI = async (req, res, next) => {
     if (!req.files || req.files.length === 0) {
-        return res.status(400).json({ message: 'No se subieron archivos.' });
+        throw new AppError('No se subieron archivos.', 400);
     }
     const results = { success: [], failed: [] };
     const apiKey = config.geminiApiKey;
     if (!apiKey) {
-        return next(new Error('La clave de API de Gemini no está configurada.'));
+        throw new AppError('La clave de API de Gemini no está configurada.', 500);
     }
 
     try {
@@ -261,13 +262,13 @@ export const bulkCreateProductsWithAI = async (req, res, next) => {
         }
         res.status(200).json({ message: 'Proceso de creación masiva completado.', ...results });
     } catch (err) {
-        next(err);
+        next(err); // Pasa cualquier error al errorHandler
     }
 };
 
 export const processAndAssociateImages = async (req, res, next) => {
     if (!req.files || req.files.length === 0) {
-        return res.status(400).json({ message: 'No se subieron archivos.' });
+        throw new AppError('No se subieron archivos.', 400);
     }
 
     const results = { success: [], failed: [] };

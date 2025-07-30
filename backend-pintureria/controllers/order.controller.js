@@ -3,6 +3,7 @@ import db from '../db.js';
 import mercadopago from 'mercadopago';
 import { sendOrderConfirmationEmail, sendBankTransferInstructionsEmail } from '../emailService.js';
 import logger from '../logger.js';
+import AppError from '../utils/AppError.js'; // Importar AppError
 
 const { MercadoPagoConfig, Payment, PaymentRefund } = mercadopago;
 const client = new MercadoPagoConfig({ accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN });
@@ -39,7 +40,8 @@ export const confirmTransferPayment = async (req, res, next) => {
 
     if (result.rowCount === 0) {
       await dbClient.query('ROLLBACK');
-      return res.status(404).json({ message: 'Orden no encontrada o ya no estaba pendiente de pago.' });
+      // Lanzar un AppError 404 si la orden no se encuentra o ya no estaba pendiente
+      throw new AppError('Orden no encontrada o ya no estaba pendiente de pago.', 404);
     }
 
     const order = result.rows[0];
@@ -62,7 +64,7 @@ export const confirmTransferPayment = async (req, res, next) => {
     res.status(200).json({ message: 'Pago confirmado y email enviado con éxito.', order });
   } catch (error) {
     await dbClient.query('ROLLBACK');
-    next(error);
+    next(error); // Pasa cualquier error al errorHandler
   } finally {
     dbClient.release();
   }
@@ -73,7 +75,8 @@ export const createBankTransferOrder = async (req, res, next) => {
   const { userId, email } = req.user;
 
   if (!cart || cart.length === 0) {
-    return res.status(400).json({ message: 'El carrito está vacío.' });
+    // Lanzar un AppError 400 si el carrito está vacío
+    throw new AppError('El carrito está vacío.', 400);
   }
 
   const dbClient = await db.connect();
@@ -84,9 +87,15 @@ export const createBankTransferOrder = async (req, res, next) => {
     for (const item of cart) {
       // Using parameterized query
       const stockResult = await dbClient.query('SELECT stock FROM products WHERE id = $1 FOR UPDATE', [item.id]);
-      if (stockResult.rows.length === 0) throw new Error(`Producto "${item.name}" no encontrado.`);
+      if (stockResult.rows.length === 0) {
+        // Lanzar un AppError 404 si el producto no se encuentra
+        throw new AppError(`Producto "${item.name}" no encontrado.`, 404);
+      }
       const availableStock = stockResult.rows[0].stock;
-      if (item.quantity > availableStock) throw new Error(`Stock insuficiente para "${item.name}". Solo quedan ${availableStock} unidades.`);
+      if (item.quantity > availableStock) {
+        // Lanzar un AppError 400 si el stock es insuficiente
+        throw new AppError(`Stock insuficiente para "${item.name}". Solo quedan ${availableStock} unidades.`, 400);
+      }
     }
 
     // Using parameterized query
@@ -119,7 +128,7 @@ export const createBankTransferOrder = async (req, res, next) => {
 
   } catch (error) {
     await dbClient.query('ROLLBACK');
-    next(error);
+    next(error); // Pasa cualquier error al errorHandler
   } finally {
     dbClient.release();
   }
@@ -138,8 +147,12 @@ export const processPayment = async (req, res, next) => {
         for (const item of cart) {
             // Using parameterized query
             const stockResult = await dbClient.query('SELECT stock FROM products WHERE id = $1 FOR UPDATE', [item.id]);
-            if (stockResult.rows.length === 0 || item.quantity > stockResult.rows[0].stock) {
-                throw new Error(`Stock insuficiente para "${item.name}".`);
+            if (stockResult.rows.length === 0) {
+                throw new AppError(`Producto "${item.name}" no encontrado.`, 404);
+            }
+            if (item.quantity > stockResult.rows[0].stock) {
+                // Lanzar un AppError 400 si el stock es insuficiente
+                throw new AppError(`Stock insuficiente para "${item.name}".`, 400);
             }
         }
 
@@ -215,13 +228,14 @@ export const processPayment = async (req, res, next) => {
             // Si el pago es rechazado, revertir todo
             await dbClient.query('ROLLBACK');
             logger.warn(`Pago rechazado por Mercado Pago. Orden #${orderId} revertida. Motivo: ${paymentResult.status_detail}`);
-            res.status(400).json({ status: paymentResult.status, message: paymentResult.status_detail || 'El pago no pudo ser procesado.' });
+            // Lanzar un AppError 400 con el detalle del rechazo
+            throw new AppError(paymentResult.status_detail || 'El pago no pudo ser procesado.', 400);
         }
 
     } catch (error) {
         await dbClient.query('ROLLBACK');
         logger.error(`Error procesando el pago para la orden #${orderId}:`, error);
-        next(error);
+        next(error); // Pasa cualquier error al errorHandler
     } finally {
         dbClient.release();
     }
@@ -242,7 +256,8 @@ export const getOrderById = async (req, res, next) => {
               FROM order_items oi JOIN products p ON oi.product_id = p.id
               WHERE oi.order_id = o.id
             ) AS items), '[]'::json) AS items
-            FROM orders o JOIN users u ON o.user_id = u.id
+            FROM orders o
+            JOIN users u ON o.user_id = u.id
             WHERE o.id = $1;
           `;
         } else {
@@ -260,11 +275,12 @@ export const getOrderById = async (req, res, next) => {
         }
         const orderResult = await db.query(query, params);
         if (orderResult.rows.length === 0) {
-            return res.status(404).json({ message: 'Orden no encontrada o no pertenece al usuario.' });
+            // Lanzar un AppError 404 si la orden no se encuentra o no pertenece al usuario
+            throw new AppError('Orden no encontrada o no pertenece al usuario.', 404);
         }
         res.json(orderResult.rows[0]);
     } catch (error) {
-        next(error);
+        next(error); // Pasa cualquier error al errorHandler
     }
 };
 
@@ -286,9 +302,9 @@ export const getOrderHistory = async (req, res, next) => {
         const ordersResult = await db.query(query, [userId]);
         res.json(ordersResult.rows);
     } catch (error) {
-        next(error);
+        next(error); // Pasa cualquier error al errorHandler
     }
-};
+}
 
 export const getAllOrders = async (req, res, next) => {
     const { status, search, page = 1, limit = 15 } = req.query;
@@ -338,7 +354,7 @@ export const getAllOrders = async (req, res, next) => {
             totalOrders,
         });
     } catch (error) {
-        next(error);
+        next(error); // Pasa cualquier error al errorHandler
     }
 };
 
@@ -353,15 +369,15 @@ export const cancelOrder = async (req, res, next) => {
         const orderResult = await dbClient.query('SELECT * FROM orders WHERE id = $1', [orderId]);
         if (orderResult.rows.length === 0) {
             await dbClient.query('ROLLBACK');
-            logger.warn(`Orden #${orderId} no encontrada para cancelación.`);
-            return res.status(404).json({ message: 'Orden no encontrada.' });
+            // Lanzar un AppError 404 si la orden no se encuentra
+            throw new AppError('Orden no encontrada.', 404);
         }
         const order = orderResult.rows[0];
 
         if (order.status === 'cancelled') {
             await dbClient.query('ROLLBACK');
-            logger.warn(`Orden #${orderId} ya estaba cancelada.`);
-            return res.status(400).json({ message: 'La orden ya ha sido cancelada.' });
+            // Lanzar un AppError 400 si la orden ya estaba cancelada
+            throw new AppError('La orden ya ha sido cancelada.', 400);
         }
 
         // --- Logging adicional para el reembolso de Mercado Pago ---
@@ -378,13 +394,14 @@ export const cancelOrder = async (req, res, next) => {
                 if (refundResponse.status !== 'approved') {
                     // Si el reembolso no es aprobado por MP, podrías querer manejarlo de forma diferente
                     // Por ahora, lo tratamos como un error que impide la cancelación total.
-                    throw new Error(`Reembolso de Mercado Pago no aprobado: ${refundResponse.status_detail || 'Error desconocido'}`);
+                    throw new AppError(`Reembolso de Mercado Pago no aprobado: ${refundResponse.status_detail || 'Error desconocido'}`, 400);
                 }
             } catch (mpError) {
                 logger.error(`Error al procesar el reembolso de Mercado Pago para la orden #${orderId}:`, mpError.message);
                 // --- AÑADIDO: Log del objeto de error completo de MP ---
                 logger.error(`Detalles del error de MP:`, mpError); 
-                throw new Error(`Fallo en el reembolso de Mercado Pago: ${mpError.message}`); // Re-lanzar para que el catch principal lo maneje
+                // Lanzar un AppError 500 si falla el reembolso de Mercado Pago
+                throw new AppError(`Fallo en el reembolso de Mercado Pago: ${mpError.message}`, 500); 
             }
         } else {
             logger.info(`Orden #${orderId} no tiene transaction_id de Mercado Pago. No se requiere reembolso de MP.`);

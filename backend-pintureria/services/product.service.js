@@ -2,6 +2,7 @@
 import db from '../db.js';
 import redisClient from '../redisClient.js';
 import logger from '../logger.js';
+import AppError from '../utils/AppError.js'; // Importar AppError (aunque no se use directamente para lanzar, es bueno tenerlo)
 
 const CACHE_EXPIRATION = 3600; // 1 hora en segundos
 
@@ -45,6 +46,7 @@ export const fetchProductBrands = async () => {
     }
   } catch (err) {
     logger.error('Error al leer la caché de marcas de Redis:', err);
+    // No lanzar error aquí, solo loggear, para que la app pueda seguir funcionando sin caché
   }
 
   logger.debug(`Cache MISS: Marcas de productos. Consultando base de datos.`); // Log de cache miss
@@ -59,7 +61,7 @@ export const fetchProductBrands = async () => {
     return brands;
   } catch (err) {
     logger.error('Error al obtener marcas de la base de datos:', err);
-    throw err;
+    throw err; // Propagar el error
   }
 };
 
@@ -122,7 +124,7 @@ export const fetchProductSuggestions = async (query) => {
     return { products, categories, brands };
   } catch (error) {
     logger.error('Error fetching search suggestions:', error);
-    throw error;
+    throw error; // Propagar el error
   }
 };
 
@@ -145,6 +147,7 @@ export const getActiveProducts = async (filters) => {
     }
   } catch (err) {
     logger.error('Error al leer de la caché de Redis:', err);
+    // No lanzar error aquí, solo loggear, para que la app pueda seguir funcionando sin caché
   }
 
   logger.debug(`Cache MISS: Lista de productos para filtros ${JSON.stringify(filters)}. Consultando base de datos.`); // Log de cache miss
@@ -181,58 +184,63 @@ export const getActiveProducts = async (filters) => {
   
   // Using parameterized query for count
   const countQuery = `SELECT COUNT(*) FROM products p ${whereString}`;
-  const totalResult = await db.query(countQuery, queryParams);
-  const totalProducts = parseInt(totalResult.rows[0].count, 10);
-  const totalPages = Math.ceil(totalProducts / limit);
-
-  let baseQuery = `
-    SELECT 
-      p.id, p.name, p.brand, p.category, p.price,
-      p.old_price AS "oldPrice", p.image_url AS "imageUrl",
-      p.description, p.stock,
-      COALESCE(AVG(r.rating), 0) as "averageRating", 
-      COUNT(r.id) as "reviewCount"
-    FROM products p
-    LEFT JOIN reviews r ON p.id = r.product_id
-    ${whereString}
-    GROUP BY p.id
-  `;
-  let orderByClause = ' ORDER BY p.id ASC';
-  switch (sortBy) {
-    case 'price_asc': orderByClause = ' ORDER BY p.price ASC'; break;
-    case 'price_desc': orderByClause = ' ORDER BY p.price DESC'; break;
-    case 'rating_desc': orderByClause = ' ORDER BY "averageRating" DESC'; break;
-  }
-  baseQuery += orderByClause;
-  
-  const offset = (page - 1) * limit;
-  // Using parameterized query for LIMIT and OFFSET
-  baseQuery += ` LIMIT $${paramIndex++} OFFSET $${paramIndex++}`;
-  queryParams.push(limit, offset);
-
-  const result = await db.query(baseQuery, queryParams);
-  
-  const productsWithParsedImages = result.rows.map(p => ({
-    ...p,
-    imageUrl: parseImageUrl(p.imageUrl)
-  }));
-
-  const responseData = {
-    products: productsWithParsedImages,
-    currentPage: parseInt(page, 10),
-    totalPages,
-    totalProducts,
-  };
-
   try {
-    if (redisClient.isReady) {
-      await redisClient.setEx(cacheKey, CACHE_EXPIRATION, JSON.stringify(responseData));
-    }
-  } catch (err) {
-    logger.error('Error al escribir en la caché de Redis:', err);
-  }
+    const totalResult = await db.query(countQuery, queryParams);
+    const totalProducts = parseInt(totalResult.rows[0].count, 10);
+    const totalPages = Math.ceil(totalProducts / limit);
 
-  return responseData;
+    let baseQuery = `
+      SELECT 
+        p.id, p.name, p.brand, p.category, p.price,
+        p.old_price AS "oldPrice", p.image_url AS "imageUrl",
+        p.description, p.stock,
+        COALESCE(AVG(r.rating), 0) as "averageRating", 
+        COUNT(r.id) as "reviewCount"
+      FROM products p
+      LEFT JOIN reviews r ON p.id = r.product_id
+      ${whereString}
+      GROUP BY p.id
+    `;
+    let orderByClause = ' ORDER BY p.id ASC';
+    switch (sortBy) {
+      case 'price_asc': orderByClause = ' ORDER BY p.price ASC'; break;
+      case 'price_desc': orderByClause = ' ORDER BY p.price DESC'; break;
+      case 'rating_desc': orderByClause = ' ORDER BY "averageRating" DESC'; break;
+    }
+    baseQuery += orderByClause;
+    
+    const offset = (page - 1) * limit;
+    // Using parameterized query for LIMIT and OFFSET
+    baseQuery += ` LIMIT $${paramIndex++} OFFSET $${paramIndex++}`;
+    queryParams.push(limit, offset);
+
+    const result = await db.query(baseQuery, queryParams);
+    
+    const productsWithParsedImages = result.rows.map(p => ({
+      ...p,
+      imageUrl: parseImageUrl(p.imageUrl)
+    }));
+
+    const responseData = {
+      products: productsWithParsedImages,
+      currentPage: parseInt(page, 10),
+      totalPages,
+      totalProducts,
+    };
+
+    try {
+      if (redisClient.isReady) {
+        await redisClient.setEx(cacheKey, CACHE_EXPIRATION, JSON.stringify(responseData));
+      }
+    } catch (err) {
+      logger.error('Error al escribir en la caché de Redis:', err);
+    }
+
+    return responseData;
+  } catch (err) {
+    logger.error('Error al obtener productos de la base de datos:', err);
+    throw err; // Propagar el error
+  }
 };
 
 export const getActiveProductById = async (productId) => {
@@ -250,6 +258,7 @@ export const getActiveProductById = async (productId) => {
     }
   } catch (err) {
     logger.error('Error al leer de la caché de Redis:', err);
+    // No lanzar error aquí, solo loggear, para que la app pueda seguir funcionando sin caché
   }
 
   logger.debug(`Cache MISS: Producto ${productId}. Consultando base de datos.`); // Log de cache miss
@@ -266,24 +275,29 @@ export const getActiveProductById = async (productId) => {
     GROUP BY p.id;
   `;
   // Using parameterized query to prevent SQL Injection
-  const result = await db.query(query, [productId]);
-  
-  if (!result.rows[0]) {
-    return null;
-  }
-  
-  const product = {
-    ...result.rows[0],
-    imageUrl: parseImageUrl(result.rows[0].imageUrl)
-  };
-
   try {
-    if (redisClient.isReady) {
-      await redisClient.setEx(cacheKey, CACHE_EXPIRATION, JSON.stringify(product));
+    const result = await db.query(query, [productId]);
+    
+    if (!result.rows[0]) {
+      return null;
     }
-  } catch (err) {
-    logger.error('Error al escribir en la caché de Redis:', err);
-  }
+    
+    const product = {
+      ...result.rows[0],
+      imageUrl: parseImageUrl(result.rows[0].imageUrl)
+    };
 
-  return product;
+    try {
+      if (redisClient.isReady) {
+        await redisClient.setEx(cacheKey, CACHE_EXPIRATION, JSON.stringify(product));
+      }
+    } catch (err) {
+      logger.error('Error al escribir en la caché de Redis:', err);
+    }
+
+    return product;
+  } catch (err) {
+    logger.error('Error al obtener el producto por ID de la base de datos:', err);
+    throw err; // Propagar el error
+  }
 };

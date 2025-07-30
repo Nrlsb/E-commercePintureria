@@ -3,6 +3,7 @@ import db from '../db.js';
 import logger from '../logger.js';
 import * as productService from '../services/product.service.js';
 import redisClient from '../redisClient.js';
+import AppError from '../utils/AppError.js'; // Importar AppError
 
 // --- Función para limpiar la caché de productos ---
 const clearProductsCache = async () => {
@@ -40,7 +41,7 @@ export const getProducts = async (req, res, next) => {
     const result = await productService.getActiveProducts(req.query);
     res.json(result);
   } catch (err) {
-    next(err);
+    next(err); // Pasa cualquier error al errorHandler
   }
 };
 
@@ -52,10 +53,11 @@ export const getProductById = async (req, res, next) => {
     if (product) {
       res.json(product);
     } else {
-      res.status(404).json({ message: 'Producto no encontrado o no está activo.' });
+      // Si el producto no se encuentra, lanzar un AppError 404
+      throw new AppError('Producto no encontrado o no está activo.', 404);
     }
   } catch (err) {
-    next(err);
+    next(err); // Pasa cualquier error al errorHandler
   }
 };
 
@@ -66,7 +68,7 @@ export const getProductBrands = async (req, res, next) => {
     const brands = await productService.fetchProductBrands();
     res.json(brands);
   } catch (err) {
-    next(err);
+    next(err); // Pasa cualquier error al errorHandler
   }
 };
 
@@ -83,7 +85,7 @@ export const createProduct = async (req, res, next) => {
     await clearBrandsCache(); // Invalidar caché de marcas (por si se añadió una nueva marca)
     res.status(201).json(result.rows[0]);
   } catch (err) {
-    next(err);
+    next(err); // Pasa cualquier error (incluyendo duplicados de DB) al errorHandler
   }
 };
 
@@ -97,7 +99,8 @@ export const updateProduct = async (req, res, next) => {
       [name, brand, category, price, old_price, image_url, description, stock, id]
     );
     if (result.rows.length === 0) {
-      return res.status(404).json({ message: 'Producto no encontrado' });
+      // Si el producto no se encuentra, lanzar un AppError 404
+      throw new AppError('Producto no encontrado.', 404);
     }
     logger.info(`Producto actualizado con ID: ${id}`);
     await clearProductsCache(); // Invalidar caché de listas de productos
@@ -107,7 +110,7 @@ export const updateProduct = async (req, res, next) => {
     await clearBrandsCache(); // Invalidar caché de marcas (por si la marca cambió)
     res.json(result.rows[0]);
   } catch (err) {
-    next(err);
+    next(err); // Pasa cualquier error (incluyendo duplicados de DB) al errorHandler
   }
 };
 
@@ -121,7 +124,8 @@ export const deleteProduct = async (req, res, next) => {
     );
     
     if (result.rowCount === 0) {
-      return res.status(404).json({ message: 'Producto no encontrado' });
+      // Si el producto no se encuentra, lanzar un AppError 404
+      throw new AppError('Producto no encontrado.', 404);
     }
     
     logger.info(`Producto DESACTIVADO con ID: ${id}`);
@@ -132,7 +136,7 @@ export const deleteProduct = async (req, res, next) => {
     await clearBrandsCache(); // Invalidar caché de marcas (por si la marca del producto desactivado era la única)
     res.status(200).json({ message: 'Producto desactivado con éxito' });
   } catch (err) {
-    next(err);
+    next(err); // Pasa cualquier error al errorHandler
   }
 };
 
@@ -150,7 +154,7 @@ export const getProductReviews = async (req, res, next) => {
     const result = await db.query(query, [productId]);
     res.json(result.rows);
   } catch (err) {
-    next(err);
+    next(err); // Pasa cualquier error al errorHandler
   }
 };
 
@@ -176,9 +180,10 @@ export const createProductReview = async (req, res, next) => {
     res.status(201).json(result.rows[0]);
   } catch (err) {
     if (err.code === '23505') { 
-      return res.status(409).json({ message: 'Ya has enviado una reseña para este producto.' });
+      // Si es un error de duplicado, lanzar un AppError 409
+      throw new AppError('Ya has enviado una reseña para este producto.', 409);
     }
-    next(err);
+    next(err); // Pasa otros errores al errorHandler
   }
 };
 
@@ -191,13 +196,15 @@ export const deleteReview = async (req, res, next) => {
     const reviewResult = await db.query('SELECT user_id, product_id FROM reviews WHERE id = $1', [reviewId]);
     
     if (reviewResult.rows.length === 0) {
-      return res.status(404).json({ message: 'Reseña no encontrada.' });
+      // Si la reseña no se encuentra, lanzar un AppError 404
+      throw new AppError('Reseña no encontrada.', 404);
     }
 
     const review = reviewResult.rows[0];
 
     if (review.user_id !== userId && role !== 'admin') {
-      return res.status(403).json({ message: 'No tienes permiso para eliminar esta reseña.' });
+      // Si el usuario no tiene permiso, lanzar un AppError 403
+      throw new AppError('No tienes permiso para eliminar esta reseña.', 403);
     }
 
     // Using parameterized query
@@ -211,7 +218,7 @@ export const deleteReview = async (req, res, next) => {
     res.status(204).send();
 
   } catch (err) {
-    next(err);
+    next(err); // Pasa cualquier error al errorHandler
   }
 };
 
@@ -223,6 +230,6 @@ export const getProductSuggestions = async (req, res, next) => {
     const suggestions = await productService.fetchProductSuggestions(q);
     res.json(suggestions);
   } catch (err) {
-    next(err);
+    next(err); // Pasa cualquier error al errorHandler
   }
 };

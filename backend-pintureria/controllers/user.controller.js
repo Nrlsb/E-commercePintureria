@@ -1,6 +1,7 @@
 // backend-pintureria/controllers/user.controller.js
 import db from '../db.js';
 import logger from '../logger.js';
+import AppError from '../utils/AppError.js'; // Importar AppError
 
 /**
  * Obtiene el perfil del usuario actualmente autenticado.
@@ -14,12 +15,13 @@ export const getProfile = async (req, res, next) => {
       [userId]
     );
     if (result.rows.length === 0) {
-      return res.status(404).json({ message: 'Usuario no encontrado.' });
+      // Lanzar un AppError 404 si el usuario no se encuentra
+      throw new AppError('Usuario no encontrado.', 404);
     }
     res.json(result.rows[0]);
   } catch (error) {
     logger.error(`Error fetching profile for user ${userId}:`, error);
-    next(error);
+    next(error); // Pasa cualquier error al errorHandler
   }
 };
 
@@ -37,13 +39,14 @@ export const updateProfile = async (req, res, next) => {
       [firstName, lastName, phone, userId]
     );
     if (result.rows.length === 0) {
-      return res.status(404).json({ message: 'Usuario no encontrado.' });
+      // Lanzar un AppError 404 si el usuario no se encuentra
+      throw new AppError('Usuario no encontrado.', 404);
     }
     logger.info(`Profile updated for user ${userId}`);
     res.json({ message: 'Perfil actualizado con éxito.', user: result.rows[0] });
   } catch (error) {
     logger.error(`Error updating profile for user ${userId}:`, error);
-    next(error);
+    next(error); // Pasa cualquier error al errorHandler
   }
 };
 
@@ -58,7 +61,7 @@ export const getAddresses = async (req, res, next) => {
         res.json(result.rows);
     } catch (error) {
         logger.error(`Error fetching addresses for user ${userId}:`, error);
-        next(error);
+        next(error); // Pasa cualquier error al errorHandler
     }
 };
 
@@ -87,7 +90,7 @@ export const addAddress = async (req, res, next) => {
     } catch (error) {
         await client.query('ROLLBACK');
         logger.error(`Error adding address for user ${userId}:`, error);
-        next(error);
+        next(error); // Pasa cualquier error al errorHandler
     } finally {
         client.release();
     }
@@ -115,7 +118,8 @@ export const updateAddress = async (req, res, next) => {
         );
         if (result.rows.length === 0) {
             await client.query('ROLLBACK');
-            return res.status(404).json({ message: 'Dirección no encontrada o no pertenece al usuario.' });
+            // Lanzar un AppError 404 si la dirección no se encuentra o no pertenece al usuario
+            throw new AppError('Dirección no encontrada o no pertenece al usuario.', 404);
         }
         await client.query('COMMIT');
         logger.info(`Address ${addressId} updated for user ${userId}`);
@@ -123,7 +127,7 @@ export const updateAddress = async (req, res, next) => {
     } catch (error) {
         await client.query('ROLLBACK');
         logger.error(`Error updating address ${addressId} for user ${userId}:`, error);
-        next(error);
+        next(error); // Pasa cualquier error al errorHandler
     } finally {
         client.release();
     }
@@ -139,12 +143,13 @@ export const deleteAddress = async (req, res, next) => {
         // Using parameterized query to prevent SQL Injection
         const result = await db.query('DELETE FROM user_addresses WHERE id = $1 AND user_id = $2', [addressId, userId]);
         if (result.rowCount === 0) {
-            return res.status(404).json({ message: 'Dirección no encontrada o no pertenece al usuario.' });
+            // Lanzar un AppError 404 si la dirección no se encuentra o no pertenece al usuario
+            throw new AppError('Dirección no encontrada o no pertenece al usuario.', 404);
         }
         logger.info(`Address ${addressId} deleted for user ${userId}`);
         res.status(204).send();
     } catch (error) {
         logger.error(`Error deleting address ${addressId} for user ${userId}:`, error);
-        next(error);
+        next(error); // Pasa cualquier error al errorHandler
     }
 };

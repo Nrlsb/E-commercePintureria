@@ -1,6 +1,7 @@
 // backend-pintureria/controllers/wishlist.controller.js
 import db from '../db.js';
 import logger from '../logger.js';
+import AppError from '../utils/AppError.js'; // Importar AppError
 
 /**
  * Obtiene la lista de deseos de un usuario.
@@ -20,7 +21,7 @@ export const getWishlist = async (req, res, next) => {
     res.json(result.rows);
   } catch (error) {
     logger.error(`Error fetching wishlist for user ${userId}:`, error);
-    next(error);
+    next(error); // Pasa cualquier error al errorHandler
   }
 };
 
@@ -32,7 +33,8 @@ export const addToWishlist = async (req, res, next) => {
   const { productId } = req.body;
 
   if (!productId) {
-    return res.status(400).json({ message: 'Product ID is required.' });
+    // Lanzar un AppError 400 si falta el ID del producto
+    throw new AppError('Product ID is required.', 400);
   }
 
   try {
@@ -49,11 +51,12 @@ export const addToWishlist = async (req, res, next) => {
         logger.info(`Product ${productId} added to wishlist for user ${userId}`);
         res.status(201).json({ message: 'Producto añadido a la lista de deseos.', item: result.rows[0] });
     } else {
+        // Si no se insertó ninguna fila, significa que ya existía (ON CONFLICT DO NOTHING)
         res.status(200).json({ message: 'El producto ya estaba en la lista de deseos.' });
     }
   } catch (error) {
     logger.error(`Error adding product ${productId} to wishlist for user ${userId}:`, error);
-    next(error);
+    next(error); // Pasa cualquier error al errorHandler
   }
 };
 
@@ -73,13 +76,14 @@ export const removeFromWishlist = async (req, res, next) => {
     const result = await db.query(query, [userId, productId]);
 
     if (result.rowCount === 0) {
-      return res.status(404).json({ message: 'El producto no se encontró en la lista de deseos.' });
+      // Lanzar un AppError 404 si el producto no se encontró en la lista de deseos
+      throw new AppError('El producto no se encontró en la lista de deseos.', 404);
     }
     
     logger.info(`Product ${productId} removed from wishlist for user ${userId}`);
     res.status(200).json({ message: 'Producto eliminado de la lista de deseos.' });
   } catch (error) {
     logger.error(`Error removing product ${productId} from wishlist for user ${userId}:`, error);
-    next(error);
+    next(error); // Pasa cualquier error al errorHandler
   }
 };
