@@ -51,6 +51,10 @@ const BulkAssociateAIPage = lazy(() => import('./pages/BulkAssociateAIPage.jsx')
 const WishlistPage = lazy(() => import('./pages/WishlistPage.jsx'));
 const ProfilePage = lazy(() => import('./pages/ProfilePage.jsx'));
 const AdminCouponsPage = lazy(() => import('./pages/AdminCouponsPage.jsx'));
+// NUEVO: Importar las páginas de error
+const NotFoundPage = lazy(() => import('./pages/NotFoundPage.jsx'));
+const ServerErrorPage = lazy(() => import('./pages/ServerErrorPage.jsx'));
+
 
 const MERCADOPAGO_PUBLIC_KEY = import.meta.env.VITE_MERCADOPAGO_PUBLIC_KEY;
 
@@ -126,6 +130,10 @@ export default function App() {
               <Route path="/admin/product/bulk-create-ai" element={<BulkCreateAIPage />} />
               <Route path="/admin/product/bulk-associate-ai" element={<BulkAssociateAIPage />} />
             </Route>
+
+            {/* NUEVO: Rutas para las páginas de error */}
+            <Route path="/error/500" element={<ServerErrorPage />} />
+            <Route path="*" element={<NotFoundPage />} /> {/* Catch-all para 404 */}
           </Routes>
         </Suspense>
       </motion.main>
