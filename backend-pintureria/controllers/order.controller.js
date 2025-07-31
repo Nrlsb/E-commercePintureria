@@ -68,10 +68,16 @@ export const confirmTransferPayment = async (req, res, next) => {
 
 export const createPixPayment = async (req, res, next) => {
   const { cart, total, shippingCost, postalCode } = req.body;
-  const { userId, email, firstName, lastName } = req.user;
+  // --- CAMBIO: Se obtiene el 'dni' del usuario autenticado ---
+  const { userId, email, firstName, lastName, dni } = req.user;
 
   if (!cart || cart.length === 0) {
     throw new AppError('El carrito está vacío.', 400);
+  }
+
+  // --- NUEVA VALIDACIÓN: Se verifica que el usuario tenga un DNI cargado ---
+  if (!dni) {
+    throw new AppError('Debe registrar su DNI en "Mi Perfil" para poder realizar pagos con transferencia.', 400);
   }
 
   const dbClient = await db.connect();
@@ -112,14 +118,10 @@ export const createPixPayment = async (req, res, next) => {
         email: email,
         first_name: firstName,
         last_name: lastName,
-        // --- CORRECCIÓN: Se añade la identificación del pagador ---
-        // La API de Mercado Pago a menudo requiere la identificación para pagos PIX/transferencia
-        // para cumplir con regulaciones y prevenir fraudes.
-        // En una aplicación real, este dato debería obtenerse del perfil del usuario.
-        // Aquí usamos un valor de ejemplo para la demostración.
+        // --- CORRECCIÓN: Se utiliza el DNI del perfil del usuario ---
         identification: {
           type: 'DNI',
-          number: '40314406' // ¡DATO DE PRUEBA! Reemplazar con el DNI real del usuario.
+          number: dni // Se usa el DNI del token JWT
         }
       },
       external_reference: orderId.toString(),
@@ -154,7 +156,6 @@ export const createPixPayment = async (req, res, next) => {
 
   } catch (error) {
     if (dbClient) await dbClient.query('ROLLBACK');
-    // --- MEJORA: Loguear el error de la API de Mercado Pago si existe ---
     if (error.cause) {
         logger.error('Error detallado de la API de Mercado Pago:', JSON.stringify(error.cause, null, 2));
     }
@@ -421,7 +422,7 @@ export const cancelOrder = async (req, res, next) => {
 
         await dbClient.query('COMMIT');
         logger.info(`Orden #${orderId} cancelada y reembolso (si aplica) procesado exitosamente.`);
-        res.status(200).json({ message: 'Orden cancelada y reembolso procesado con éxito.', order: updatedOrderResult.rows[0] });
+        res.status(200).json({ message: 'Ordenada cancelada y reembolso procesado con éxito.', order: updatedOrderResult.rows[0] });
     } catch (error) {
         await dbClient.query('ROLLBACK');
         logger.error(`Error general al cancelar la orden #${orderId}:`, error.message);

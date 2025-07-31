@@ -1,5 +1,4 @@
 // backend-pintureria/services/auth.service.js
-// No se requieren cambios en generateToken, ya que siempre debe usar la clave actual.
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
@@ -7,11 +6,12 @@ import db from '../db.js';
 import { sendPasswordResetEmail } from '../emailService.js';
 import logger from '../logger.js';
 import config from '../config/index.js';
-import AppError from '../utils/AppError.js'; // Importar AppError
+import AppError from '../utils/AppError.js';
 
 const JWT_SECRET = config.jwtSecret;
 
-// Función auxiliar para generar un token JWT
+// --- CAMBIO: Se añade 'dni' al payload del token ---
+// Ahora, cada vez que se genera un token, incluirá el DNI del usuario.
 const generateToken = (user) => {
   return jwt.sign(
     {
@@ -21,8 +21,9 @@ const generateToken = (user) => {
       firstName: user.first_name,
       lastName: user.last_name,
       phone: user.phone,
+      dni: user.dni, // <-- CAMPO AÑADIDO
     },
-    JWT_SECRET, // Siempre usa la clave actual para firmar nuevos tokens
+    JWT_SECRET,
     { expiresIn: '1h' }
   );
 };
@@ -63,7 +64,6 @@ export const findOrCreateGoogleUser = async (profile) => {
 
   } catch (err) {
     logger.error('Error en findOrCreateGoogleUser:', err);
-    // Lanzar AppError en lugar de Error genérico
     throw new AppError('Error al procesar la autenticación con Google.', 500);
   }
 };
@@ -71,7 +71,6 @@ export const findOrCreateGoogleUser = async (profile) => {
 export const register = async (userData) => {
   const { email, password, firstName, lastName, phone } = userData;
   if (!email || !password || !firstName || !lastName) {
-    // Lanzar AppError con statusCode 400
     throw new AppError('Nombre, apellido, email y contraseña son requeridos.', 400);
   }
 
@@ -86,18 +85,14 @@ export const register = async (userData) => {
     return result.rows[0];
   } catch (err) {
     if (err.code === '23505') {
-      // El errorHandler ya maneja el código '23505' para duplicados,
-      // así que podemos simplemente re-lanzar el error original de la DB.
-      // Opcionalmente, podríamos lanzar un AppError más específico si quisiéramos un mensaje diferente.
       throw err; 
     }
-    throw err; // Re-lanzar otros errores inesperados
+    throw err;
   }
 };
 
 export const login = async (email, password) => {
   if (!email || !password) {
-    // Lanzar AppError con statusCode 400
     throw new AppError('Email y contraseña son requeridos.', 400);
   }
 
@@ -105,13 +100,11 @@ export const login = async (email, password) => {
   const user = result.rows[0];
 
   if (!user) {
-    // Lanzar AppError con statusCode 401
     throw new AppError('Credenciales inválidas.', 401);
   }
 
   const isMatch = await bcrypt.compare(password, user.password_hash);
   if (!isMatch) {
-    // Lanzar AppError con statusCode 401
     throw new AppError('Credenciales inválidas.', 401);
   }
 
@@ -127,6 +120,7 @@ export const login = async (email, password) => {
       firstName: user.first_name,
       lastName: user.last_name,
       phone: user.phone,
+      dni: user.dni, // <-- CAMPO AÑADIDO
     },
   };
 };
@@ -134,7 +128,6 @@ export const login = async (email, password) => {
 export const forgotPassword = async (email) => {
     const userResult = await db.query('SELECT * FROM users WHERE email = $1', [email]);
     if (userResult.rows.length === 0) {
-      // Por seguridad, no revelamos si el email existe o no.
       return 'Si el correo electrónico está registrado, recibirás un enlace para restablecer tu contraseña.';
     }
 
@@ -153,7 +146,6 @@ export const forgotPassword = async (email) => {
 
 export const resetPassword = async (token, password) => {
     if (!password || password.length < 6) {
-        // Lanzar AppError con statusCode 400
         throw new AppError('La contraseña debe tener al menos 6 caracteres.', 400);
     }
 
@@ -164,7 +156,6 @@ export const resetPassword = async (token, password) => {
     );
 
     if (userResult.rows.length === 0) {
-        // Lanzar AppError con statusCode 400
         throw new AppError('El token es inválido o ha expirado.', 400);
     }
 
@@ -186,7 +177,6 @@ export const refreshToken = async (userId) => {
   const user = result.rows[0];
 
   if (!user) {
-    // Lanzar AppError con statusCode 404
     throw new AppError('Usuario no encontrado.', 404);
   }
 
