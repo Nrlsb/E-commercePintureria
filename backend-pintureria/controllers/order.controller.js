@@ -72,6 +72,7 @@ export const createPixPayment = async (req, res, next) => {
 
   const dbClient = await db.connect();
   let orderId;
+  let paymentData; // Definir paymentData aquí para que esté disponible en el bloque catch
 
   try {
     const userResult = await dbClient.query('SELECT dni FROM users WHERE id = $1', [userId]);
@@ -111,11 +112,10 @@ export const createPixPayment = async (req, res, next) => {
     const payment = new Payment(mpClient);
     const expirationDate = new Date(Date.now() + 30 * 60 * 1000).toISOString(); 
 
-    const paymentData = {
+    // Asignar el payload a la variable paymentData
+    paymentData = {
       transaction_amount: Number(total),
       description: `Compra en Pinturerías Mercurio - Orden #${orderId}`,
-      // ACLARACIÓN: En Argentina, Mercado Pago usa el ID 'pix' para generar un QR de pago por transferencia.
-      // Aunque "Pix" es una marca brasileña, este es el valor correcto según la documentación de MP para este flujo.
       payment_method_id: 'pix',
       payer: {
         email: email,
@@ -160,8 +160,24 @@ export const createPixPayment = async (req, res, next) => {
 
   } catch (error) {
     if (dbClient) await dbClient.query('ROLLBACK');
-    logger.error(`Error completo creando pago PIX/Transfer para la orden #${orderId}:`, error);
-    next(error);
+    
+    // --- MEJORA DE DEBUGGING ---
+    // Logueamos el error y también lo devolvemos en la respuesta junto con el payload enviado.
+    const errorMessage = `Error completo creando pago PIX/Transfer para la orden #${orderId}:`;
+    logger.error(errorMessage, error);
+
+    // Creamos un nuevo AppError que incluye el payload que se intentó enviar
+    const detailedError = new AppError(
+      error.message || 'Error al procesar el pago.',
+      error.statusCode || 500,
+      {
+        originalError: error.cause, // Incluimos la causa original del error si existe
+        payloadSent: paymentData // Adjuntamos el payload para depuración
+      }
+    );
+    next(detailedError);
+    // --- FIN DE MEJORA ---
+
   } finally {
     if (dbClient) dbClient.release();
   }
