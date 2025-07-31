@@ -68,21 +68,25 @@ export const confirmTransferPayment = async (req, res, next) => {
 
 export const createPixPayment = async (req, res, next) => {
   const { cart, total, shippingCost, postalCode } = req.body;
-  const { userId, email, firstName, lastName, dni } = req.user;
-
-  if (!cart || cart.length === 0) {
-    return next(new AppError('El carrito está vacío.', 400));
-  }
-
-  // --- MEJORA: Validación explícita del DNI ---
-  if (!dni) {
-    return next(new AppError('Debe registrar su DNI en "Mi Perfil" para poder realizar pagos.', 400));
-  }
+  // --- CAMBIO: Obtenemos el DNI directamente del usuario en la base de datos para asegurar que esté actualizado ---
+  const { userId, email, firstName, lastName } = req.user;
 
   const dbClient = await db.connect();
   let orderId;
 
   try {
+    // Obtenemos los datos más recientes del usuario, incluyendo el DNI
+    const userResult = await dbClient.query('SELECT dni FROM users WHERE id = $1', [userId]);
+    const dni = userResult.rows[0]?.dni;
+
+    if (!dni) {
+      return next(new AppError('Debe registrar su DNI en "Mi Perfil" para poder realizar pagos.', 400));
+    }
+    
+    if (!cart || cart.length === 0) {
+      return next(new AppError('El carrito está vacío.', 400));
+    }
+
     await dbClient.query('BEGIN');
 
     for (const item of cart) {
@@ -154,13 +158,9 @@ export const createPixPayment = async (req, res, next) => {
 
   } catch (error) {
     if (dbClient) await dbClient.query('ROLLBACK');
-    // --- INICIO DE MEJORA DE LOGGING ---
-    // Si el error tiene una propiedad 'cause', es probable que venga de la API de Mercado Pago.
-    // La logueamos para ver el cuerpo completo de la respuesta de error.
     if (error.cause) {
         logger.error('Error detallado de la API de Mercado Pago:', JSON.stringify(error.cause, null, 2));
     }
-    // --- FIN DE MEJORA DE LOGGING ---
     logger.error(`Error creando pago PIX/Transfer para la orden #${orderId}:`, error);
     next(error);
   } finally {
