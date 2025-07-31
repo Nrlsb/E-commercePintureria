@@ -1,7 +1,10 @@
 // src/stores/useAuthStore.js
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { useWishlistStore } from './useWishlistStore'; // 1. Importar el store de wishlist
+import { useWishlistStore } from './useWishlistStore';
+import { fetchWithCsrf } from '../api/api'; // Importar fetchWithCsrf
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
 const parseJwt = (token) => {
   if (!token) return null;
@@ -24,7 +27,6 @@ export const useAuthStore = create(
           token: newToken,
           user: parseJwt(newToken),
         });
-        // 2. Al iniciar sesión, cargar la lista de deseos  del usuario.
         useWishlistStore.getState().fetchWishlist(newToken);
       },
 
@@ -33,9 +35,29 @@ export const useAuthStore = create(
           token: null,
           user: null,
         });
-        // 3. Al cerrar sesión, limpiar la lista de deseos del estado.
         useWishlistStore.getState().clearWishlist();
       },
+      
+      refreshToken: async () => {
+        const currentToken = useAuthStore.getState().token;
+        if (!currentToken) return;
+
+        try {
+          const response = await fetchWithCsrf(`${API_URL}/api/auth/refresh-token`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${currentToken}` }
+          });
+          if (!response.ok) throw new Error('No se pudo refrescar el token.');
+          const { token: newToken } = await response.json();
+          set({
+            token: newToken,
+            user: parseJwt(newToken),
+          });
+        } catch (error) {
+          console.error("Error refreshing token:", error);
+          set({ token: null, user: null });
+        }
+      }
     }),
     {
       name: 'auth-storage',

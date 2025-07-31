@@ -3,10 +3,10 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/useAuthStore';
 import Spinner from '../components/Spinner.jsx';
+import { fetchWithCsrf } from '../api/api'; // Importar fetchWithCsrf
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
-// --- NUEVO: Ícono de Google ---
 const GoogleIcon = () => (
     <svg className="w-5 h-5 mr-3" viewBox="0 0 48 48">
         <path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8c-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C12.955 4 4 12.955 4 24s8.955 20 20 20s20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"></path>
@@ -20,7 +20,7 @@ const LoginPage = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false); // Estado de carga
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   
   const login = useAuthStore(state => state.login);
@@ -28,9 +28,9 @@ const LoginPage = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    setLoading(true); // Activar spinner
+    setLoading(true);
     try {
-      const response = await fetch(`${API_URL}/api/auth/login`, {
+      const response = await fetchWithCsrf(`${API_URL}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
@@ -46,7 +46,7 @@ const LoginPage = () => {
     } catch (err) {
       setError(err.message);
     } finally {
-      setLoading(false); // Desactivar spinner
+      setLoading(false);
     }
   };
 
@@ -83,12 +83,11 @@ const LoginPage = () => {
                   disabled={loading}
                   className="w-32 flex justify-center items-center px-8 py-3 bg-[#0F3460] text-white font-semibold rounded-lg hover:bg-[#1a4a8a] transition-colors disabled:bg-gray-400 disabled:cursor-wait"
                 >
-                  {loading ? <Spinner /> : 'Ingresar'} {/* Mostrar Spinner si está cargando */}
+                  {loading ? <Spinner /> : 'Ingresar'}
                 </button>
             </div>
           </form>
 
-          {/* --- NUEVA SECCIÓN --- */}
           <div className="mt-6">
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
@@ -108,7 +107,6 @@ const LoginPage = () => {
               </a>
             </div>
           </div>
-          {/* --- FIN DE LA NUEVA SECCIÓN --- */}
 
         </div>
         <div className="bg-white p-8 rounded-lg shadow-md">

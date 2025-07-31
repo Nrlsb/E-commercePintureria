@@ -4,19 +4,15 @@ import { useNavigate } from 'react-router-dom';
 import { useCartStore } from '../stores/useCartStore';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useNotificationStore } from '../stores/useNotificationStore';
+import { fetchWithCsrf } from '../api/api'; // Importar fetchWithCsrf
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
-/**
- * Hook personalizado para manejar la lógica de procesamiento de pagos.
- * Encapsula las llamadas a la API, el estado de carga y el manejo de errores.
- */
 export const usePayment = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
 
-  // Obtenemos los datos y acciones necesarios de los stores de Zustand
   const { cart, shippingCost, postalCode, total, clearCart } = useCartStore(state => ({
     cart: state.cart,
     shippingCost: state.shippingCost,
@@ -27,15 +23,11 @@ export const usePayment = () => {
   const { user, token } = useAuthStore();
   const showNotification = useNotificationStore(state => state.showNotification);
 
-  /**
-   * Procesa un pago con tarjeta a través de Mercado Pago.
-   * @param {object} formData - Los datos del formulario de pago tokenizados por el SDK de Mercado Pago.
-   */
   const submitCardPayment = async (formData) => {
     setIsProcessing(true);
     setError('');
     try {
-      const response = await fetch(`${API_URL}/api/orders/process-payment`, {
+      const response = await fetchWithCsrf(`${API_URL}/api/orders/process-payment`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ 
@@ -60,14 +52,11 @@ export const usePayment = () => {
     }
   };
 
-  /**
-   * Crea una orden para ser pagada mediante transferencia bancaria.
-   */
   const submitBankTransfer = async () => {
     setIsProcessing(true);
     setError('');
     try {
-        const response = await fetch(`${API_URL}/api/orders/bank-transfer`, {
+        const response = await fetchWithCsrf(`${API_URL}/api/orders/bank-transfer`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
             body: JSON.stringify({ cart, total, shippingCost, postalCode }),
@@ -85,6 +74,5 @@ export const usePayment = () => {
     }
   };
 
-  // El hook devuelve el estado y las funciones para que el componente las use.
   return { isProcessing, error, submitCardPayment, submitBankTransfer, setError };
 };

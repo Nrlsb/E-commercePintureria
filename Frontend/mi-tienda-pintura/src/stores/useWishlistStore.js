@@ -1,6 +1,7 @@
 // Frontend/mi-tienda-pintura/src/stores/useWishlistStore.js
 import { create } from 'zustand';
 import { useNotificationStore } from './useNotificationStore';
+import { fetchWithCsrf } from '../api/api'; // Importar fetchWithCsrf
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
@@ -13,7 +14,7 @@ export const useWishlistStore = create((set, get) => ({
     if (!token) return;
     set({ loading: true });
     try {
-      const response = await fetch(`${API_URL}/api/wishlist`, {
+      const response = await fetchWithCsrf(`${API_URL}/api/wishlist`, {
         headers: { 'Authorization': `Bearer ${token}` },
       });
       if (!response.ok) throw new Error('No se pudo cargar la lista de deseos.');
@@ -34,7 +35,6 @@ export const useWishlistStore = create((set, get) => ({
     const showNotification = useNotificationStore.getState().showNotification;
     const isInWishlist = wishlistProductIds.has(product.id);
 
-    // Optimistic UI update
     const previousWishlist = [...wishlist];
     const previousIds = new Set(wishlistProductIds);
 
@@ -57,7 +57,7 @@ export const useWishlistStore = create((set, get) => ({
       };
       const body = isInWishlist ? null : JSON.stringify({ productId: product.id });
 
-      const response = await fetch(url, { method, headers, body: body });
+      const response = await fetchWithCsrf(url, { method, headers, body: body });
       
       if (!response.ok) {
         throw new Error('Error al actualizar la lista de deseos.');
@@ -67,7 +67,6 @@ export const useWishlistStore = create((set, get) => ({
       showNotification(data.message, 'success');
 
     } catch (error) {
-      // Revert on error
       set({ wishlist: previousWishlist, wishlistProductIds: previousIds });
       showNotification(error.message, 'error');
     }

@@ -1,5 +1,6 @@
 // src/stores/useProductStore.js
 import { create } from 'zustand';
+import { fetchWithCsrf } from '../api/api'; // Importar fetchWithCsrf
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
@@ -12,7 +13,6 @@ export const useProductStore = create((set, get) => ({
   error: null,
   searchQuery: '',
   
-  // --- NUEVO: Estado para la vista rápida ---
   quickViewProduct: null,
 
   filters: {
@@ -24,7 +24,7 @@ export const useProductStore = create((set, get) => ({
 
   fetchAvailableBrands: async () => {
     try {
-      const response = await fetch(`${API_URL}/api/products/brands`);
+      const response = await fetchWithCsrf(`${API_URL}/api/products/brands`);
       if (!response.ok) {
         throw new Error('No se pudieron cargar las marcas');
       }
@@ -63,7 +63,7 @@ export const useProductStore = create((set, get) => ({
     params.append('page', page);
 
     try {
-      const response = await fetch(`${API_URL}/api/products?${params.toString()}`);
+      const response = await fetchWithCsrf(`${API_URL}/api/products?${params.toString()}`);
       if (!response.ok) {
         throw new Error('No se pudo conectar con el servidor');
       }
@@ -97,7 +97,6 @@ export const useProductStore = create((set, get) => ({
 
   setSearchQuery: (query) => set({ searchQuery: query }),
 
-  // --- NUEVO: Acciones para la vista rápida ---
   openQuickView: (product) => set({ quickViewProduct: product }),
   closeQuickView: () => set({ quickViewProduct: null }),
 }));

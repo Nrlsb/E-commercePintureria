@@ -4,6 +4,8 @@ import cors from 'cors';
 import helmet from 'helmet';
 import passport from 'passport';
 import compression from 'compression';
+import cookieParser from 'cookie-parser'; // 1. Importar cookie-parser
+import csurf from 'csurf'; // 2. Importar csurf
 import './config/passport-setup.js';
 import { startCancelPendingOrdersJob } from './services/cronService.js';
 import expressWinston from 'express-winston';
@@ -33,20 +35,17 @@ const PORT = config.port;
 app.use(helmet());
 app.set('trust proxy', 1);
 
-// --- MODIFICACIÓN: Configuración de CORS para permitir tu dominio de producción ---
+// --- Configuración de CORS ---
 const corsOptions = {
   origin: (origin, callback) => {
     const isProduction = config.nodeEnv === 'production';
     let allowedOrigins = [];
 
     if (isProduction) {
-      // En producción, solo permite los orígenes explícitos del frontend.
-      // RESALTADO: Añadimos ambos subdominios (con y sin www)
       allowedOrigins.push('https://www.nrlsb.com'); 
-      allowedOrigins.push('https://nrlsb.com'); // Añadir el dominio sin www
-      allowedOrigins.push(config.frontendUrl); // Asegúrate de que esta variable también esté configurada correctamente
+      allowedOrigins.push('https://nrlsb.com');
+      allowedOrigins.push(config.frontendUrl);
     } else {
-      // En desarrollo o testing, permite localhost y las URLs de previsualización de Vercel y Render.
       allowedOrigins.push('http://localhost:5173');
       allowedOrigins.push(config.frontendUrl);
       allowedOrigins.push(/^https:\/\/e-commercepintureria-.*\.vercel\.app$/);
@@ -65,11 +64,11 @@ const corsOptions = {
     if (!origin || isAllowed) {
       callback(null, true);
     } else {
-      // RESALTADO: Añadir un log para CORS para depuración
       logger.warn(`CORS: Solicitud bloqueada desde el origen: ${origin}`);
       callback(new Error(`Not allowed by CORS: ${origin}`));
     }
   },
+  credentials: true, // Habilitar credenciales para que las cookies se envíen
   optionsSuccessStatus: 200
 };
 
@@ -80,6 +79,27 @@ app.use(passport.initialize());
 app.post('/api/payment/notification', express.raw({ type: 'application/json' }), handlePaymentNotification);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
+
+// 3. Usar cookie-parser ANTES de csurf
+app.use(cookieParser());
+
+// 4. Configurar csurf
+const csrfProtection = csurf({
+  cookie: {
+    httpOnly: true,
+    secure: config.nodeEnv === 'production', // Usar cookies seguras en producción
+    sameSite: 'strict', // 'strict' es más seguro, pero puede requerir 'lax' si tienes redirecciones entre dominios
+  },
+});
+
+// 5. Crear una ruta para que el frontend obtenga el token CSRF
+app.get('/api/csrf-token', csrfProtection, (req, res) => {
+  // El middleware csurf añade el método req.csrfToken()
+  res.json({ csrfToken: req.csrfToken() });
+});
+
+// 6. Aplicar la protección CSRF a todas las rutas que vienen después
+app.use(csrfProtection);
 
 app.use(expressWinston.logger({
   winstonInstance: logger,
@@ -92,6 +112,7 @@ app.use(expressWinston.logger({
 
 app.use(express.static('public'));
 
+// --- RUTAS DE LA API (AHORA PROTEGIDAS) ---
 app.use('/api/products', productRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/orders', orderRoutes);
@@ -121,9 +142,19 @@ process.on('uncaughtException', (error) => {
   process.exit(1);
 });
 
+// 7. Middleware para manejar errores específicos de CSRF
+app.use((err, req, res, next) => {
+  if (err.code === 'EBADCSRFTOKEN') {
+    logger.warn(`Token CSRF inválido para la petición: ${req.method} ${req.originalUrl}`);
+    res.status(403).json({ message: 'Token CSRF inválido o ausente. Por favor, recarga la página.' });
+  } else {
+    next(err);
+  }
+});
+
+// 8. Middleware de manejo de errores general
 app.use(errorHandler);
 
 app.listen(PORT, () => {
   logger.info(`Servidor corriendo en el puerto ${PORT}`);
 });
-
