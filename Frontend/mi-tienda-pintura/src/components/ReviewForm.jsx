@@ -1,5 +1,6 @@
 // src/components/ReviewForm.jsx
 import React, { useState } from 'react';
+import { fetchWithCsrf } from '../api/api'; // Importar
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
@@ -20,7 +21,7 @@ const ReviewForm = ({ productId, token, onReviewSubmitted }) => {
     setError('');
 
     try {
-      const response = await fetch(`${API_URL}/api/products/${productId}/reviews`, {
+      const response = await fetchWithCsrf(`${API_URL}/api/products/${productId}/reviews`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -32,7 +33,6 @@ const ReviewForm = ({ productId, token, onReviewSubmitted }) => {
       if (!response.ok) {
         throw new Error(data.message || 'Error al enviar la reseña');
       }
-      // Limpiar formulario y notificar al padre para que actualice la lista
       setRating(0);
       setComment('');
       onReviewSubmitted();

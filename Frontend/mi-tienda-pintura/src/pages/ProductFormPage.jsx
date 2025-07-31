@@ -5,10 +5,10 @@ import { useAuthStore } from '../stores/useAuthStore';
 import { useNotificationStore } from '../stores/useNotificationStore';
 import Spinner from '../components/Spinner';
 import Icon from '../components/Icon';
+import { fetchWithCsrf } from '../api/api'; // Importar fetchWithCsrf
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
-// --- MODIFICADO: El componente ahora maneja un objeto de URLs ---
 const ImageUploader = ({ imageUrls, onUploadSuccess, onFileSelect, token }) => {
   const [uploading, setUploading] = useState(false);
   const showNotification = useNotificationStore(state => state.showNotification);
@@ -23,7 +23,7 @@ const ImageUploader = ({ imageUrls, onUploadSuccess, onFileSelect, token }) => {
     formData.append('productImage', file);
 
     try {
-      const response = await fetch(`${API_URL}/api/uploads/single`, {
+      const response = await fetchWithCsrf(`${API_URL}/api/uploads/single`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` },
         body: formData,
@@ -32,7 +32,6 @@ const ImageUploader = ({ imageUrls, onUploadSuccess, onFileSelect, token }) => {
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || 'Error al subir la imagen');
       
-      // La respuesta ahora es `data.imageUrls` que es un objeto
       onUploadSuccess(data.imageUrls);
       showNotification('Imagen subida y optimizada con éxito.', 'success');
     } catch (err) {
@@ -42,7 +41,6 @@ const ImageUploader = ({ imageUrls, onUploadSuccess, onFileSelect, token }) => {
     }
   };
   
-  // Muestra la imagen de tamaño mediano como vista previa
   const previewUrl = imageUrls?.medium;
 
   return (
@@ -88,7 +86,6 @@ const ProductFormPage = () => {
   const token = useAuthStore(state => state.token);
   const showNotification = useNotificationStore(state => state.showNotification);
   
-  // --- MODIFICADO: El estado del producto ahora usa `image_urls` ---
   const [product, setProduct] = useState({
     name: '', brand: '', category: '', price: '', old_price: '',
     image_urls: {}, description: '', stock: 0,
@@ -100,18 +97,16 @@ const ProductFormPage = () => {
 
   const isEditing = Boolean(productId);
 
-  // --- MODIFICADO: El fetch ahora espera `image_url` y lo parsea ---
   useEffect(() => {
     if (isEditing) {
       setLoading(true);
       fetch(`${API_URL}/api/products/${productId}`)
         .then(res => res.ok ? res.json() : Promise.reject(new Error('No se pudo cargar el producto.')))
         .then(data => {
-            // El servicio ya devuelve `imageUrl` como un objeto
             setProduct({
                 name: data.name || '', brand: data.brand || '', category: data.category || '',
                 price: data.price || '', old_price: data.oldPrice || '', 
-                image_urls: data.imageUrl || {}, // Usamos el objeto directamente
+                image_urls: data.imageUrl || {},
                 description: data.description || '', stock: data.stock || 0,
             })
         })
@@ -140,7 +135,6 @@ const ProductFormPage = () => {
   });
 
   const handleAIDataGeneration = async () => {
-    // ... (lógica sin cambios)
     if (!uploadedImageFile) {
         showNotification('Primero debes seleccionar una imagen.', 'error');
         return;
@@ -148,7 +142,7 @@ const ProductFormPage = () => {
     setIsAiLoading(true);
     try {
         const base64ImageData = await fileToBase64(uploadedImageFile);
-        const response = await fetch(`${API_URL}/api/uploads/analyze-image`, {
+        const response = await fetchWithCsrf(`${API_URL}/api/uploads/analyze-image`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -174,7 +168,6 @@ const ProductFormPage = () => {
     }
   };
 
-  // --- MODIFICADO: El submit ahora stringifica el objeto de URLs ---
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!product.image_urls || !product.image_urls.medium) {
@@ -188,7 +181,7 @@ const ProductFormPage = () => {
     const method = isEditing ? 'PUT' : 'POST';
 
     try {
-      const response = await fetch(url, {
+      const response = await fetchWithCsrf(url, {
         method,
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({
@@ -196,7 +189,7 @@ const ProductFormPage = () => {
             price: parseFloat(product.price) || 0,
             old_price: parseFloat(product.old_price) || null,
             stock: parseInt(product.stock, 10) || 0,
-            image_url: JSON.stringify(product.image_urls), // Enviamos el objeto como string
+            image_url: JSON.stringify(product.image_urls),
         }),
       });
 
@@ -206,7 +199,7 @@ const ProductFormPage = () => {
       }
 
       showNotification(`Producto ${isEditing ? 'actualizado' : 'creado'} con éxito!`, 'success');
-      navigate('/admin');
+      navigate('/admin/products');
 
     } catch (err) {
       setError(err.message);
@@ -267,7 +260,7 @@ const ProductFormPage = () => {
             {error && <p className="text-red-500 text-sm text-center col-span-2">{error}</p>}
             
             <div className="flex justify-end space-x-4 pt-4">
-              <Link to="/admin" className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors">Cancelar</Link>
+              <Link to="/admin/products" className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors">Cancelar</Link>
               <button type="submit" disabled={loading} className="w-40 flex justify-center items-center px-6 py-2 bg-[#0F3460] text-white font-semibold rounded-lg hover:bg-[#1a4a8a] transition-colors disabled:bg-gray-400">
                 {loading ? <Spinner /> : 'Guardar Producto'}
               </button>

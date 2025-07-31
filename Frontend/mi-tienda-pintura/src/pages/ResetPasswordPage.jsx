@@ -1,7 +1,8 @@
 // src/pages/ResetPasswordPage.jsx
 import React, { useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import Spinner from '../components/Spinner'; // Importar Spinner
+import Spinner from '../components/Spinner';
+import { fetchWithCsrf } from '../api/api'; // Importar
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
@@ -12,7 +13,7 @@ const ResetPasswordPage = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false); // Estado de carga
+  const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -25,12 +26,12 @@ const ResetPasswordPage = () => {
       return;
     }
 
-    setLoading(true); // Activar spinner
+    setLoading(true);
     setMessage('');
     setError('');
 
     try {
-      const response = await fetch(`${API_URL}/api/auth/reset-password/${token}`, {
+      const response = await fetchWithCsrf(`${API_URL}/api/auth/reset-password/${token}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ password }),
@@ -47,7 +48,7 @@ const ResetPasswordPage = () => {
     } catch (err) {
       setError(err.message);
     } finally {
-      setLoading(false); // Desactivar spinner
+      setLoading(false);
     }
   };
 
@@ -83,10 +84,10 @@ const ResetPasswordPage = () => {
 
             <button
               type="submit"
-              disabled={loading} // Deshabilitar botón mientras carga
+              disabled={loading}
               className="w-full px-8 py-3 bg-[#0F3460] text-white font-semibold rounded-lg hover:bg-[#1a4a8a] transition-colors disabled:bg-gray-400"
             >
-              {loading ? <Spinner /> : 'Actualizar Contraseña'} {/* Mostrar Spinner si está cargando */}
+              {loading ? <Spinner /> : 'Actualizar Contraseña'}
             </button>
           </form>
         </div>

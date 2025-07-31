@@ -4,17 +4,17 @@ import { useAuthStore } from '../stores/useAuthStore';
 import { useNotificationStore } from '../stores/useNotificationStore';
 import Spinner from '../components/Spinner';
 import Icon from '../components/Icon';
+import { fetchWithCsrf } from '../api/api'; // Importar
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
-// Componente para la información del perfil
 const ProfileInformation = ({ user, token }) => {
     const [formData, setFormData] = useState({
         firstName: user.firstName || '',
         lastName: user.lastName || '',
         phone: user.phone || ''
     });
-    const [loading, setLoading] = useState(false); // Estado de carga
+    const [loading, setLoading] = useState(false);
     const showNotification = useNotificationStore(state => state.showNotification);
     const login = useAuthStore(state => state.login);
 
@@ -24,9 +24,9 @@ const ProfileInformation = ({ user, token }) => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        setLoading(true); // Activar spinner
+        setLoading(true);
         try {
-            const response = await fetch(`${API_URL}/api/user/profile`, {
+            const response = await fetchWithCsrf(`${API_URL}/api/user/profile`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
@@ -37,8 +37,7 @@ const ProfileInformation = ({ user, token }) => {
             const data = await response.json();
             if (!response.ok) throw new Error(data.message || 'Error al actualizar el perfil.');
             
-            // Refrescar el token en el store para que los datos se actualicen en toda la app
-            const newTokenResponse = await fetch(`${API_URL}/api/auth/refresh-token`, { // Asumiendo que tienes este endpoint
+            const newTokenResponse = await fetchWithCsrf(`${API_URL}/api/auth/refresh-token`, {
                  method: 'POST',
                  headers: { 'Authorization': `Bearer ${token}` }
             });
@@ -49,7 +48,7 @@ const ProfileInformation = ({ user, token }) => {
         } catch (err) {
             showNotification(err.message, 'error');
         } finally {
-            setLoading(false); // Desactivar spinner
+            setLoading(false);
         }
     };
 
@@ -72,10 +71,10 @@ const ProfileInformation = ({ user, token }) => {
                 <div className="text-right">
                     <button 
                         type="submit" 
-                        disabled={loading} // Deshabilitar botón mientras carga
+                        disabled={loading}
                         className="px-6 py-2 bg-[#0F3460] text-white font-semibold rounded-lg hover:bg-[#1a4a8a] disabled:bg-gray-400"
                     >
-                        {loading ? <Spinner /> : 'Guardar Cambios'} {/* Mostrar Spinner si está cargando */}
+                        {loading ? <Spinner /> : 'Guardar Cambios'}
                     </button>
                 </div>
             </form>
@@ -99,7 +98,6 @@ const ProfilePage = () => {
           <ProfileInformation user={user} token={token} />
         </div>
         <div className="md:col-span-2">
-          {/* Aquí iría el componente AddressManager */}
           <div className="bg-white p-6 rounded-lg shadow-md">
             <h2 className="text-xl font-bold text-gray-800 mb-4">Mis Direcciones</h2>
             <p className="text-gray-600">Próximamente podrás gestionar tus direcciones de envío aquí.</p>

@@ -1,7 +1,8 @@
 // src/pages/ForgotPasswordPage.jsx
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import Spinner from '../components/Spinner'; // Importar Spinner
+import Spinner from '../components/Spinner';
+import { fetchWithCsrf } from '../api/api'; // Importar
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
@@ -9,16 +10,16 @@ const ForgotPasswordPage = () => {
   const [email, setEmail] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false); // Estado de carga
+  const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true); // Activar spinner
+    setLoading(true);
     setMessage('');
     setError('');
 
     try {
-      const response = await fetch(`${API_URL}/api/auth/forgot-password`, {
+      const response = await fetchWithCsrf(`${API_URL}/api/auth/forgot-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),
@@ -33,7 +34,7 @@ const ForgotPasswordPage = () => {
     } catch (err) {
       setError(err.message);
     } finally {
-      setLoading(false); // Desactivar spinner
+      setLoading(false);
     }
   };
 
@@ -61,10 +62,10 @@ const ForgotPasswordPage = () => {
 
             <button
               type="submit"
-              disabled={loading} // Deshabilitar botón mientras carga
+              disabled={loading}
               className="w-full px-8 py-3 bg-[#0F3460] text-white font-semibold rounded-lg hover:bg-[#1a4a8a] transition-colors disabled:bg-gray-400"
             >
-              {loading ? <Spinner /> : 'Enviar Enlace'} {/* Mostrar Spinner si está cargando */}
+              {loading ? <Spinner /> : 'Enviar Enlace'}
             </button>
           </form>
           <div className="mt-6 text-center">
