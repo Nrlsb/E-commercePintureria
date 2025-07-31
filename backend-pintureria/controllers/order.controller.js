@@ -68,14 +68,12 @@ export const confirmTransferPayment = async (req, res, next) => {
 
 export const createPixPayment = async (req, res, next) => {
   const { cart, total, shippingCost, postalCode } = req.body;
-  // --- CAMBIO: Obtenemos el DNI directamente del usuario en la base de datos para asegurar que esté actualizado ---
   const { userId, email, firstName, lastName } = req.user;
 
   const dbClient = await db.connect();
   let orderId;
 
   try {
-    // Obtenemos los datos más recientes del usuario, incluyendo el DNI
     const userResult = await dbClient.query('SELECT dni FROM users WHERE id = $1', [userId]);
     const dni = userResult.rows[0]?.dni;
 
@@ -131,6 +129,10 @@ export const createPixPayment = async (req, res, next) => {
       date_of_expiration: expirationDate,
     };
 
+    // --- INICIO DEL LOG AÑADIDO ---
+    logger.debug('Enviando el siguiente payload a Mercado Pago para pago PIX/Transfer:', JSON.stringify(paymentData, null, 2));
+    // --- FIN DEL LOG AÑADIDO ---
+
     const mpPayment = await payment.create({ body: paymentData });
     
     await dbClient.query(
@@ -170,12 +172,18 @@ export const createPixPayment = async (req, res, next) => {
 
 
 export const processPayment = async (req, res, next) => {
+    logger.debug('Iniciando processPayment. Body recibido:', JSON.stringify(req.body, null, 2));
+
     const { token, issuer_id, payment_method_id, transaction_amount, installments, payer, cart, shippingCost, postalCode } = req.body;
     const { userId } = req.user;
     const dbClient = await db.connect();
     let orderId;
 
     try {
+        if (!token) {
+          throw new AppError('Card Token not Found', 400);
+        }
+
         await dbClient.query('BEGIN');
 
         for (const item of cart) {
@@ -209,15 +217,7 @@ export const processPayment = async (req, res, next) => {
             installments,
             payment_method_id,
             issuer_id,
-            payer: {
-                email: payer.email,
-                identification: {
-                    type: payer.identification.type,
-                    number: payer.identification.number
-                },
-                first_name: payer.firstName,
-                last_name: payer.lastName
-            },
+            payer,
             external_reference: orderId.toString(),
             notification_url: `${process.env.BACKEND_URL}/api/payment/notification`,
         };
@@ -252,11 +252,11 @@ export const processPayment = async (req, res, next) => {
         }
 
     } catch (error) {
-        await dbClient.query('ROLLBACK');
+        if (dbClient) await dbClient.query('ROLLBACK');
         logger.error(`Error procesando el pago para la orden #${orderId}:`, error);
         next(error);
     } finally {
-        dbClient.release();
+        if (dbClient) dbClient.release();
     }
 };
 
@@ -426,11 +426,11 @@ export const cancelOrder = async (req, res, next) => {
         logger.info(`Orden #${orderId} cancelada y reembolso (si aplica) procesado exitosamente.`);
         res.status(200).json({ message: 'Ordenada cancelada y reembolso procesado con éxito.', order: updatedOrderResult.rows[0] });
     } catch (error) {
-        await dbClient.query('ROLLBACK');
+        if (dbClient) await dbClient.query('ROLLBACK');
         logger.error(`Error general al cancelar la orden #${orderId}:`, error.message);
         logger.error(`Stack del error:`, error.stack);
         next(error);
     } finally {
-        dbClient.release();
+        if (dbClient) dbClient.release();
     }
 };
