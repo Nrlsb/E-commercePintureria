@@ -1,163 +1,127 @@
 // backend-pintureria/server.js
-import express from 'express';
-import cors from 'cors';
-import helmet from 'helmet';
-import passport from 'passport';
-import compression from 'compression';
-import cookieParser from 'cookie-parser';
-import csurf from 'csurf';
-import './config/passport-setup.js';
-import { startCancelPendingOrdersJob } from './services/cronService.js';
-import expressWinston from 'express-winston';
-import logger from './logger.js';
-import config from './config/index.js';
 
-// Importadores de Rutas
-import productRoutes from './routes/product.routes.js';
-import authRoutes from './routes/auth.routes.js';
-import orderRoutes from './routes/order.routes.js';
-import paymentRoutes from './routes/payment.routes.js';
-import shippingRoutes from './routes/shipping.routes.js';
-import reviewRoutes from './routes/review.routes.js';
-import couponRoutes from './routes/coupons.routes.js';
-import uploadRoutes from './routes/upload.routes.js';
-import utilsRoutes from './routes/utils.routes.js';
-import analyticsRoutes from './routes/analytics.routes.js';
-import wishlistRoutes from './routes/wishlist.routes.js';
-import userRoutes from './routes/user.routes.js';
-import errorHandler from './middlewares/errorHandler.js';
-import { handlePaymentNotification } from './controllers/payment.controller.js';
+const express = require('express');
+const cors = require('cors');
+const helmet = require('helmet');
+const cookieParser = require('cookie-parser');
+const csrf = require('csurf');
+const passport = require('passport');
+const session = require('express-session');
+const pgSession = require('connect-pg-simple')(session);
+const pool = require('./db');
+const path = require('path');
 
+const config = require('./config');
+const logger = require('./logger');
+const productRoutes = require('./routes/product.routes');
+const authRoutes = require('./routes/auth.routes');
+const orderRoutes = require('./routes/order.routes');
+const paymentRoutes = require('./routes/payment.routes');
+const reviewRoutes = require('./routes/review.routes');
+const wishlistRoutes = require('./routes/wishlist.routes');
+const couponsRoutes = require('./routes/coupons.routes');
+const userRoutes = require('./routes/user.routes');
+const uploadRoutes = require('./routes/upload.routes');
+const shippingRoutes = require('./routes/shipping.routes');
+const analyticsRoutes = require('./routes/analytics.routes');
+const utilsRoutes = require('./routes/utils.routes');
+const errorHandler = require('./middlewares/errorHandler');
+const rateLimiter = require('./middlewares/rateLimiter');
+require('./config/passport-setup');
+// MODIFICACIÓN: Importamos el controlador directamente para la ruta de notificación
+const { handlePaymentNotification } = require('./controllers/payment.controller');
 
 const app = express();
-const PORT = config.port;
 
+// Middlewares de seguridad básicos
 app.use(helmet());
-app.set('trust proxy', 1);
+app.use(cors({
+  origin: config.clientUrl,
+  credentials: true
+}));
 
-// --- Configuración de CORS ---
-const corsOptions = {
-  origin: (origin, callback) => {
-    const isProduction = config.nodeEnv === 'production';
-    let allowedOrigins = [];
-
-    if (isProduction) {
-      allowedOrigins.push('https://www.nrlsb.com'); 
-      allowedOrigins.push('https://nrlsb.com');
-      allowedOrigins.push(config.frontendUrl);
-    } else {
-      allowedOrigins.push('http://localhost:5173');
-      allowedOrigins.push(config.frontendUrl);
-      allowedOrigins.push(/^https:\/\/e-commercepintureria-.*\.vercel\.app$/);
-      allowedOrigins.push(config.backendUrl);
-      allowedOrigins.push(/^https:\/\/.*\.onrender\.com$/);
-    }
-
-    const isAllowed = allowedOrigins.some(allowedOrigin => {
-      if (typeof allowedOrigin === 'string') {
-        return allowedOrigin === origin;
-      } else {
-        return allowedOrigin.test(origin);
-      }
-    });
-
-    if (!origin || isAllowed) {
-      callback(null, true);
-    } else {
-      logger.warn(`CORS: Solicitud bloqueada desde el origen: ${origin}`);
-      callback(new Error(`Not allowed by CORS: ${origin}`));
-    }
-  },
-  credentials: true,
-  optionsSuccessStatus: 200
-};
-
-app.use(cors(corsOptions));
-
-app.use(compression()); 
-app.use(passport.initialize());
-
-// *** CORRECCIÓN APLICADA AQUÍ ***
-// 1. Se define la ruta del webhook de Mercado Pago ANTES de la protección CSRF.
-//    Se usa express.raw() para que el cuerpo de la solicitud no sea parseado a JSON,
-//    lo cual es a veces necesario para que Mercado Pago pueda verificar la firma.
+// --- CAMBIO IMPORTANTE ---
+// La ruta para notificaciones de Mercado Pago se define ANTES de que se aplique
+// la protección CSRF. Esto es crucial para que tu servidor pueda recibir
+// las confirmaciones de pago.
+// Usamos express.raw() porque Mercado Pago envía los webhooks en formato raw JSON.
 app.post('/api/payment/notification', express.raw({ type: 'application/json' }), handlePaymentNotification);
+// --- FIN DEL CAMBIO ---
 
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ limit: '10mb', extended: true }));
+
+// Middlewares para procesar el resto de las solicitudes
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
-// 2. Se configura y aplica la protección CSRF para el resto de las rutas.
-const csrfProtection = csurf({
+// Servir archivos estáticos
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// Configuración de Sesión
+app.use(session({
+  store: new pgSession({
+    pool,
+    tableName: 'session'
+  }),
+  secret: config.sessionSecret,
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    secure: config.nodeEnv === 'production',
+    httpOnly: true,
+    maxAge: 24 * 60 * 60 * 1000, // 1 día
+    sameSite: config.nodeEnv === 'production' ? 'lax' : 'none'
+  }
+}));
+
+// Configuración de CSRF
+const csrfProtection = csrf({
   cookie: {
     httpOnly: true,
     secure: config.nodeEnv === 'production',
-    sameSite: 'strict',
+    sameSite: config.nodeEnv === 'production' ? 'lax' : 'none',
   },
+  ignoreMethods: ['GET', 'HEAD', 'OPTIONS'],
 });
 
-app.get('/api/csrf-token', csrfProtection, (req, res) => {
-  res.json({ csrfToken: req.csrfToken() });
-});
-
+// --- CAMBIO IMPORTANTE ---
+// Ahora, la protección CSRF se aplica a todas las rutas que vienen DESPUÉS de este punto.
 app.use(csrfProtection);
+// --- FIN DEL CAMBIO ---
 
-// Logger de Winston para peticiones HTTP
-app.use(expressWinston.logger({
-  winstonInstance: logger,
-  meta: true,
-  msg: "HTTP {{req.method}} {{req.url}}",
-  expressFormat: true,
-  colorize: true,
-  ignoreRoute: function (req, res) { return false; }
-}));
+// Inicialización de Passport
+app.use(passport.initialize());
+app.use(passport.session());
 
-app.use(express.static('public'));
+// Middleware para añadir el token CSRF a las cookies para que el frontend pueda usarlo
+app.use((req, res, next) => {
+  res.cookie('XSRF-TOKEN', req.csrfToken());
+  next();
+});
 
-// --- RUTAS DE LA API (AHORA PROTEGIDAS POR CSRF) ---
+// Rutas de la API (ahora todas protegidas por CSRF, excepto la de notificación)
+app.use('/api', rateLimiter);
 app.use('/api/products', productRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/orders', orderRoutes);
-app.use('/api/shipping', shippingRoutes);
-// La ruta de notificación ya fue definida, pero el resto de rutas de pago sí usan CSRF si las hubiera.
 app.use('/api/payment', paymentRoutes);
 app.use('/api/reviews', reviewRoutes);
-app.use('/api/coupons', couponRoutes);
-app.use('/api/uploads', uploadRoutes);
-app.use('/api/utils', utilsRoutes);
-app.use('/api/analytics', analyticsRoutes);
 app.use('/api/wishlist', wishlistRoutes);
-app.use('/api/user', userRoutes);
+app.use('/api/coupons', couponsRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/upload', uploadRoutes);
+app.use('/api/shipping', shippingRoutes);
+app.use('/api/analytics', analyticsRoutes);
+app.use('/api/utils', utilsRoutes);
 
-startCancelPendingOrdersJob();
-
-app.use(expressWinston.errorLogger({
-  winstonInstance: logger
-}));
-
-process.on('unhandledRejection', (reason, promise) => {
-  logger.error('Unhandled Rejection at Promise:', promise, 'reason:', reason);
-  process.exit(1); 
-});
-
-process.on('uncaughtException', (error) => {
-  logger.error('Uncaught Exception:', error);
-  process.exit(1);
-});
-
-// Middleware para manejar errores específicos de CSRF
-app.use((err, req, res, next) => {
-  if (err.code === 'EBADCSRFTOKEN') {
-    logger.warn(`Token CSRF inválido para la petición: ${req.method} ${req.originalUrl}`);
-    res.status(403).json({ message: 'Token CSRF inválido o ausente. Por favor, recarga la página.' });
-  } else {
-    next(err);
-  }
-});
-
-// Middleware de manejo de errores general
+// Manejador de errores global
 app.use(errorHandler);
 
-app.listen(PORT, () => {
-  logger.info(`Servidor corriendo en el puerto ${PORT}`);
-});
+const PORT = config.port || 3001;
+if (config.nodeEnv !== 'test') {
+  app.listen(PORT, () => {
+    logger.info(`Servidor corriendo en el puerto ${PORT}`);
+  });
+}
+
+module.exports = app;
