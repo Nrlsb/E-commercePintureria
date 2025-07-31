@@ -1,6 +1,6 @@
-// src/pages/OrderPendingPage.jsx
+// Frontend/mi-tienda-pintura/src/pages/OrderPendingPage.jsx
 import React, { useState, useEffect } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../stores/useAuthStore';
 import Icon from '../components/Icon';
 import Spinner from '../components/Spinner';
@@ -10,6 +10,10 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
 const OrderPendingPage = () => {
   const { orderId } = useParams();
+  const location = useLocation();
+  
+  // --- CAMBIO: Obtenemos los datos de pago de la navegación ---
+  const [paymentData, setPaymentData] = useState(location.state?.paymentData || null);
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -25,6 +29,14 @@ const OrderPendingPage = () => {
         if (!response.ok) throw new Error('No se pudo cargar la orden.');
         const data = await response.json();
         setOrder(data);
+
+        // Si no recibimos los datos de pago por la navegación, los buscamos (fallback)
+        if (!paymentData) {
+            // En una implementación real, podrías tener un endpoint para obtener los datos del pago de MP
+            // Por ahora, asumimos que siempre vienen del state de la navegación.
+            console.warn("No se recibieron datos de pago desde la navegación.");
+        }
+
       } catch (err) {
         setError(err.message);
       } finally {
@@ -32,11 +44,11 @@ const OrderPendingPage = () => {
       }
     };
     fetchOrder();
-  }, [orderId, token]);
+  }, [orderId, token, paymentData]);
 
   if (loading) return <div className="flex-grow flex items-center justify-center"><Spinner className="w-12 h-12 text-[#0F3460]" /></div>;
   if (error) return <div className="text-center p-10 text-red-500">Error: {error}</div>;
-  if (!order) return null;
+  if (!order || !paymentData) return <div className="text-center p-10 text-gray-500">Cargando datos del pago...</div>;
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -46,22 +58,29 @@ const OrderPendingPage = () => {
         </div>
         <h1 className="text-3xl font-bold text-gray-800 mb-4">Tu orden está pendiente de pago</h1>
         <p className="text-gray-600 mb-6">
-          Hemos recibido tu pedido <strong className="text-gray-900">#{order.id}</strong> y estamos esperando la confirmación de tu pago.
+          Hemos generado una orden de pago para tu pedido <strong className="text-gray-900">#{order.id}</strong>.
         </p>
       </div>
 
+      {/* --- CAMBIO: Se muestra la información de pago de Mercado Pago --- */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-8">
         <div className="bg-white p-6 rounded-lg shadow-md">
           <h3 className="text-xl font-bold mb-4 border-b pb-2">Instrucciones de Pago</h3>
-          <div className="bg-gray-50 p-4 rounded-md space-y-2 text-gray-800">
-            <p><strong>Banco:</strong> Banco de la Plaza</p>
-            <p><strong>Titular:</strong> Pinturerías Mercurio S.A.</p>
-            <p><strong>CUIT:</strong> 30-12345678-9</p>
-            <p className="flex items-center"><strong>CBU/CVU:</strong> 0001112223334445556667 <CopyButton textToCopy="0001112223334445556667" /></p>
-            <p className="flex items-center"><strong>Alias:</strong> PINTU.MERCURIO.MP <CopyButton textToCopy="PINTU.MERCURIO.MP" /></p>
-            <p className="font-bold text-lg mt-2">Monto a transferir: ${new Intl.NumberFormat('es-AR').format(order.total_amount)}</p>
+          <div className="bg-gray-50 p-4 rounded-md space-y-4 text-gray-800 text-center">
+            <p>Escanea el código QR desde la app de tu banco o Mercado Pago:</p>
+            <img 
+              src={`data:image/png;base64,${paymentData.qr_code_base64}`} 
+              alt="Código QR para pagar" 
+              className="mx-auto my-2"
+            />
+            <p>O copia y pega el siguiente código:</p>
+            <div className="flex items-center justify-center bg-gray-200 p-2 rounded">
+              <span className="font-mono text-sm break-all">{paymentData.qr_code}</span>
+              <CopyButton textToCopy={paymentData.qr_code} />
+            </div>
+            <p className="font-bold text-lg mt-2">Monto a pagar: ${new Intl.NumberFormat('es-AR').format(order.total_amount)}</p>
           </div>
-          <p className="text-sm text-gray-600 mt-4">El stock de tus productos será reservado por 48 horas.</p>
+          <p className="text-sm text-gray-600 mt-4">La confirmación del pago es automática. Una vez acreditado, te enviaremos un email y procesaremos tu pedido.</p>
         </div>
 
         <div className="bg-white p-6 rounded-lg shadow-md">

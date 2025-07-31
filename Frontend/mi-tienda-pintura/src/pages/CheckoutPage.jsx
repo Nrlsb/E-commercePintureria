@@ -1,28 +1,30 @@
-// src/pages/CheckoutPage.jsx
+// Frontend/mi-tienda-pintura/src/pages/CheckoutPage.jsx
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { CardPayment } from '@mercadopago/sdk-react';
+import { Link } from 'react-router-dom';
+import { CardPayment, StatusScreen } from '@mercadopago/sdk-react'; // --- CAMBIO: Se importa StatusScreen ---
 import { useCartStore } from '../stores/useCartStore';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useNotificationStore } from '../stores/useNotificationStore';
-import { usePayment } from '../hooks/usePayment'; // <-- 1. Importamos el nuevo hook
+import { usePayment } from '../hooks/usePayment';
 import Spinner from '../components/Spinner.jsx';
-import CopyButton from '../components/CopyButton.jsx';
 
 const MIN_TRANSACTION_AMOUNT = 100;
 
 const CheckoutPage = () => {
-  const { cart, shippingCost, postalCode } = useCartStore();
+  const { cart, shippingCost, postalCode, total } = useCartStore(state => ({
+    cart: state.cart,
+    shippingCost: state.shippingCost,
+    postalCode: state.postalCode,
+    total: (state.cart.reduce((acc, item) => acc + item.price * item.quantity, 0) - state.discountAmount) + state.shippingCost,
+  }));
   const { user } = useAuthStore();
   const showNotification = useNotificationStore(state => state.showNotification);
   
-  const [paymentMethod, setPaymentMethod] = useState('mercado_pago');
+  // --- CAMBIO: Renombrado para claridad ---
+  const [paymentMethod, setPaymentMethod] = useState('card_payment');
   
-  // 2. Usamos el hook para obtener la lógica y el estado del pago
-  const { isProcessing, error, submitCardPayment, submitBankTransfer, setError } = usePayment();
-
-  const subtotal = cart.reduce((total, item) => total + item.price * item.quantity, 0);
-  const total = subtotal + shippingCost;
+  // Se usa el hook de pago, que ahora tiene la lógica para PIX/Transferencia
+  const { isProcessing, error, submitCardPayment, submitPixPayment, setError } = usePayment();
 
   const initialization = { amount: total, payer: { email: user?.email } };
   const customization = {
@@ -49,18 +51,17 @@ const CheckoutPage = () => {
           <h2 className="text-xl font-bold mb-4">Selecciona tu método de pago</h2>
           
           <div className="flex space-x-4 mb-8 border-b pb-6">
-            <button onClick={() => setPaymentMethod('mercado_pago')} className={`px-6 py-3 rounded-lg font-semibold transition-all ${paymentMethod === 'mercado_pago' ? 'bg-[#0F3460] text-white shadow-lg' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}>
+            <button onClick={() => setPaymentMethod('card_payment')} className={`px-6 py-3 rounded-lg font-semibold transition-all ${paymentMethod === 'card_payment' ? 'bg-[#0F3460] text-white shadow-lg' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}>
               Tarjeta o Saldo en cuenta
             </button>
-            <button onClick={() => setPaymentMethod('bank_transfer')} className={`px-6 py-3 rounded-lg font-semibold transition-all ${paymentMethod === 'bank_transfer' ? 'bg-[#0F3460] text-white shadow-lg' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}>
-              Transferencia Bancaria
+            <button onClick={() => setPaymentMethod('pix_transfer')} className={`px-6 py-3 rounded-lg font-semibold transition-all ${paymentMethod === 'pix_transfer' ? 'bg-[#0F3460] text-white shadow-lg' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}>
+              Transferencia / PIX
             </button>
           </div>
 
-          {paymentMethod === 'mercado_pago' && (
+          {paymentMethod === 'card_payment' && (
             <>
               {total >= MIN_TRANSACTION_AMOUNT ? (
-                // 3. El componente CardPayment ahora llama a la función del hook
                 <CardPayment initialization={initialization} customization={customization} onSubmit={submitCardPayment} onReady={() => console.log('Brick de tarjeta listo')} onError={handleOnError} />
               ) : (
                 <div className="text-center p-6 bg-yellow-50 border border-yellow-200 rounded-lg">
@@ -71,31 +72,23 @@ const CheckoutPage = () => {
             </>
           )}
 
-          {paymentMethod === 'bank_transfer' && (
+          {/* --- CAMBIO: Lógica para el nuevo flujo de PIX/Transferencia --- */}
+          {paymentMethod === 'pix_transfer' && (
             <div>
-              <h3 className="text-xl font-bold mb-4">Datos para la Transferencia</h3>
-              <div className="bg-gray-50 p-4 rounded-md space-y-2 text-gray-800">
-                <p><strong>Banco:</strong> Banco de la Plaza</p>
-                <p><strong>Titular:</strong> Pinturerías Mercurio S.A.</p>
-                <p><strong>CUIT:</strong> 30-12345678-9</p>
-                <p className="flex items-center"><strong>CBU/CVU:</strong> 0001112223334445556667 <CopyButton textToCopy="0001112223334445556667" /></p>
-                <p className="flex items-center"><strong>Alias:</strong> PINTU.MERCURIO.MP <CopyButton textToCopy="PINTU.MERCURIO.MP" /></p>
-                <p className="font-bold text-lg mt-2">Monto a transferir: ${new Intl.NumberFormat('es-AR').format(total)}</p>
-              </div>
-              <p className="text-sm text-gray-600 mt-4">Al confirmar, tu orden quedará pendiente y recibirás un email con estas instrucciones. El stock de tus productos será reservado por 48 horas.</p>
-              {/* 4. El botón de transferencia ahora llama a la función del hook */}
+              <h3 className="text-xl font-bold mb-4">Pagar con Transferencia / PIX</h3>
+              <p className="text-gray-600 mb-6">Al confirmar, te mostraremos los datos para que realices el pago desde tu home banking o billetera virtual. La confirmación es automática.</p>
               <button 
-                onClick={submitBankTransfer} 
-                disabled={isProcessing} // Deshabilitar botón mientras carga
+                onClick={submitPixPayment} 
+                disabled={isProcessing}
                 className="w-full mt-6 bg-[#0F3460] text-white font-bold py-3 rounded-lg hover:bg-[#1a4a8a] transition-colors disabled:bg-gray-400 flex items-center justify-center"
               >
-                {isProcessing ? <Spinner /> : 'Confirmar y Finalizar Compra'} {/* Mostrar Spinner */}
+                {isProcessing ? <Spinner /> : 'Generar datos para el pago'}
               </button>
             </div>
           )}
           
           {error && <p className="text-red-500 text-sm mt-4 text-center">{error}</p>}
-          {isProcessing && paymentMethod === 'mercado_pago' && (
+          {isProcessing && paymentMethod === 'card_payment' && (
             <div className="flex justify-center items-center mt-4"><Spinner className="w-8 h-8 text-[#0F3460] mr-2" /><span>Procesando tu pago...</span></div>
           )}
         </div>
@@ -106,7 +99,7 @@ const CheckoutPage = () => {
             <div className="space-y-4 mb-6 max-h-64 overflow-y-auto">
               {cart.map(item => (
                 <div key={item.id} className="flex justify-between items-center">
-                  <div className="flex items-center"><img src={item.imageUrl} alt={item.name} className="w-16 h-16 rounded-md mr-3" />
+                  <div className="flex items-center"><img src={item.imageUrl?.small} alt={item.name} className="w-16 h-16 rounded-md mr-3" />
                     <div><p className="font-semibold">{item.name}</p><p className="text-sm text-gray-500">Cant: {item.quantity}</p></div>
                   </div>
                   <p className="font-semibold">${new Intl.NumberFormat('es-AR').format(item.price * item.quantity)}</p>

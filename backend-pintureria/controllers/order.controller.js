@@ -3,10 +3,11 @@ import db from '../db.js';
 import mercadopago from 'mercadopago';
 import { sendOrderConfirmationEmail, sendBankTransferInstructionsEmail } from '../emailService.js';
 import logger from '../logger.js';
-import AppError from '../utils/AppError.js'; // Importar AppError
+import AppError from '../utils/AppError.js';
 
+// --- CAMBIO: Se importa el SDK de Payment y se renombra el cliente para mayor claridad ---
 const { MercadoPagoConfig, Payment, PaymentRefund } = mercadopago;
-const client = new MercadoPagoConfig({ accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN });
+const mpClient = new MercadoPagoConfig({ accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN });
 const MIN_TRANSACTION_AMOUNT = 100;
 
 // Helper function to get order details for email, using parameterized query
@@ -40,15 +41,12 @@ export const confirmTransferPayment = async (req, res, next) => {
 
     if (result.rowCount === 0) {
       await dbClient.query('ROLLBACK');
-      // Lanzar un AppError 404 si la orden no se encuentra o ya no estaba pendiente
       throw new AppError('Orden no encontrada o ya no estaba pendiente de pago.', 404);
     }
 
     const order = result.rows[0];
 
-    // Using parameterized query
     const userData = await dbClient.query('SELECT email FROM users WHERE id = $1', [order.user_id]);
-    // Using parameterized query
     const itemsData = await dbClient.query('SELECT p.name, oi.quantity, oi.price FROM order_items oi JOIN products p ON p.id = oi.product_id WHERE oi.order_id = $1', [orderId]);
     
     const orderForEmail = {
@@ -64,75 +62,105 @@ export const confirmTransferPayment = async (req, res, next) => {
     res.status(200).json({ message: 'Pago confirmado y email enviado con éxito.', order });
   } catch (error) {
     await dbClient.query('ROLLBACK');
-    next(error); // Pasa cualquier error al errorHandler
+    next(error);
   } finally {
     dbClient.release();
   }
 };
 
-export const createBankTransferOrder = async (req, res, next) => {
+// --- CAMBIO SIGNIFICATIVO: Se reemplaza `createBankTransferOrder` por `createPixPayment` ---
+// Esta función ahora crea una orden de pago en Mercado Pago en lugar de solo registrarla localmente.
+export const createPixPayment = async (req, res, next) => {
   const { cart, total, shippingCost, postalCode } = req.body;
-  const { userId, email } = req.user;
+  const { userId, email, firstName, lastName } = req.user;
 
   if (!cart || cart.length === 0) {
-    // Lanzar un AppError 400 si el carrito está vacío
     throw new AppError('El carrito está vacío.', 400);
   }
 
   const dbClient = await db.connect();
+  let orderId;
 
   try {
     await dbClient.query('BEGIN');
 
+    // 1. Verificar stock y crear la orden en nuestra DB con estado 'pending'
     for (const item of cart) {
-      // Using parameterized query
       const stockResult = await dbClient.query('SELECT stock FROM products WHERE id = $1 FOR UPDATE', [item.id]);
-      if (stockResult.rows.length === 0) {
-        // Lanzar un AppError 404 si el producto no se encuentra
-        throw new AppError(`Producto "${item.name}" no encontrado.`, 404);
-      }
-      const availableStock = stockResult.rows[0].stock;
-      if (item.quantity > availableStock) {
-        // Lanzar un AppError 400 si el stock es insuficiente
-        throw new AppError(`Stock insuficiente para "${item.name}". Solo quedan ${availableStock} unidades.`, 400);
+      if (stockResult.rows.length === 0 || item.quantity > stockResult.rows[0].stock) {
+        throw new AppError(`Stock insuficiente para "${item.name}".`, 400);
       }
     }
 
-    // Using parameterized query
     const orderResult = await dbClient.query(
       'INSERT INTO orders (user_id, total_amount, status, shipping_cost, postal_code) VALUES ($1, $2, $3, $4, $5) RETURNING id, created_at',
-      [userId, total, 'pending_transfer', shippingCost, postalCode]
+      [userId, total, 'pending', shippingCost, postalCode]
     );
     const order = orderResult.rows[0];
-    const orderId = order.id;
+    orderId = order.id;
 
     for (const item of cart) {
-      // Using parameterized query
       await dbClient.query(
         'INSERT INTO order_items (order_id, product_id, quantity, price) VALUES ($1, $2, $3, $4)',
         [orderId, item.id, item.quantity, item.price]
       );
-      // Using parameterized query
-      await dbClient.query(
-        'UPDATE products SET stock = stock - $1 WHERE id = $2',
-        [item.quantity, item.id]
-      );
     }
 
-    const orderDataForEmail = { id: orderId, created_at: order.created_at, total_amount: total, items: cart };
+    // 2. Crear el pago en Mercado Pago
+    const payment = new Payment(mpClient);
+    const expirationDate = new Date(Date.now() + 30 * 60 * 1000).toISOString(); // Expira en 30 minutos
+
+    const paymentData = {
+      transaction_amount: Number(total),
+      description: `Compra en Pinturerías Mercurio - Orden #${orderId}`,
+      payment_method_id: 'pix', // o 'transfer' dependiendo de la disponibilidad
+      payer: {
+        email: email,
+        first_name: firstName,
+        last_name: lastName,
+      },
+      external_reference: orderId.toString(),
+      notification_url: `${process.env.BACKEND_URL}/api/payment/notification`,
+      date_of_expiration: expirationDate,
+    };
+
+    const mpPayment = await payment.create({ body: paymentData });
+    
+    // 3. Guardar el ID de la transacción de MP en nuestra orden
+    await dbClient.query(
+      'UPDATE orders SET mercadopago_transaction_id = $1 WHERE id = $2',
+      [mpPayment.id, orderId]
+    );
+
+    // 4. Enviar email con las instrucciones de pago de Mercado Pago
+    const orderDataForEmail = { 
+      id: orderId, 
+      created_at: order.created_at, 
+      total_amount: total, 
+      items: cart,
+      paymentData: mpPayment.point_of_interaction.transaction_data // Datos de MP para el email
+    };
     await sendBankTransferInstructionsEmail(email, orderDataForEmail);
 
     await dbClient.query('COMMIT');
-    logger.info(`Orden #${orderId} creada exitosamente por transferencia bancaria para el usuario ID: ${userId}`);
-    res.status(201).json({ status: 'pending_transfer', orderId: orderId });
+    logger.info(`Orden de pago PIX/Transfer #${orderId} (MP ID: ${mpPayment.id}) creada para usuario ID: ${userId}`);
+    
+    // 5. Devolver los datos del pago al frontend
+    res.status(201).json({
+      status: 'pending_payment',
+      orderId: orderId,
+      paymentData: mpPayment.point_of_interaction.transaction_data,
+    });
 
   } catch (error) {
-    await dbClient.query('ROLLBACK');
-    next(error); // Pasa cualquier error al errorHandler
+    if (dbClient) await dbClient.query('ROLLBACK');
+    logger.error(`Error creando pago PIX/Transfer para la orden #${orderId}:`, error);
+    next(error);
   } finally {
-    dbClient.release();
+    if (dbClient) dbClient.release();
   }
 };
+
 
 export const processPayment = async (req, res, next) => {
     const { token, issuer_id, payment_method_id, transaction_amount, installments, payer, cart, shippingCost, postalCode } = req.body;
@@ -143,38 +171,30 @@ export const processPayment = async (req, res, next) => {
     try {
         await dbClient.query('BEGIN');
 
-        // 1. Verificar el stock DENTRO de la transacción
         for (const item of cart) {
-            // Using parameterized query
             const stockResult = await dbClient.query('SELECT stock FROM products WHERE id = $1 FOR UPDATE', [item.id]);
             if (stockResult.rows.length === 0) {
                 throw new AppError(`Producto "${item.name}" no encontrado.`, 404);
             }
             if (item.quantity > stockResult.rows[0].stock) {
-                // Lanzar un AppError 400 si el stock es insuficiente
                 throw new AppError(`Stock insuficiente para "${item.name}".`, 400);
             }
         }
 
-        // 2. Crear la orden con estado 'pending'
-        // Using parameterized query
         const orderResult = await dbClient.query(
             'INSERT INTO orders (user_id, total_amount, status, shipping_cost, postal_code) VALUES ($1, $2, $3, $4, $5) RETURNING id',
             [userId, transaction_amount, 'pending', shippingCost, postalCode]
         );
         orderId = orderResult.rows[0].id;
 
-        // 3. Insertar los items de la orden
         for (const item of cart) {
-            // Using parameterized query
             await dbClient.query(
                 'INSERT INTO order_items (order_id, product_id, quantity, price) VALUES ($1, $2, $3, $4)',
                 [orderId, item.id, item.quantity, item.price]
             );
         }
 
-        // 4. Realizar el intento de pago
-        const payment = new Payment(client);
+        const payment = new Payment(mpClient);
         const payment_data = {
             transaction_amount: Number(transaction_amount),
             token,
@@ -197,16 +217,12 @@ export const processPayment = async (req, res, next) => {
 
         const paymentResult = await payment.create({ body: payment_data });
 
-        // 5. Si el pago es aprobado, actualizar stock y estado de la orden
         if (paymentResult.status === 'approved') {
             for (const item of cart) {
-                // Using parameterized query
                 await dbClient.query('UPDATE products SET stock = stock - $1 WHERE id = $2', [item.quantity, item.id]);
             }
-            // Using parameterized query
             await dbClient.query("UPDATE orders SET status = 'approved', mercadopago_transaction_id = $1 WHERE id = $2", [paymentResult.id, orderId]);
             
-            // RESALTADO: Obtener detalles completos de la orden para el email
             const orderDetailsForEmail = await getOrderDetailsForEmail(orderId, dbClient);
             if (orderDetailsForEmail) {
                 try {
@@ -214,8 +230,6 @@ export const processPayment = async (req, res, next) => {
                     logger.info(`Email de confirmación enviado exitosamente para la orden #${orderId}`);
                 } catch (emailError) {
                     logger.error(`Error al enviar email de confirmación para la orden #${orderId}:`, emailError);
-                    // No revertimos la transacción por un fallo en el envío del email,
-                    // pero lo registramos.
                 }
             } else {
                 logger.warn(`No se encontraron detalles para la orden #${orderId} para enviar el email de confirmación.`);
@@ -225,17 +239,15 @@ export const processPayment = async (req, res, next) => {
             logger.info(`Pago aprobado por Mercado Pago para la orden #${orderId}`);
             res.status(201).json({ status: 'approved', orderId: orderId, paymentId: paymentResult.id });
         } else {
-            // Si el pago es rechazado, revertir todo
             await dbClient.query('ROLLBACK');
             logger.warn(`Pago rechazado por Mercado Pago. Orden #${orderId} revertida. Motivo: ${paymentResult.status_detail}`);
-            // Lanzar un AppError 400 con el detalle del rechazo
             throw new AppError(paymentResult.status_detail || 'El pago no pudo ser procesado.', 400);
         }
 
     } catch (error) {
         await dbClient.query('ROLLBACK');
         logger.error(`Error procesando el pago para la orden #${orderId}:`, error);
-        next(error); // Pasa cualquier error al errorHandler
+        next(error);
     } finally {
         dbClient.release();
     }
@@ -247,7 +259,6 @@ export const getOrderById = async (req, res, next) => {
     try {
         let query;
         const params = [orderId];
-        // Using parameterized query for both admin and regular user cases
         if (role === 'admin') {
           query = `
             SELECT o.*, u.first_name, u.last_name, u.email, u.phone,
@@ -275,19 +286,17 @@ export const getOrderById = async (req, res, next) => {
         }
         const orderResult = await db.query(query, params);
         if (orderResult.rows.length === 0) {
-            // Lanzar un AppError 404 si la orden no se encuentra o no pertenece al usuario
             throw new AppError('Orden no encontrada o no pertenece al usuario.', 404);
         }
         res.json(orderResult.rows[0]);
     } catch (error) {
-        next(error); // Pasa cualquier error al errorHandler
+        next(error);
     }
 };
 
 export const getOrderHistory = async (req, res, next) => {
     const userId = req.user.userId;
     try {
-        // Using parameterized query
         const query = `
           SELECT o.*,
           COALESCE((SELECT json_agg(items) FROM (
@@ -302,7 +311,7 @@ export const getOrderHistory = async (req, res, next) => {
         const ordersResult = await db.query(query, [userId]);
         res.json(ordersResult.rows);
     } catch (error) {
-        next(error); // Pasa cualquier error al errorHandler
+        next(error);
     }
 }
 
@@ -319,7 +328,6 @@ export const getAllOrders = async (req, res, next) => {
     }
 
     if (search) {
-        // Using parameterized query for LIKE clauses
         whereClauses.push(`(u.email ILIKE $${paramIndex} OR o.id::text ILIKE $${paramIndex})`);
         queryParams.push(`%${search}%`);
         paramIndex++;
@@ -328,14 +336,12 @@ export const getAllOrders = async (req, res, next) => {
     const whereString = whereClauses.length > 0 ? ` WHERE ${whereClauses.join(' AND ')}` : '';
 
     try {
-        // Using parameterized query for count
         const countQuery = `SELECT COUNT(*) FROM orders o JOIN users u ON o.user_id = u.id ${whereString}`;
         const totalResult = await db.query(countQuery, queryParams);
         const totalOrders = parseInt(totalResult.rows[0].count, 10);
         const totalPages = Math.ceil(totalOrders / limit);
 
         const offset = (page - 1) * limit;
-        // Using parameterized query for LIMIT and OFFSET
         const ordersQuery = `
             SELECT o.id, o.total_amount, o.status, o.created_at, u.email as user_email 
             FROM orders o
@@ -354,7 +360,7 @@ export const getAllOrders = async (req, res, next) => {
             totalOrders,
         });
     } catch (error) {
-        next(error); // Pasa cualquier error al errorHandler
+        next(error);
     }
 };
 
@@ -369,38 +375,30 @@ export const cancelOrder = async (req, res, next) => {
         const orderResult = await dbClient.query('SELECT * FROM orders WHERE id = $1', [orderId]);
         if (orderResult.rows.length === 0) {
             await dbClient.query('ROLLBACK');
-            // Lanzar un AppError 404 si la orden no se encuentra
             throw new AppError('Orden no encontrada.', 404);
         }
         const order = orderResult.rows[0];
 
         if (order.status === 'cancelled') {
             await dbClient.query('ROLLBACK');
-            // Lanzar un AppError 400 si la orden ya estaba cancelada
             throw new AppError('La orden ya ha sido cancelada.', 400);
         }
 
-        // --- Logging adicional para el reembolso de Mercado Pago ---
         if (order.mercadopago_transaction_id) {
             logger.info(`Intentando reembolso para la orden #${orderId} con transaction_id: ${order.mercadopago_transaction_id}`);
             try {
-                const refundClient = new PaymentRefund(client);
-                // --- AÑADIDO: Log del objeto que se envía a Mercado Pago ---
+                const refundClient = new PaymentRefund(mpClient);
                 logger.info(`Enviando a Mercado Pago para reembolso (payment_id): ${order.mercadopago_transaction_id}`);
                 const refundResponse = await refundClient.create({
                     payment_id: order.mercadopago_transaction_id
                 });
                 logger.info(`Respuesta de reembolso de Mercado Pago para orden #${orderId}:`, refundResponse);
                 if (refundResponse.status !== 'approved') {
-                    // Si el reembolso no es aprobado por MP, podrías querer manejarlo de forma diferente
-                    // Por ahora, lo tratamos como un error que impide la cancelación total.
                     throw new AppError(`Reembolso de Mercado Pago no aprobado: ${refundResponse.status_detail || 'Error desconocido'}`, 400);
                 }
             } catch (mpError) {
                 logger.error(`Error al procesar el reembolso de Mercado Pago para la orden #${orderId}:`, mpError.message);
-                // --- AÑADIDO: Log del objeto de error completo de MP ---
                 logger.error(`Detalles del error de MP:`, mpError); 
-                // Lanzar un AppError 500 si falla el reembolso de Mercado Pago
                 throw new AppError(`Fallo en el reembolso de Mercado Pago: ${mpError.message}`, 500); 
             }
         } else {
@@ -424,7 +422,7 @@ export const cancelOrder = async (req, res, next) => {
         await dbClient.query('ROLLBACK');
         logger.error(`Error general al cancelar la orden #${orderId}:`, error.message);
         logger.error(`Stack del error:`, error.stack);
-        next(error); // Pasa el error al middleware de manejo de errores
+        next(error);
     } finally {
         dbClient.release();
     }

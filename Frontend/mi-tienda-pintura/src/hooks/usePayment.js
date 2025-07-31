@@ -1,10 +1,10 @@
-// src/hooks/usePayment.js
+// Frontend/mi-tienda-pintura/src/hooks/usePayment.js
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCartStore } from '../stores/useCartStore';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useNotificationStore } from '../stores/useNotificationStore';
-import { fetchWithCsrf } from '../api/api'; // Importar fetchWithCsrf
+import { fetchWithCsrf } from '../api/api';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
@@ -52,20 +52,22 @@ export const usePayment = () => {
     }
   };
 
-  const submitBankTransfer = async () => {
+  // --- CAMBIO: Se renombra y se ajusta la lógica para el pago con PIX/Transferencia ---
+  const submitPixPayment = async () => {
     setIsProcessing(true);
     setError('');
     try {
-        const response = await fetchWithCsrf(`${API_URL}/api/orders/bank-transfer`, {
+        const response = await fetchWithCsrf(`${API_URL}/api/orders/pix-payment`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
             body: JSON.stringify({ cart, total, shippingCost, postalCode }),
         });
         const data = await response.json();
-        if (!response.ok) throw new Error(data.message || 'No se pudo crear la orden.');
+        if (!response.ok) throw new Error(data.message || 'No se pudo crear la orden de pago.');
         
-        clearCart();
-        navigate(`/order-pending/${data.orderId}`);
+        // No limpiamos el carrito aquí, lo haremos en la página de éxito.
+        // Navegamos a la página de pendiente y pasamos los datos del pago.
+        navigate(`/order-pending/${data.orderId}`, { state: { paymentData: data.paymentData } });
     } catch (err) {
         setError(err.message);
         showNotification(err.message, 'error');
@@ -74,5 +76,5 @@ export const usePayment = () => {
     }
   };
 
-  return { isProcessing, error, submitCardPayment, submitBankTransfer, setError };
+  return { isProcessing, error, submitCardPayment, submitPixPayment, setError };
 };

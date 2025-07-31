@@ -48,8 +48,7 @@ export const sendOrderConfirmationEmail = async (userEmail, order) => {
   `;
 
   const mailOptions = {
-    // CAMBIO AQUÍ: Usa una dirección de correo electrónico de tu dominio verificado
-    from: `"Pinturerías Mercurio" <no-reply@nrlsb.com>`, // ¡REEMPLAZA "tudominio.com" con tu dominio real!
+    from: `"Pinturerías Mercurio" <no-reply@nrlsb.com>`,
     to: userEmail,
     subject: `Confirmación de tu pedido #${order.id}`,
     html: emailHtml,
@@ -63,23 +62,27 @@ export const sendOrderConfirmationEmail = async (userEmail, order) => {
   }
 };
 
+// --- CAMBIO: El email ahora incluye los datos de pago de Mercado Pago ---
 export const sendBankTransferInstructionsEmail = async (userEmail, order) => {
   const itemsHtml = generateItemsHtml(order.items);
+  const { paymentData } = order; // Datos de pago de MP
+
   const emailHtml = `
     <div style="font-family: Arial, sans-serif; color: #333;">
       <h1 style="color: #0F3460;">Instrucciones para tu Pedido #${order.id}</h1>
-      <p>Hola, hemos recibido tu pedido y está pendiente de pago. Para completarlo, por favor realiza una transferencia con los siguientes datos:</p>
-      <div style="background-color: #f4f4f4; padding: 15px; border-radius: 5px; margin: 20px 0;">
-        <h3 style="margin-top: 0; color: #0F3460;">Datos para la Transferencia</h3>
-        <p><strong>Banco:</strong> Banco de la Plaza</p>
-        <p><strong>Titular:</strong> Pinturerías Mercurio S.A.</p>
-        <p><strong>CUIT:</strong> 30-12345678-9</p>
-        <p><strong>CBU/CVU:</strong> 0001112223334445556667</p>
-        <p><strong>Alias:</strong> PINTU.MERCURIO.MP</p>
+      <p>Hola, hemos recibido tu pedido y está pendiente de pago. Para completarlo, por favor realiza el pago usando los siguientes datos:</p>
+      
+      <div style="background-color: #f4f4f4; padding: 15px; border-radius: 5px; margin: 20px 0; text-align: center;">
+        <h3 style="margin-top: 0; color: #0F3460;">Paga con PIX o Transferencia</h3>
+        <p>Escanea el código QR desde la app de tu banco o Mercado Pago:</p>
+        <img src="data:image/png;base64,${paymentData.qr_code_base64}" alt="Código QR para pagar" style="max-width: 200px; margin: 10px auto; display: block;"/>
+        <p>O copia y pega el siguiente código:</p>
+        <p style="font-family: monospace; background: #e0e0e0; padding: 10px; border-radius: 4px; word-break: break-all;">${paymentData.qr_code}</p>
         <p><strong>Monto a transferir:</strong> <strong style="font-size: 1.2em;">$${formatCurrency(order.total_amount)}</strong></p>
       </div>
-      <p>Una vez realizada la transferencia, tu pedido será procesado. No es necesario que nos envíes el comprobante.</p>
-      <p><strong>Importante:</strong> Tu orden y el stock de los productos se reservarán por 48 horas. Pasado ese tiempo, la orden será cancelada.</p>
+
+      <p><strong>Importante:</strong> Tu orden y el stock de los productos se reservarán hasta la fecha de expiración indicada en tu app de pagos. Pasado ese tiempo, la orden será cancelada.</p>
+      
       <h2 style="color: #0F3460; border-top: 1px solid #ccc; padding-top: 20px; margin-top: 30px;">Resumen del Pedido</h2>
       <table style="width: 100%; border-collapse: collapse;">
         <thead>
@@ -101,8 +104,7 @@ export const sendBankTransferInstructionsEmail = async (userEmail, order) => {
   `;
 
   const mailOptions = {
-    // CAMBIO AQUÍ: Usa una dirección de correo electrónico de tu dominio verificado
-    from: `"Pinturerías Mercurio" <no-reply@nrlsb.com>`, // ¡REEMPLAZA "tudominio.com" con tu dominio real!
+    from: `"Pinturerías Mercurio" <no-reply@nrlsb.com>`,
     to: userEmail,
     subject: `Instrucciones de pago para tu pedido #${order.id}`,
     html: emailHtml,
@@ -116,6 +118,7 @@ export const sendBankTransferInstructionsEmail = async (userEmail, order) => {
   }
 };
 
+
 export const sendPaymentReminderEmail = async (userEmail, order) => {
   const emailHtml = `
     <div style="font-family: Arial, sans-serif; color: #333;">
@@ -128,8 +131,7 @@ export const sendPaymentReminderEmail = async (userEmail, order) => {
     </div>
   `;
   const mailOptions = {
-    // CAMBIO AQUÍ: Usa una dirección de correo electrónico de tu dominio verificado
-    from: `"Pinturerías Mercurio" <no-reply@nrlsb.com>`, // ¡REEMPLAZA "tudominio.com" con tu dominio real!
+    from: `"Pinturerías Mercurio" <no-reply@nrlsb.com>`,
     to: userEmail,
     subject: `Recordatorio de pago para tu pedido #${order.id}`,
     html: emailHtml,
@@ -148,8 +150,7 @@ export const sendOrderCancelledEmail = async (userEmail, order) => {
     </div>
   `;
   const mailOptions = {
-    // CAMBIO AQUÍ: Usa una dirección de correo electrónico de tu dominio verificado
-    from: `"Pinturerías Mercurio" <no-reply@nrlsb.com>`, // ¡REEMPLAZA "tudominio.com" con tu dominio real!
+    from: `"Pinturerías Mercurio" <no-reply@nrlsb.com>`,
     to: userEmail,
     subject: `Tu pedido #${order.id} ha sido cancelado`,
     html: emailHtml,
@@ -174,8 +175,7 @@ export const sendPasswordResetEmail = async (userEmail, token) => {
     </div>
   `;
   const mailOptions = {
-    // CAMBIO AQUÍ: Usa una dirección de correo electrónico de tu dominio verificado
-    from: `"Pinturerías Mercurio" <no-reply@nrlsb.com>`, // ¡REEMPLAZA "tudominio.com" con tu dominio real!
+    from: `"Pinturerías Mercurio" <no-reply@nrlsb.com>`,
     to: userEmail,
     subject: 'Restablecimiento de Contraseña',
     html: emailHtml,
