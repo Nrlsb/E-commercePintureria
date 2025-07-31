@@ -68,14 +68,13 @@ export const confirmTransferPayment = async (req, res, next) => {
 
 export const createPixPayment = async (req, res, next) => {
   const { cart, total, shippingCost, postalCode } = req.body;
-  const { userId, email, firstName, lastName, phone } = req.user; // Obtenemos el teléfono del token
+  const { userId, email, firstName, lastName, phone } = req.user;
 
   const dbClient = await db.connect();
   let orderId;
   let paymentData; 
 
   try {
-    // --- MEJORA ANTIFRAUDE: Obtener datos completos del usuario y su dirección ---
     const userResult = await dbClient.query('SELECT dni FROM users WHERE id = $1', [userId]);
     const dni = userResult.rows[0]?.dni;
 
@@ -122,7 +121,6 @@ export const createPixPayment = async (req, res, next) => {
     const payment = new Payment(mpClient);
     const expirationDate = new Date(Date.now() + 30 * 60 * 1000).toISOString(); 
 
-    // --- MEJORA ANTIFRAUDE: Construir el payload completo ---
     paymentData = {
       transaction_amount: Number(total),
       description: `Compra en Pinturerías Mercurio - Orden #${orderId}`,
@@ -139,7 +137,8 @@ export const createPixPayment = async (req, res, next) => {
             zip_code: address.postal_code,
             street_name: address.address_line1,
             city: address.city,
-            state: address.state,
+            // --- CORRECCIÓN APLICADA AQUÍ ---
+            state_name: address.state,
         }
       },
       additional_info: {
@@ -155,7 +154,6 @@ export const createPixPayment = async (req, res, next) => {
             first_name: firstName,
             last_name: lastName,
             phone: {
-                // Asumimos un formato estándar, ajusta si es necesario
                 area_code: "549",
                 number: phone
             },
@@ -167,6 +165,7 @@ export const createPixPayment = async (req, res, next) => {
         shipments: {
             receiver_address: {
                 zip_code: address.postal_code,
+                // --- CORRECCIÓN APLICADA AQUÍ ---
                 state_name: address.state,
                 city_name: address.city,
                 street_name: address.address_line1,
