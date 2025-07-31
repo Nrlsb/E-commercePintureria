@@ -154,9 +154,13 @@ export const createPixPayment = async (req, res, next) => {
 
   } catch (error) {
     if (dbClient) await dbClient.query('ROLLBACK');
+    // --- INICIO DE MEJORA DE LOGGING ---
+    // Si el error tiene una propiedad 'cause', es probable que venga de la API de Mercado Pago.
+    // La logueamos para ver el cuerpo completo de la respuesta de error.
     if (error.cause) {
         logger.error('Error detallado de la API de Mercado Pago:', JSON.stringify(error.cause, null, 2));
     }
+    // --- FIN DE MEJORA DE LOGGING ---
     logger.error(`Error creando pago PIX/Transfer para la orden #${orderId}:`, error);
     next(error);
   } finally {
