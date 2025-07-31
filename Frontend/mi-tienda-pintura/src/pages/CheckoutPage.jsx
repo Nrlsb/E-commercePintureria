@@ -6,12 +6,11 @@ import { useAuthStore } from '../stores/useAuthStore';
 import { useNotificationStore } from '../stores/useNotificationStore';
 import { usePayment } from '../hooks/usePayment';
 import Spinner from '../components/Spinner.jsx';
+import { Link } from 'react-router-dom'; // Importar Link
 
 const MIN_TRANSACTION_AMOUNT = 100;
 const MERCADOPAGO_PUBLIC_KEY = import.meta.env.VITE_MERCADOPAGO_PUBLIC_KEY;
 
-// Inicializamos Mercado Pago aquí para asegurarnos de que esté listo.
-// El `if` previene que se reinicialice en cada re-renderizado.
 if (MERCADOPAGO_PUBLIC_KEY) {
   initMercadoPago(MERCADOPAGO_PUBLIC_KEY, { locale: 'es-AR' });
 }
@@ -30,7 +29,6 @@ const CheckoutPage = () => {
   const [paymentMethod, setPaymentMethod] = useState('card_payment');
   const { isProcessing, error, submitCardPayment, submitPixPayment, setError } = usePayment();
 
-  // Usamos una referencia para el contenedor del brick para evitar problemas de re-renderizado
   const cardPaymentBrickContainerRef = useRef(null);
 
   const subtotal = cart.reduce((total, item) => total + item.price * item.quantity, 0);
@@ -86,8 +84,6 @@ const CheckoutPage = () => {
                   <p className="text-yellow-700 mt-2">El total de tu compra debe ser de al menos ${MIN_TRANSACTION_AMOUNT} para pagar con este método.</p>
                 </div>
               ) : (
-                // El componente CardPayment se renderizará dentro de este div
-                // La key ahora depende del método de pago para forzar el remontaje solo cuando es necesario
                 <div key={paymentMethod} ref={cardPaymentBrickContainerRef}>
                     <CardPayment 
                         initialization={initialization} 
@@ -104,10 +100,22 @@ const CheckoutPage = () => {
             <div>
               <h3 className="text-xl font-bold mb-4">Pagar con Transferencia / PIX</h3>
               <p className="text-gray-600 mb-6">Al confirmar, te mostraremos los datos para que realices el pago desde tu home banking o billetera virtual. La confirmación es automática.</p>
+              
+              {/* --- INICIO DE LA VALIDACIÓN DE DNI --- */}
+              {!user?.dni ? (
+                <div className="p-4 bg-red-50 border-l-4 border-red-400 text-red-700">
+                  <p className="font-bold">DNI Requerido</p>
+                  <p>Para continuar, por favor agrega tu DNI en tu perfil. Es un requisito de Mercado Pago para este método de pago.</p>
+                  <Link to="/profile" className="font-bold underline hover:text-red-800">Ir a Mi Perfil</Link>
+                </div>
+              ) : null}
+              {/* --- FIN DE LA VALIDACIÓN DE DNI --- */}
+
               <button 
                 onClick={submitPixPayment} 
-                disabled={isProcessing}
-                className="w-full mt-6 bg-[#0F3460] text-white font-bold py-3 rounded-lg hover:bg-[#1a4a8a] transition-colors disabled:bg-gray-400 flex items-center justify-center"
+                // El botón se deshabilita si está procesando O si el DNI no existe
+                disabled={isProcessing || !user?.dni}
+                className="w-full mt-6 bg-[#0F3460] text-white font-bold py-3 rounded-lg hover:bg-[#1a4a8a] transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center"
               >
                 {isProcessing ? <Spinner /> : 'Generar datos para el pago'}
               </button>
