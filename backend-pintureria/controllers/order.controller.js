@@ -233,6 +233,16 @@ export const processPayment = async (req, res, next) => {
           throw new AppError('Card Token not Found', 400);
         }
 
+        // --- MEJORA: Obtener la dirección por defecto del usuario ---
+        const addressResult = await dbClient.query(
+            'SELECT address_line1, city, state, postal_code FROM user_addresses WHERE user_id = $1 AND is_default = true LIMIT 1',
+            [userId]
+        );
+        const address = addressResult.rows[0];
+        if (!address) {
+            throw new AppError('Debe registrar una dirección de envío predeterminada en "Mi Perfil".', 400);
+        }
+
         await dbClient.query('BEGIN');
 
         for (const item of cart) {
@@ -259,6 +269,8 @@ export const processPayment = async (req, res, next) => {
         }
 
         const payment = new Payment(mpClient);
+        
+        // --- MEJORA: Se añade el bloque `additional_info` con todos los detalles ---
         const payment_data = {
             transaction_amount: Number(transaction_amount),
             token,
@@ -269,6 +281,28 @@ export const processPayment = async (req, res, next) => {
             payer,
             external_reference: orderId.toString(),
             notification_url: `${process.env.BACKEND_URL}/api/payment/notification`,
+            additional_info: {
+                items: cart.map(item => ({
+                    id: item.id.toString(),
+                    title: item.name,
+                    description: item.description,
+                    category_id: item.category, // Categoría del item
+                    quantity: item.quantity,
+                    unit_price: item.price // Precio unitario
+                })),
+                payer: {
+                    first_name: payer.first_name, // Nombre del comprador
+                    last_name: payer.last_name, // Apellido del comprador
+                },
+                shipments: {
+                    receiver_address: {
+                        zip_code: address.postal_code,
+                        state_name: address.state,
+                        city_name: address.city,
+                        street_name: address.address_line1,
+                    }
+                }
+            }
         };
 
         const paymentResult = await payment.create({ body: payment_data });
