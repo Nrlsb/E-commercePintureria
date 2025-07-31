@@ -27,6 +27,10 @@ export const usePayment = () => {
     setIsProcessing(true);
     setError('');
     try {
+      // --- INICIO DE LA CORRECCIÓN ---
+      // Simplificamos el cuerpo de la solicitud. El formData que viene del brick de MP
+      // ya contiene el token, installments, issuer_id, payment_method_id y el payer.
+      // Solo necesitamos añadir la información de nuestro carrito y envío.
       const response = await fetchWithCsrf(`${API_URL}/api/orders/process-payment`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
@@ -35,10 +39,10 @@ export const usePayment = () => {
           cart, 
           shippingCost,
           postalCode,
-          transaction_amount: total, 
-          payer: { ...formData.payer, email: user.email, firstName: user.firstName, lastName: user.lastName } 
         }),
       });
+      // --- FIN DE LA CORRECCIÓN ---
+
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || 'El pago fue rechazado.');
       
@@ -52,7 +56,6 @@ export const usePayment = () => {
     }
   };
 
-  // --- CAMBIO: Se renombra y se ajusta la lógica para el pago con PIX/Transferencia ---
   const submitPixPayment = async () => {
     setIsProcessing(true);
     setError('');
@@ -65,8 +68,6 @@ export const usePayment = () => {
         const data = await response.json();
         if (!response.ok) throw new Error(data.message || 'No se pudo crear la orden de pago.');
         
-        // No limpiamos el carrito aquí, lo haremos en la página de éxito.
-        // Navegamos a la página de pendiente y pasamos los datos del pago.
         navigate(`/order-pending/${data.orderId}`, { state: { paymentData: data.paymentData } });
     } catch (err) {
         setError(err.message);
