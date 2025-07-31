@@ -1,4 +1,4 @@
-// backend-pintureria/controllers/order.controller.js
+// backend- pintureria/controllers/order.controller.js
 import db from '../db.js';
 import mercadopago from 'mercadopago';
 import { sendOrderConfirmationEmail, sendBankTransferInstructionsEmail } from '../emailService.js';
