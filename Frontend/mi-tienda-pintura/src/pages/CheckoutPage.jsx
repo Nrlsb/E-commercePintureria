@@ -1,6 +1,6 @@
 // Frontend/mi-tienda-pintura/src/pages/CheckoutPage.jsx
-import React, { useState, useEffect } from 'react';
-import { CardPayment } from '@mercadopago/sdk-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { CardPayment, initMercadoPago } from '@mercadopago/sdk-react';
 import { useCartStore } from '../stores/useCartStore';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useNotificationStore } from '../stores/useNotificationStore';
@@ -8,6 +8,13 @@ import { usePayment } from '../hooks/usePayment';
 import Spinner from '../components/Spinner.jsx';
 
 const MIN_TRANSACTION_AMOUNT = 100;
+const MERCADOPAGO_PUBLIC_KEY = import.meta.env.VITE_MERCADOPAGO_PUBLIC_KEY;
+
+// Inicializamos Mercado Pago aquí para asegurarnos de que esté listo.
+// El `if` previene que se reinicialice en cada re-renderizado.
+if (MERCADOPAGO_PUBLIC_KEY) {
+  initMercadoPago(MERCADOPAGO_PUBLIC_KEY, { locale: 'es-AR' });
+}
 
 const CheckoutPage = () => {
   const { cart, shippingCost, postalCode, discountAmount, appliedCoupon } = useCartStore(state => ({
@@ -21,19 +28,13 @@ const CheckoutPage = () => {
   const showNotification = useNotificationStore(state => state.showNotification);
   
   const [paymentMethod, setPaymentMethod] = useState('card_payment');
-  // Nuevo estado para controlar la inicialización del brick de pago
-  const [isBrickReady, setIsBrickReady] = useState(false);
-  
   const { isProcessing, error, submitCardPayment, submitPixPayment, setError } = usePayment();
+
+  // Usamos una referencia para el contenedor del brick para evitar problemas de re-renderizado
+  const cardPaymentBrickContainerRef = useRef(null);
 
   const subtotal = cart.reduce((total, item) => total + item.price * item.quantity, 0);
   const total = (subtotal - discountAmount) + shippingCost;
-
-  // Efecto para resetear el estado del brick cuando cambiamos de método de pago
-  useEffect(() => {
-    setIsBrickReady(false);
-    setError(''); // Limpiamos errores al cambiar de método
-  }, [paymentMethod, setError]);
 
   const initialization = { amount: total, payer: { email: user?.email } };
   const customization = {
@@ -44,7 +45,9 @@ const CheckoutPage = () => {
   const handleOnError = (err) => {
     console.error('Error en el brick de pago:', err);
     let friendlyMessage = 'Error en el formulario de pago. Por favor, revisa los datos ingresados.';
-    if (err.message?.includes('empty_installments') || err.message?.includes('higher amount')) {
+    if (err.message?.includes('fields_setup_failed')) {
+        friendlyMessage = 'No se pudo cargar el formulario de pago. Por favor, recarga la página.';
+    } else if (err.message?.includes('empty_installments') || err.message?.includes('higher amount')) {
       friendlyMessage = 'No hay cuotas disponibles para este monto o tarjeta. El monto puede ser muy bajo.';
     }
     setError(friendlyMessage);
@@ -83,18 +86,15 @@ const CheckoutPage = () => {
                   <p className="text-yellow-700 mt-2">El total de tu compra debe ser de al menos ${MIN_TRANSACTION_AMOUNT} para pagar con este método.</p>
                 </div>
               ) : (
-                // Envolvemos el brick en un div y le damos una key única.
-                // Esto fuerza a React a desmontar y montar el componente cuando la key cambia,
-                // evitando conflictos con el DOM.
-                <div key={total} id="cardPaymentBrick_container">
-                  {!isBrickReady && <div className="flex justify-center items-center h-40"><Spinner className="w-8 h-8 text-[#0F3460]" /></div>}
-                  <CardPayment 
-                    initialization={initialization} 
-                    customization={customization} 
-                    onSubmit={submitCardPayment} 
-                    onReady={() => setIsBrickReady(true)} 
-                    onError={handleOnError} 
-                  />
+                // El componente CardPayment se renderizará dentro de este div
+                // La key ahora depende del método de pago para forzar el remontaje solo cuando es necesario
+                <div key={paymentMethod} ref={cardPaymentBrickContainerRef}>
+                    <CardPayment 
+                        initialization={initialization} 
+                        customization={customization} 
+                        onSubmit={submitCardPayment} 
+                        onError={handleOnError} 
+                    />
                 </div>
               )}
             </>
@@ -115,8 +115,8 @@ const CheckoutPage = () => {
           )}
           
           {error && <p className="text-red-500 text-sm mt-4 text-center">{error}</p>}
-          {isProcessing && paymentMethod === 'card_payment' && (
-            <div className="flex justify-center items-center mt-4"><Spinner className="w-8 h-8 text-[#0F3460] mr-2" /><span>Procesando tu pago...</span></div>
+          {isProcessing && (
+            <div className="flex justify-center items-center mt-4"><Spinner className="w-8 h-8 text-[#0F3460] mr-2" /><span>Procesando...</span></div>
           )}
         </div>
 
