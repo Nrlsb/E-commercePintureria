@@ -8,6 +8,7 @@ import Spinner from '../components/Spinner';
 import ConfirmationModal from '../components/ConfirmationModal';
 import Icon from '../components/Icon';
 import Pagination from '../components/Pagination';
+import { fetchWithCsrf } from '../api/api'; // Importar fetchWithCsrf
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
@@ -16,7 +17,7 @@ const ICONS = {
     confirm: "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zM9.29 16.29L5.7 12.7c-.39-.39-.39-1.02 0-1.41.39-.39 1.02-.39 1.41 0L10 14.17l6.88-6.88c.39-.39 1.02-.39 1.41 0 .39.39.39 1.02 0 1.41L11.12 16.7c-.38.38-1.02.38-1.41-.01z"
 };
 
-// CORRECCIÓN: Se exporta el componente para que pueda ser usado en otros archivos.
+// Se exporta el componente para que pueda ser usado en otros archivos.
 export const StatusBadge = ({ status }) => {
   const styles = {
     approved: 'bg-green-100 text-green-800',
@@ -128,7 +129,9 @@ const AdminOrdersPage = () => {
     };
 
     try {
-      const response = await fetch(urls[action], {
+      // *** CORRECCIÓN APLICADA AQUÍ ***
+      // Se utiliza fetchWithCsrf para incluir el token de seguridad necesario.
+      const response = await fetchWithCsrf(urls[action], {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` },
       });
