@@ -147,7 +147,9 @@ const AddressManager = ({ token }) => {
                 )}
             </div>
 
-            {showForm && <AddressForm onSave={handleSaveAddress} onCancel={handleCancel} address={editingAddress} />}
+            {/* --- CORRECCIÓN APLICADA AQUÍ --- */}
+            {/* Se asegura de pasar un objeto vacío {} si editingAddress es null */}
+            {showForm && <AddressForm onSave={handleSaveAddress} onCancel={handleCancel} address={editingAddress || {}} />}
             
             {loading && <div className="text-center py-4"><Spinner className="w-8 h-8 text-gray-500 mx-auto" /></div>}
 
