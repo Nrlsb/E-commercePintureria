@@ -1,8 +1,8 @@
-// src/pages/ResetPasswordPage.jsx
+// Frontend/mi-tienda-pintura/src/pages/ResetPasswordPage.jsx
 import React, { useState } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import Spinner from '../components/Spinner';
-import { fetchWithCsrf } from '../api/api'; // Importar
+import { fetchWithCsrf } from '../api/api';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
@@ -31,6 +31,7 @@ const ResetPasswordPage = () => {
     setError('');
 
     try {
+      // El token se obtiene directamente de los parámetros de la URL a través de useParams
       const response = await fetchWithCsrf(`${API_URL}/api/auth/reset-password/${token}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -39,6 +40,7 @@ const ResetPasswordPage = () => {
       const data = await response.json();
 
       if (!response.ok) {
+        // Usamos el mensaje de error que viene de la API
         throw new Error(data.message || 'El token es inválido o ha expirado.');
       }
       

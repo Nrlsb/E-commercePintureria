@@ -10,8 +10,6 @@ import AppError from '../utils/AppError.js';
 
 const JWT_SECRET = config.jwtSecret;
 
-// --- CAMBIO: Se añade 'dni' al payload del token ---
-// Ahora, cada vez que se genera un token, incluirá el DNI del usuario.
 const generateToken = (user) => {
   return jwt.sign(
     {
@@ -21,7 +19,7 @@ const generateToken = (user) => {
       firstName: user.first_name,
       lastName: user.last_name,
       phone: user.phone,
-      dni: user.dni, // <-- CAMPO AÑADIDO
+      dni: user.dni,
     },
     JWT_SECRET,
     { expiresIn: '1h' }
@@ -120,7 +118,7 @@ export const login = async (email, password) => {
       firstName: user.first_name,
       lastName: user.last_name,
       phone: user.phone,
-      dni: user.dni, // <-- CAMPO AÑADIDO
+      dni: user.dni,
     },
   };
 };
@@ -139,6 +137,9 @@ export const forgotPassword = async (email) => {
       'UPDATE users SET reset_password_token = $1, reset_password_expires = $2 WHERE email = $3',
       [hashedToken, passwordResetExpires, email]
     );
+    
+    // Log para depuración
+    logger.debug(`Token generado para ${email}. Token original: ${resetToken}. Hash guardado: ${hashedToken}`);
 
     await sendPasswordResetEmail(email, resetToken);
     return 'Se ha enviado un correo para restablecer la contraseña.';
@@ -150,12 +151,17 @@ export const resetPassword = async (token, password) => {
     }
 
     const hashedToken = crypto.createHash('sha512').update(token).digest('hex');
+    
+    // Log para depuración
+    logger.debug(`Intentando resetear con token: ${token}. Hash calculado: ${hashedToken}`);
+
     const userResult = await db.query(
       'SELECT * FROM users WHERE reset_password_token = $1 AND reset_password_expires > NOW()',
       [hashedToken]
     );
 
     if (userResult.rows.length === 0) {
+        logger.warn(`Intento de reseteo fallido. No se encontró un usuario con el hash de token proporcionado o el token ha expirado.`);
         throw new AppError('El token es inválido o ha expirado.', 400);
     }
 
