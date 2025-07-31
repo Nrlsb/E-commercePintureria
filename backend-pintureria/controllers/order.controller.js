@@ -68,18 +68,28 @@ export const confirmTransferPayment = async (req, res, next) => {
 
 export const createPixPayment = async (req, res, next) => {
   const { cart, total, shippingCost, postalCode } = req.body;
-  const { userId, email, firstName, lastName } = req.user;
+  const { userId, email, firstName, lastName, phone } = req.user; // Obtenemos el teléfono del token
 
   const dbClient = await db.connect();
   let orderId;
-  let paymentData; // Definir paymentData aquí para que esté disponible en el bloque catch
+  let paymentData; 
 
   try {
+    // --- MEJORA ANTIFRAUDE: Obtener datos completos del usuario y su dirección ---
     const userResult = await dbClient.query('SELECT dni FROM users WHERE id = $1', [userId]);
     const dni = userResult.rows[0]?.dni;
 
+    const addressResult = await dbClient.query(
+        'SELECT address_line1, city, state, postal_code FROM user_addresses WHERE user_id = $1 AND is_default = true LIMIT 1',
+        [userId]
+    );
+    const address = addressResult.rows[0];
+    
     if (!dni) {
       return next(new AppError('Debe registrar su DNI en "Mi Perfil" para poder realizar pagos.', 400));
+    }
+    if (!address) {
+        return next(new AppError('Debe registrar una dirección de envío predeterminada en "Mi Perfil".', 400));
     }
     
     if (!cart || cart.length === 0) {
@@ -112,7 +122,7 @@ export const createPixPayment = async (req, res, next) => {
     const payment = new Payment(mpClient);
     const expirationDate = new Date(Date.now() + 30 * 60 * 1000).toISOString(); 
 
-    // Asignar el payload a la variable paymentData
+    // --- MEJORA ANTIFRAUDE: Construir el payload completo ---
     paymentData = {
       transaction_amount: Number(total),
       description: `Compra en Pinturerías Mercurio - Orden #${orderId}`,
@@ -124,6 +134,43 @@ export const createPixPayment = async (req, res, next) => {
         identification: {
           type: 'DNI',
           number: dni
+        },
+        address: {
+            zip_code: address.postal_code,
+            street_name: address.address_line1,
+            city: address.city,
+            state: address.state,
+        }
+      },
+      additional_info: {
+        items: cart.map(item => ({
+            id: item.id.toString(),
+            title: item.name,
+            description: item.description,
+            category_id: item.category,
+            quantity: item.quantity,
+            unit_price: item.price
+        })),
+        payer: {
+            first_name: firstName,
+            last_name: lastName,
+            phone: {
+                // Asumimos un formato estándar, ajusta si es necesario
+                area_code: "549",
+                number: phone
+            },
+            address: {
+                zip_code: address.postal_code,
+                street_name: address.address_line1,
+            }
+        },
+        shipments: {
+            receiver_address: {
+                zip_code: address.postal_code,
+                state_name: address.state,
+                city_name: address.city,
+                street_name: address.address_line1,
+            }
         }
       },
       external_reference: orderId.toString(),
@@ -160,24 +207,17 @@ export const createPixPayment = async (req, res, next) => {
 
   } catch (error) {
     if (dbClient) await dbClient.query('ROLLBACK');
-    
-    // --- MEJORA DE DEBUGGING ---
-    // Logueamos el error y también lo devolvemos en la respuesta junto con el payload enviado.
     const errorMessage = `Error completo creando pago PIX/Transfer para la orden #${orderId}:`;
     logger.error(errorMessage, error);
-
-    // Creamos un nuevo AppError que incluye el payload que se intentó enviar
     const detailedError = new AppError(
       error.message || 'Error al procesar el pago.',
       error.statusCode || 500,
       {
-        originalError: error.cause, // Incluimos la causa original del error si existe
-        payloadSent: paymentData // Adjuntamos el payload para depuración
+        originalError: error.cause,
+        payloadSent: paymentData
       }
     );
     next(detailedError);
-    // --- FIN DE MEJORA ---
-
   } finally {
     if (dbClient) dbClient.release();
   }
