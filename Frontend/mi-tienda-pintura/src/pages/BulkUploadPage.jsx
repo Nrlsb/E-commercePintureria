@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useNotificationStore } from '../stores/useNotificationStore';
 import Spinner from '../components/Spinner';
-import { fetchWithCsrf } from '../api/api'; // Importar
+import { fetchWithCsrf } from '../api/api'; //  Importar
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
