@@ -9,7 +9,6 @@ import AppError from '../utils/AppError.js';
 export const getProfile = async (req, res, next) => {
   const { userId } = req.user;
   try {
-    // --- CAMBIO: Se añade 'dni' a la consulta ---
     const result = await db.query(
       'SELECT id, email, first_name, last_name, phone, dni FROM users WHERE id = $1',
       [userId]
@@ -29,14 +28,15 @@ export const getProfile = async (req, res, next) => {
  */
 export const updateProfile = async (req, res, next) => {
   const { userId } = req.user;
-  // --- CAMBIO: Se añade 'dni' a los datos a actualizar ---
   const { firstName, lastName, phone, dni } = req.body;
 
   try {
-    // --- CAMBIO: Se actualiza también el campo 'dni' en la base de datos ---
+    // Aseguramos que el DNI sea null si está vacío, para consistencia en la base de datos.
+    const dniToStore = dni || null;
+
     const result = await db.query(
       'UPDATE users SET first_name = $1, last_name = $2, phone = $3, dni = $4 WHERE id = $5 RETURNING id, email, first_name, last_name, phone, dni',
-      [firstName, lastName, phone, dni, userId]
+      [firstName, lastName, phone, dniToStore, userId]
     );
     if (result.rows.length === 0) {
       throw new AppError('Usuario no encontrado.', 404);

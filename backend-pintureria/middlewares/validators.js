@@ -26,16 +26,22 @@ export const loginRules = () => [
   body('password').notEmpty().withMessage('La contraseña es requerida.'),
 ];
 
-// --- CAMBIO: Se añade la validación para el campo 'dni' ---
+// --- CORRECCIÓN EN LAS REGLAS DE VALIDACIÓN DEL DNI ---
 export const updateProfileRules = () => [
   body('firstName').optional({ checkFalsy: true }).trim().escape(),
   body('lastName').optional({ checkFalsy: true }).trim().escape(),
   body('phone').optional({ checkFalsy: true }).isMobilePhone('any').withMessage('El número de teléfono no es válido.').trim().escape(),
   body('dni')
     .optional({ checkFalsy: true })
-    .isNumeric().withMessage('El DNI debe contener solo números.')
-    .isLength({ min: 7, max: 8 }).withMessage('El DNI debe tener entre 7 y 8 dígitos.')
-    .trim().escape(),
+    // 1. Usar `isString` para asegurar que es un string.
+    .isString()
+    // 2. Usar `trim` para eliminar espacios al principio y al final.
+    .trim()
+    // 3. Verificar que, después del trim, solo contenga números.
+    .matches(/^[0-9]+$/).withMessage('El DNI debe contener solo números.')
+    // 4. Verificar la longitud.
+    .isLength({ min: 7, max: 8 }).withMessage('El DNI debe tener entre 7 y 8 dígitos.'),
+    // 5. No usar `.escape()` en este campo.
 ];
 
 export const addressRules = () => [
