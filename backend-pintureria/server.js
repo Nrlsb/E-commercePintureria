@@ -4,8 +4,8 @@ import cors from 'cors';
 import helmet from 'helmet';
 import passport from 'passport';
 import compression from 'compression';
-import cookieParser from 'cookie-parser'; // 1. Importar cookie-parser
-import csurf from 'csurf'; // 2. Importar csurf
+import cookieParser from 'cookie-parser';
+import csurf from 'csurf';
 import './config/passport-setup.js';
 import { startCancelPendingOrdersJob } from './services/cronService.js';
 import expressWinston from 'express-winston';
@@ -68,7 +68,7 @@ const corsOptions = {
       callback(new Error(`Not allowed by CORS: ${origin}`));
     }
   },
-  credentials: true, // Habilitar credenciales para que las cookies se envíen
+  credentials: true,
   optionsSuccessStatus: 200
 };
 
@@ -76,31 +76,33 @@ app.use(cors(corsOptions));
 
 app.use(compression()); 
 app.use(passport.initialize());
+
+// *** CORRECCIÓN APLICADA AQUÍ ***
+// 1. Se define la ruta del webhook de Mercado Pago ANTES de la protección CSRF.
+//    Se usa express.raw() para que el cuerpo de la solicitud no sea parseado a JSON,
+//    lo cual es a veces necesario para que Mercado Pago pueda verificar la firma.
 app.post('/api/payment/notification', express.raw({ type: 'application/json' }), handlePaymentNotification);
+
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
-
-// 3. Usar cookie-parser ANTES de csurf
 app.use(cookieParser());
 
-// 4. Configurar csurf
+// 2. Se configura y aplica la protección CSRF para el resto de las rutas.
 const csrfProtection = csurf({
   cookie: {
     httpOnly: true,
-    secure: config.nodeEnv === 'production', // Usar cookies seguras en producción
-    sameSite: 'strict', // 'strict' es más seguro, pero puede requerir 'lax' si tienes redirecciones entre dominios
+    secure: config.nodeEnv === 'production',
+    sameSite: 'strict',
   },
 });
 
-// 5. Crear una ruta para que el frontend obtenga el token CSRF
 app.get('/api/csrf-token', csrfProtection, (req, res) => {
-  // El middleware csurf añade el método req.csrfToken()
   res.json({ csrfToken: req.csrfToken() });
 });
 
-// 6. Aplicar la protección CSRF a todas las rutas que vienen después
 app.use(csrfProtection);
 
+// Logger de Winston para peticiones HTTP
 app.use(expressWinston.logger({
   winstonInstance: logger,
   meta: true,
@@ -112,11 +114,12 @@ app.use(expressWinston.logger({
 
 app.use(express.static('public'));
 
-// --- RUTAS DE LA API (AHORA PROTEGIDAS) ---
+// --- RUTAS DE LA API (AHORA PROTEGIDAS POR CSRF) ---
 app.use('/api/products', productRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/shipping', shippingRoutes);
+// La ruta de notificación ya fue definida, pero el resto de rutas de pago sí usan CSRF si las hubiera.
 app.use('/api/payment', paymentRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/coupons', couponRoutes);
@@ -142,7 +145,7 @@ process.on('uncaughtException', (error) => {
   process.exit(1);
 });
 
-// 7. Middleware para manejar errores específicos de CSRF
+// Middleware para manejar errores específicos de CSRF
 app.use((err, req, res, next) => {
   if (err.code === 'EBADCSRFTOKEN') {
     logger.warn(`Token CSRF inválido para la petición: ${req.method} ${req.originalUrl}`);
@@ -152,7 +155,7 @@ app.use((err, req, res, next) => {
   }
 });
 
-// 8. Middleware de manejo de errores general
+// Middleware de manejo de errores general
 app.use(errorHandler);
 
 app.listen(PORT, () => {
