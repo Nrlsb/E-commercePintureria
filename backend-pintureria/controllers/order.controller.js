@@ -119,7 +119,7 @@ export const createPixPayment = async (req, res, next) => {
         // Aquí usamos un valor de ejemplo para la demostración.
         identification: {
           type: 'DNI',
-          number: '12345678' // ¡DATO DE PRUEBA! Reemplazar con el DNI real del usuario.
+          number: '40314406' // ¡DATO DE PRUEBA! Reemplazar con el DNI real del usuario.
         }
       },
       external_reference: orderId.toString(),
