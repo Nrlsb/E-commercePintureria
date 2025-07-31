@@ -128,10 +128,8 @@ export const createPixPayment = async (req, res, next) => {
       notification_url: `${process.env.BACKEND_URL}/api/payment/notification`,
       date_of_expiration: expirationDate,
     };
-
-    // --- INICIO DEL LOG AÑADIDO ---
+    
     logger.debug('Enviando el siguiente payload a Mercado Pago para pago PIX/Transfer:', JSON.stringify(paymentData, null, 2));
-    // --- FIN DEL LOG AÑADIDO ---
 
     const mpPayment = await payment.create({ body: paymentData });
     
@@ -160,10 +158,10 @@ export const createPixPayment = async (req, res, next) => {
 
   } catch (error) {
     if (dbClient) await dbClient.query('ROLLBACK');
-    if (error.cause) {
-        logger.error('Error detallado de la API de Mercado Pago:', JSON.stringify(error.cause, null, 2));
-    }
-    logger.error(`Error creando pago PIX/Transfer para la orden #${orderId}:`, error);
+    // --- INICIO DE MEJORA DE LOGGING ---
+    // Logueamos el objeto de error completo para ver todas sus propiedades.
+    logger.error(`Error completo creando pago PIX/Transfer para la orden #${orderId}:`, error);
+    // --- FIN DE MEJORA DE LOGGING ---
     next(error);
   } finally {
     if (dbClient) dbClient.release();
@@ -253,7 +251,9 @@ export const processPayment = async (req, res, next) => {
 
     } catch (error) {
         if (dbClient) await dbClient.query('ROLLBACK');
-        logger.error(`Error procesando el pago para la orden #${orderId}:`, error);
+        // --- INICIO DE MEJORA DE LOGGING ---
+        logger.error(`Error completo procesando el pago para la orden #${orderId}:`, error);
+        // --- FIN DE MEJORA DE LOGGING ---
         next(error);
     } finally {
         if (dbClient) dbClient.release();
