@@ -1,7 +1,7 @@
 // backend-pintureria/controllers/user.controller.js
 import db from '../db.js';
 import logger from '../logger.js';
-import AppError from '../utils/AppError.js'; // Importar AppError
+import AppError from '../utils/AppError.js';
 
 /**
  * Obtiene el perfil del usuario actualmente autenticado.
@@ -9,19 +9,18 @@ import AppError from '../utils/AppError.js'; // Importar AppError
 export const getProfile = async (req, res, next) => {
   const { userId } = req.user;
   try {
-    // Using parameterized query to prevent SQL Injection
+    // --- CAMBIO: Se añade 'dni' a la consulta ---
     const result = await db.query(
-      'SELECT id, email, first_name, last_name, phone FROM users WHERE id = $1',
+      'SELECT id, email, first_name, last_name, phone, dni FROM users WHERE id = $1',
       [userId]
     );
     if (result.rows.length === 0) {
-      // Lanzar un AppError 404 si el usuario no se encuentra
       throw new AppError('Usuario no encontrado.', 404);
     }
     res.json(result.rows[0]);
   } catch (error) {
     logger.error(`Error fetching profile for user ${userId}:`, error);
-    next(error); // Pasa cualquier error al errorHandler
+    next(error);
   }
 };
 
@@ -30,23 +29,23 @@ export const getProfile = async (req, res, next) => {
  */
 export const updateProfile = async (req, res, next) => {
   const { userId } = req.user;
-  const { firstName, lastName, phone } = req.body;
+  // --- CAMBIO: Se añade 'dni' a los datos a actualizar ---
+  const { firstName, lastName, phone, dni } = req.body;
 
   try {
-    // Using parameterized query to prevent SQL Injection
+    // --- CAMBIO: Se actualiza también el campo 'dni' en la base de datos ---
     const result = await db.query(
-      'UPDATE users SET first_name = $1, last_name = $2, phone = $3 WHERE id = $4 RETURNING id, email, first_name, last_name, phone',
-      [firstName, lastName, phone, userId]
+      'UPDATE users SET first_name = $1, last_name = $2, phone = $3, dni = $4 WHERE id = $5 RETURNING id, email, first_name, last_name, phone, dni',
+      [firstName, lastName, phone, dni, userId]
     );
     if (result.rows.length === 0) {
-      // Lanzar un AppError 404 si el usuario no se encuentra
       throw new AppError('Usuario no encontrado.', 404);
     }
     logger.info(`Profile updated for user ${userId}`);
     res.json({ message: 'Perfil actualizado con éxito.', user: result.rows[0] });
   } catch (error) {
     logger.error(`Error updating profile for user ${userId}:`, error);
-    next(error); // Pasa cualquier error al errorHandler
+    next(error);
   }
 };
 
@@ -56,12 +55,11 @@ export const updateProfile = async (req, res, next) => {
 export const getAddresses = async (req, res, next) => {
     const { userId } = req.user;
     try {
-        // Using parameterized query to prevent SQL Injection
         const result = await db.query('SELECT * FROM user_addresses WHERE user_id = $1 ORDER BY is_default DESC, created_at DESC', [userId]);
         res.json(result.rows);
     } catch (error) {
         logger.error(`Error fetching addresses for user ${userId}:`, error);
-        next(error); // Pasa cualquier error al errorHandler
+        next(error);
     }
 };
 
@@ -74,12 +72,9 @@ export const addAddress = async (req, res, next) => {
     const client = await db.connect();
     try {
         await client.query('BEGIN');
-        // If the new address is default, unset default for others.
-        // Using parameterized query to prevent SQL Injection
         if (is_default) {
             await client.query('UPDATE user_addresses SET is_default = false WHERE user_id = $1', [userId]);
         }
-        // Using parameterized query to prevent SQL Injection
         const result = await client.query(
             'INSERT INTO user_addresses (user_id, address_line1, address_line2, city, state, postal_code, is_default) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
             [userId, address_line1, address_line2, city, state, postal_code, is_default]
@@ -90,7 +85,7 @@ export const addAddress = async (req, res, next) => {
     } catch (error) {
         await client.query('ROLLBACK');
         logger.error(`Error adding address for user ${userId}:`, error);
-        next(error); // Pasa cualquier error al errorHandler
+        next(error);
     } finally {
         client.release();
     }
@@ -106,19 +101,15 @@ export const updateAddress = async (req, res, next) => {
     const client = await db.connect();
     try {
         await client.query('BEGIN');
-        // If setting as default, unset default for others.
-        // Using parameterized query to prevent SQL Injection
         if (is_default) {
             await client.query('UPDATE user_addresses SET is_default = false WHERE user_id = $1', [userId]);
         }
-        // Using parameterized query to prevent SQL Injection
         const result = await client.query(
             'UPDATE user_addresses SET address_line1 = $1, address_line2 = $2, city = $3, state = $4, postal_code = $5, is_default = $6 WHERE id = $7 AND user_id = $8 RETURNING *',
             [address_line1, address_line2, city, state, postal_code, is_default, addressId, userId]
         );
         if (result.rows.length === 0) {
             await client.query('ROLLBACK');
-            // Lanzar un AppError 404 si la dirección no se encuentra o no pertenece al usuario
             throw new AppError('Dirección no encontrada o no pertenece al usuario.', 404);
         }
         await client.query('COMMIT');
@@ -127,7 +118,7 @@ export const updateAddress = async (req, res, next) => {
     } catch (error) {
         await client.query('ROLLBACK');
         logger.error(`Error updating address ${addressId} for user ${userId}:`, error);
-        next(error); // Pasa cualquier error al errorHandler
+        next(error);
     } finally {
         client.release();
     }
@@ -140,16 +131,14 @@ export const deleteAddress = async (req, res, next) => {
     const { userId } = req.user;
     const { addressId } = req.params;
     try {
-        // Using parameterized query to prevent SQL Injection
         const result = await db.query('DELETE FROM user_addresses WHERE id = $1 AND user_id = $2', [addressId, userId]);
         if (result.rowCount === 0) {
-            // Lanzar un AppError 404 si la dirección no se encuentra o no pertenece al usuario
             throw new AppError('Dirección no encontrada o no pertenece al usuario.', 404);
         }
         logger.info(`Address ${addressId} deleted for user ${userId}`);
         res.status(204).send();
     } catch (error) {
         logger.error(`Error deleting address ${addressId} for user ${userId}:`, error);
-        next(error); // Pasa cualquier error al errorHandler
+        next(error);
     }
 };

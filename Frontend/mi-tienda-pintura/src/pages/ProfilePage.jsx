@@ -3,20 +3,33 @@ import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useNotificationStore } from '../stores/useNotificationStore';
 import Spinner from '../components/Spinner';
-import Icon from '../components/Icon';
-import { fetchWithCsrf } from '../api/api'; // Importar
+import { fetchWithCsrf } from '../api/api';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
 const ProfileInformation = ({ user, token }) => {
+    // --- CAMBIO: Se añade 'dni' al estado inicial del formulario ---
     const [formData, setFormData] = useState({
         firstName: user.firstName || '',
         lastName: user.lastName || '',
-        phone: user.phone || ''
+        phone: user.phone || '',
+        dni: user.dni || '' 
     });
     const [loading, setLoading] = useState(false);
     const showNotification = useNotificationStore(state => state.showNotification);
     const login = useAuthStore(state => state.login);
+
+    // --- CAMBIO: Se actualiza el estado del formulario si el usuario cambia en el store ---
+    useEffect(() => {
+        if (user) {
+            setFormData({
+                firstName: user.firstName || '',
+                lastName: user.lastName || '',
+                phone: user.phone || '',
+                dni: user.dni || ''
+            });
+        }
+    }, [user]);
 
     const handleChange = (e) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -37,12 +50,13 @@ const ProfileInformation = ({ user, token }) => {
             const data = await response.json();
             if (!response.ok) throw new Error(data.message || 'Error al actualizar el perfil.');
             
+            // Refrescar el token para obtener los datos actualizados del usuario en el JWT
             const newTokenResponse = await fetchWithCsrf(`${API_URL}/api/auth/refresh-token`, {
                  method: 'POST',
                  headers: { 'Authorization': `Bearer ${token}` }
             });
             const { token: newToken } = await newTokenResponse.json();
-            login(newToken);
+            login(newToken); // Esto actualiza el 'user' en el store global
 
             showNotification(data.message, 'success');
         } catch (err) {
@@ -67,6 +81,18 @@ const ProfileInformation = ({ user, token }) => {
                 <div>
                     <label className="block text-sm font-medium text-gray-700">Teléfono</label>
                     <input type="text" name="phone" value={formData.phone} onChange={handleChange} className="mt-1 block w-full p-2 border border-gray-300 rounded-md" />
+                </div>
+                {/* --- CAMBIO: Se añade el campo para el DNI --- */}
+                <div>
+                    <label className="block text-sm font-medium text-gray-700">DNI</label>
+                    <input 
+                        type="text" 
+                        name="dni" 
+                        value={formData.dni} 
+                        onChange={handleChange} 
+                        className="mt-1 block w-full p-2 border border-gray-300 rounded-md" 
+                        placeholder="Requerido para pagos"
+                    />
                 </div>
                 <div className="text-right">
                     <button 
