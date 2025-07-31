@@ -1,11 +1,12 @@
 // src/pages/RegisterPage.jsx
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import Spinner from '../components/Spinner'; // Importar Spinner
+import Spinner from '../components/Spinner';
+// --- CAMBIO: Se importa la función fetch con protección CSRF ---
+import { fetchWithCsrf } from '../api/api';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
-// --- COMPONENTE MEJORADO CON 'id' y 'htmlFor' ---
 const InputField = ({ id, label, ...props }) => (
   <div>
     <label htmlFor={id} className="block mb-1 text-sm font-medium text-gray-600">{label}</label>
@@ -26,7 +27,7 @@ const RegisterPage = () => {
   });
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [loading, setLoading] = useState(false); // Estado de carga
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
   const handleChange = (e) => {
@@ -41,7 +42,7 @@ const RegisterPage = () => {
     e.preventDefault();
     setError('');
     setSuccess('');
-    setLoading(true); // Activar spinner
+    setLoading(true);
 
     if (formData.email !== formData.emailConfirm) {
       setLoading(false);
@@ -61,7 +62,8 @@ const RegisterPage = () => {
     }
 
     try {
-      const response = await fetch(`${API_URL}/api/auth/register`, {
+      // --- CAMBIO: Se utiliza fetchWithCsrf en lugar de fetch normal ---
+      const response = await fetchWithCsrf(`${API_URL}/api/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -81,7 +83,7 @@ const RegisterPage = () => {
     } catch (err) {
       setError(err.message);
     } finally {
-      setLoading(false); // Desactivar spinner
+      setLoading(false);
     }
   };
 
@@ -94,7 +96,6 @@ const RegisterPage = () => {
             
             <div className="space-y-4">
               <h2 className="text-lg font-semibold text-gray-700">1. Información personal</h2>
-              {/* --- CORRECCIÓN: Se añade 'id' a cada campo --- */}
               <InputField id="firstName" label="Nombres:" name="firstName" value={formData.firstName} onChange={handleChange} required />
               <InputField id="lastName" label="Apellido:" name="lastName" value={formData.lastName} onChange={handleChange} required />
               <InputField id="phone" label="Teléfono:" name="phone" value={formData.phone} onChange={handleChange} />
@@ -120,10 +121,10 @@ const RegisterPage = () => {
               <div className="flex justify-end pt-4">
                 <button 
                   type="submit" 
-                  disabled={loading} // Deshabilitar botón mientras carga
+                  disabled={loading}
                   className="px-8 py-3 bg-[#0F3460] text-white font-semibold rounded-lg hover:bg-[#1a4a8a] transition-colors disabled:bg-gray-400 disabled:cursor-wait"
                 >
-                  {loading ? <Spinner /> : 'Registrarme'} {/* Mostrar Spinner si está cargando */}
+                  {loading ? <Spinner /> : 'Registrarme'}
                 </button>
               </div>
             </div>

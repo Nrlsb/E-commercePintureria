@@ -6,6 +6,8 @@ import { AnimatePresence, motion } from 'framer-motion';
 
 import { useProductStore } from './stores/useProductStore';
 import { useNotificationStore } from './stores/useNotificationStore';
+// --- CAMBIO: Se importa la función para inicializar la protección CSRF ---
+import { initializeCsrf } from './api/api';
 
 // Componentes principales
 import Header from './components/Header.jsx';
@@ -26,7 +28,6 @@ const ScrollToTop = () => {
 };
 
 // Lazy Loading de Páginas
-// Todos los componentes de página se importan de forma perezosa usando React.lazy()
 const AuthCallbackPage = lazy(() => import('./pages/AuthCallbackPage.jsx'));
 const HomePage = lazy(() => import('./pages/HomePage.jsx'));
 const ProductDetailPage = lazy(() => import('./pages/ProductDetailPage.jsx'));
@@ -51,7 +52,6 @@ const BulkAssociateAIPage = lazy(() => import('./pages/BulkAssociateAIPage.jsx')
 const WishlistPage = lazy(() => import('./pages/WishlistPage.jsx'));
 const ProfilePage = lazy(() => import('./pages/ProfilePage.jsx'));
 const AdminCouponsPage = lazy(() => import('./pages/AdminCouponsPage.jsx'));
-// NUEVO: Importar las páginas de error
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage.jsx'));
 const ServerErrorPage = lazy(() => import('./pages/ServerErrorPage.jsx'));
 
@@ -74,6 +74,8 @@ export default function App() {
   const location = useLocation();
 
   useEffect(() => {
+    // --- CAMBIO: Se llama a la función de inicialización CSRF una sola vez ---
+    initializeCsrf();
     fetchAvailableBrands();
   }, [fetchAvailableBrands]);
 
@@ -90,7 +92,6 @@ export default function App() {
         transition={{ duration: 0.3 }}
         className="flex-grow container mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col"
       >
-        {/* Suspense se encarga de mostrar un fallback (como un spinner) mientras el componente de página se carga */}
         <Suspense fallback={
             <div className="flex-grow flex items-center justify-center">
               <Spinner className="w-12 h-12 text-[#0F3460]" />
@@ -131,9 +132,8 @@ export default function App() {
               <Route path="/admin/product/bulk-associate-ai" element={<BulkAssociateAIPage />} />
             </Route>
 
-            {/* NUEVO: Rutas para las páginas de error */}
             <Route path="/error/500" element={<ServerErrorPage />} />
-            <Route path="*" element={<NotFoundPage />} /> {/* Catch-all para 404 */}
+            <Route path="*" element={<NotFoundPage />} />
           </Routes>
         </Suspense>
       </motion.main>
