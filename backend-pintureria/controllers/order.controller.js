@@ -68,16 +68,15 @@ export const confirmTransferPayment = async (req, res, next) => {
 
 export const createPixPayment = async (req, res, next) => {
   const { cart, total, shippingCost, postalCode } = req.body;
-  // --- CAMBIO: Se obtiene el 'dni' del usuario autenticado ---
   const { userId, email, firstName, lastName, dni } = req.user;
 
   if (!cart || cart.length === 0) {
-    throw new AppError('El carrito está vacío.', 400);
+    return next(new AppError('El carrito está vacío.', 400));
   }
 
-  // --- NUEVA VALIDACIÓN: Se verifica que el usuario tenga un DNI cargado ---
+  // --- MEJORA: Validación explícita del DNI ---
   if (!dni) {
-    throw new AppError('Debe registrar su DNI en "Mi Perfil" para poder realizar pagos con transferencia.', 400);
+    return next(new AppError('Debe registrar su DNI en "Mi Perfil" para poder realizar pagos.', 400));
   }
 
   const dbClient = await db.connect();
@@ -118,10 +117,9 @@ export const createPixPayment = async (req, res, next) => {
         email: email,
         first_name: firstName,
         last_name: lastName,
-        // --- CORRECCIÓN: Se utiliza el DNI del perfil del usuario ---
         identification: {
           type: 'DNI',
-          number: dni // Se usa el DNI del token JWT
+          number: dni
         }
       },
       external_reference: orderId.toString(),
