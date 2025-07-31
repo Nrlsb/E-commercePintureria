@@ -1,18 +1,15 @@
 // Frontend/mi-tienda-pintura/src/pages/CheckoutPage.jsx
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
 import { CardPayment } from '@mercadopago/sdk-react';
 import { useCartStore } from '../stores/useCartStore';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useNotificationStore } from '../stores/useNotificationStore';
 import { usePayment } from '../hooks/usePayment';
 import Spinner from '../components/Spinner.jsx';
-import CopyButton from '../components/CopyButton.jsx';
 
 const MIN_TRANSACTION_AMOUNT = 100;
 
 const CheckoutPage = () => {
-  // --- CORRECCIÓN: Se extraen todos los valores necesarios del store ---
   const { cart, shippingCost, postalCode, discountAmount, appliedCoupon } = useCartStore(state => ({
     cart: state.cart,
     shippingCost: state.shippingCost,
@@ -24,12 +21,19 @@ const CheckoutPage = () => {
   const showNotification = useNotificationStore(state => state.showNotification);
   
   const [paymentMethod, setPaymentMethod] = useState('card_payment');
+  // Nuevo estado para controlar la inicialización del brick de pago
+  const [isBrickReady, setIsBrickReady] = useState(false);
   
   const { isProcessing, error, submitCardPayment, submitPixPayment, setError } = usePayment();
 
-  // --- CORRECCIÓN: Se vuelve a calcular el subtotal y el total localmente para la UI ---
   const subtotal = cart.reduce((total, item) => total + item.price * item.quantity, 0);
   const total = (subtotal - discountAmount) + shippingCost;
+
+  // Efecto para resetear el estado del brick cuando cambiamos de método de pago
+  useEffect(() => {
+    setIsBrickReady(false);
+    setError(''); // Limpiamos errores al cambiar de método
+  }, [paymentMethod, setError]);
 
   const initialization = { amount: total, payer: { email: user?.email } };
   const customization = {
@@ -47,7 +51,6 @@ const CheckoutPage = () => {
     showNotification(friendlyMessage, 'error');
   };
   
-  // --- CORRECCIÓN: Función robusta para obtener la URL de la imagen ---
   const getCartItemImageUrl = (item) => {
     if (item.imageUrl && typeof item.imageUrl === 'object') {
       return item.imageUrl.small || item.imageUrl.medium;
@@ -74,12 +77,24 @@ const CheckoutPage = () => {
 
           {paymentMethod === 'card_payment' && (
             <>
-              {total >= MIN_TRANSACTION_AMOUNT ? (
-                <CardPayment initialization={initialization} customization={customization} onSubmit={submitCardPayment} onReady={() => console.log('Brick de tarjeta listo')} onError={handleOnError} />
-              ) : (
+              {total < MIN_TRANSACTION_AMOUNT ? (
                 <div className="text-center p-6 bg-yellow-50 border border-yellow-200 rounded-lg">
                   <h3 className="text-xl font-semibold text-yellow-800">Monto mínimo no alcanzado</h3>
                   <p className="text-yellow-700 mt-2">El total de tu compra debe ser de al menos ${MIN_TRANSACTION_AMOUNT} para pagar con este método.</p>
+                </div>
+              ) : (
+                // Envolvemos el brick en un div y le damos una key única.
+                // Esto fuerza a React a desmontar y montar el componente cuando la key cambia,
+                // evitando conflictos con el DOM.
+                <div key={total} id="cardPaymentBrick_container">
+                  {!isBrickReady && <div className="flex justify-center items-center h-40"><Spinner className="w-8 h-8 text-[#0F3460]" /></div>}
+                  <CardPayment 
+                    initialization={initialization} 
+                    customization={customization} 
+                    onSubmit={submitCardPayment} 
+                    onReady={() => setIsBrickReady(true)} 
+                    onError={handleOnError} 
+                  />
                 </div>
               )}
             </>
@@ -121,7 +136,6 @@ const CheckoutPage = () => {
             </div>
             <div className="border-t pt-4 space-y-2">
               <div className="flex justify-between text-lg"><span>Subtotal</span><span>${new Intl.NumberFormat('es-AR').format(subtotal)}</span></div>
-              {/* --- CORRECCIÓN: Mostrar el descuento si existe --- */}
               {appliedCoupon && (
                 <div className="flex justify-between text-lg text-green-600">
                   <span>Descuento ({appliedCoupon.code})</span>
