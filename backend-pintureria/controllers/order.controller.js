@@ -5,7 +5,6 @@ import { sendOrderConfirmationEmail, sendBankTransferInstructionsEmail } from '.
 import logger from '../logger.js';
 import AppError from '../utils/AppError.js';
 
-// --- CAMBIO: Se importa el SDK de Payment y se renombra el cliente para mayor claridad ---
 const { MercadoPagoConfig, Payment, PaymentRefund } = mercadopago;
 const mpClient = new MercadoPagoConfig({ accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN });
 const MIN_TRANSACTION_AMOUNT = 100;
@@ -33,7 +32,6 @@ export const confirmTransferPayment = async (req, res, next) => {
   try {
     await dbClient.query('BEGIN');
 
-    // Using parameterized query
     const result = await dbClient.query(
       "UPDATE orders SET status = 'approved' WHERE id = $1 AND status = 'pending_transfer' RETURNING *",
       [orderId]
@@ -68,8 +66,6 @@ export const confirmTransferPayment = async (req, res, next) => {
   }
 };
 
-// --- CAMBIO SIGNIFICATIVO: Se reemplaza `createBankTransferOrder` por `createPixPayment` ---
-// Esta función ahora crea una orden de pago en Mercado Pago en lugar de solo registrarla localmente.
 export const createPixPayment = async (req, res, next) => {
   const { cart, total, shippingCost, postalCode } = req.body;
   const { userId, email, firstName, lastName } = req.user;
@@ -84,7 +80,6 @@ export const createPixPayment = async (req, res, next) => {
   try {
     await dbClient.query('BEGIN');
 
-    // 1. Verificar stock y crear la orden en nuestra DB con estado 'pending'
     for (const item of cart) {
       const stockResult = await dbClient.query('SELECT stock FROM products WHERE id = $1 FOR UPDATE', [item.id]);
       if (stockResult.rows.length === 0 || item.quantity > stockResult.rows[0].stock) {
@@ -106,18 +101,26 @@ export const createPixPayment = async (req, res, next) => {
       );
     }
 
-    // 2. Crear el pago en Mercado Pago
     const payment = new Payment(mpClient);
-    const expirationDate = new Date(Date.now() + 30 * 60 * 1000).toISOString(); // Expira en 30 minutos
+    const expirationDate = new Date(Date.now() + 30 * 60 * 1000).toISOString(); 
 
     const paymentData = {
       transaction_amount: Number(total),
       description: `Compra en Pinturerías Mercurio - Orden #${orderId}`,
-      payment_method_id: 'pix', // o 'transfer' dependiendo de la disponibilidad
+      payment_method_id: 'pix',
       payer: {
         email: email,
         first_name: firstName,
         last_name: lastName,
+        // --- CORRECCIÓN: Se añade la identificación del pagador ---
+        // La API de Mercado Pago a menudo requiere la identificación para pagos PIX/transferencia
+        // para cumplir con regulaciones y prevenir fraudes.
+        // En una aplicación real, este dato debería obtenerse del perfil del usuario.
+        // Aquí usamos un valor de ejemplo para la demostración.
+        identification: {
+          type: 'DNI',
+          number: '12345678' // ¡DATO DE PRUEBA! Reemplazar con el DNI real del usuario.
+        }
       },
       external_reference: orderId.toString(),
       notification_url: `${process.env.BACKEND_URL}/api/payment/notification`,
@@ -126,26 +129,23 @@ export const createPixPayment = async (req, res, next) => {
 
     const mpPayment = await payment.create({ body: paymentData });
     
-    // 3. Guardar el ID de la transacción de MP en nuestra orden
     await dbClient.query(
       'UPDATE orders SET mercadopago_transaction_id = $1 WHERE id = $2',
       [mpPayment.id, orderId]
     );
 
-    // 4. Enviar email con las instrucciones de pago de Mercado Pago
     const orderDataForEmail = { 
       id: orderId, 
       created_at: order.created_at, 
       total_amount: total, 
       items: cart,
-      paymentData: mpPayment.point_of_interaction.transaction_data // Datos de MP para el email
+      paymentData: mpPayment.point_of_interaction.transaction_data
     };
     await sendBankTransferInstructionsEmail(email, orderDataForEmail);
 
     await dbClient.query('COMMIT');
     logger.info(`Orden de pago PIX/Transfer #${orderId} (MP ID: ${mpPayment.id}) creada para usuario ID: ${userId}`);
     
-    // 5. Devolver los datos del pago al frontend
     res.status(201).json({
       status: 'pending_payment',
       orderId: orderId,
@@ -154,6 +154,10 @@ export const createPixPayment = async (req, res, next) => {
 
   } catch (error) {
     if (dbClient) await dbClient.query('ROLLBACK');
+    // --- MEJORA: Loguear el error de la API de Mercado Pago si existe ---
+    if (error.cause) {
+        logger.error('Error detallado de la API de Mercado Pago:', JSON.stringify(error.cause, null, 2));
+    }
     logger.error(`Error creando pago PIX/Transfer para la orden #${orderId}:`, error);
     next(error);
   } finally {
