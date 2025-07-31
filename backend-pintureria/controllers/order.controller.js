@@ -114,6 +114,8 @@ export const createPixPayment = async (req, res, next) => {
     const paymentData = {
       transaction_amount: Number(total),
       description: `Compra en Pinturerías Mercurio - Orden #${orderId}`,
+      // ACLARACIÓN: En Argentina, Mercado Pago usa el ID 'pix' para generar un QR de pago por transferencia.
+      // Aunque "Pix" es una marca brasileña, este es el valor correcto según la documentación de MP para este flujo.
       payment_method_id: 'pix',
       payer: {
         email: email,
@@ -158,10 +160,7 @@ export const createPixPayment = async (req, res, next) => {
 
   } catch (error) {
     if (dbClient) await dbClient.query('ROLLBACK');
-    // --- INICIO DE MEJORA DE LOGGING ---
-    // Logueamos el objeto de error completo para ver todas sus propiedades.
     logger.error(`Error completo creando pago PIX/Transfer para la orden #${orderId}:`, error);
-    // --- FIN DE MEJORA DE LOGGING ---
     next(error);
   } finally {
     if (dbClient) dbClient.release();
@@ -251,9 +250,7 @@ export const processPayment = async (req, res, next) => {
 
     } catch (error) {
         if (dbClient) await dbClient.query('ROLLBACK');
-        // --- INICIO DE MEJORA DE LOGGING ---
         logger.error(`Error completo procesando el pago para la orden #${orderId}:`, error);
-        // --- FIN DE MEJORA DE LOGGING ---
         next(error);
     } finally {
         if (dbClient) dbClient.release();
