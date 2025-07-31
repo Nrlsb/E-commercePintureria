@@ -1,30 +1,35 @@
 // Frontend/mi-tienda-pintura/src/pages/CheckoutPage.jsx
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { CardPayment, StatusScreen } from '@mercadopago/sdk-react'; // --- CAMBIO: Se importa StatusScreen ---
+import { CardPayment } from '@mercadopago/sdk-react';
 import { useCartStore } from '../stores/useCartStore';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useNotificationStore } from '../stores/useNotificationStore';
 import { usePayment } from '../hooks/usePayment';
 import Spinner from '../components/Spinner.jsx';
+import CopyButton from '../components/CopyButton.jsx';
 
 const MIN_TRANSACTION_AMOUNT = 100;
 
 const CheckoutPage = () => {
-  const { cart, shippingCost, postalCode, total } = useCartStore(state => ({
+  // --- CORRECCIÓN: Se extraen todos los valores necesarios del store ---
+  const { cart, shippingCost, postalCode, discountAmount, appliedCoupon } = useCartStore(state => ({
     cart: state.cart,
     shippingCost: state.shippingCost,
     postalCode: state.postalCode,
-    total: (state.cart.reduce((acc, item) => acc + item.price * item.quantity, 0) - state.discountAmount) + state.shippingCost,
+    discountAmount: state.discountAmount,
+    appliedCoupon: state.appliedCoupon,
   }));
   const { user } = useAuthStore();
   const showNotification = useNotificationStore(state => state.showNotification);
   
-  // --- CAMBIO: Renombrado para claridad ---
   const [paymentMethod, setPaymentMethod] = useState('card_payment');
   
-  // Se usa el hook de pago, que ahora tiene la lógica para PIX/Transferencia
   const { isProcessing, error, submitCardPayment, submitPixPayment, setError } = usePayment();
+
+  // --- CORRECCIÓN: Se vuelve a calcular el subtotal y el total localmente para la UI ---
+  const subtotal = cart.reduce((total, item) => total + item.price * item.quantity, 0);
+  const total = (subtotal - discountAmount) + shippingCost;
 
   const initialization = { amount: total, payer: { email: user?.email } };
   const customization = {
@@ -40,6 +45,14 @@ const CheckoutPage = () => {
     }
     setError(friendlyMessage);
     showNotification(friendlyMessage, 'error');
+  };
+  
+  // --- CORRECCIÓN: Función robusta para obtener la URL de la imagen ---
+  const getCartItemImageUrl = (item) => {
+    if (item.imageUrl && typeof item.imageUrl === 'object') {
+      return item.imageUrl.small || item.imageUrl.medium;
+    }
+    return item.imageUrl || `https://placehold.co/100x100/cccccc/ffffff?text=Img`;
   };
 
   return (
@@ -72,7 +85,6 @@ const CheckoutPage = () => {
             </>
           )}
 
-          {/* --- CAMBIO: Lógica para el nuevo flujo de PIX/Transferencia --- */}
           {paymentMethod === 'pix_transfer' && (
             <div>
               <h3 className="text-xl font-bold mb-4">Pagar con Transferencia / PIX</h3>
@@ -99,7 +111,8 @@ const CheckoutPage = () => {
             <div className="space-y-4 mb-6 max-h-64 overflow-y-auto">
               {cart.map(item => (
                 <div key={item.id} className="flex justify-between items-center">
-                  <div className="flex items-center"><img src={item.imageUrl?.small} alt={item.name} className="w-16 h-16 rounded-md mr-3" />
+                  <div className="flex items-center">
+                    <img src={getCartItemImageUrl(item)} alt={item.name} className="w-16 h-16 rounded-md mr-3" />
                     <div><p className="font-semibold">{item.name}</p><p className="text-sm text-gray-500">Cant: {item.quantity}</p></div>
                   </div>
                   <p className="font-semibold">${new Intl.NumberFormat('es-AR').format(item.price * item.quantity)}</p>
@@ -108,6 +121,13 @@ const CheckoutPage = () => {
             </div>
             <div className="border-t pt-4 space-y-2">
               <div className="flex justify-between text-lg"><span>Subtotal</span><span>${new Intl.NumberFormat('es-AR').format(subtotal)}</span></div>
+              {/* --- CORRECCIÓN: Mostrar el descuento si existe --- */}
+              {appliedCoupon && (
+                <div className="flex justify-between text-lg text-green-600">
+                  <span>Descuento ({appliedCoupon.code})</span>
+                  <span>- ${new Intl.NumberFormat('es-AR').format(discountAmount)}</span>
+                </div>
+              )}
               <div className="flex justify-between text-lg"><span>Envío a {postalCode}</span><span>${new Intl.NumberFormat('es-AR').format(shippingCost)}</span></div>
               <div className="flex justify-between font-bold text-2xl"><span>Total</span><span>${new Intl.NumberFormat('es-AR').format(total)}</span></div>
             </div>
