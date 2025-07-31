@@ -233,7 +233,6 @@ export const processPayment = async (req, res, next) => {
           throw new AppError('Card Token not Found', 400);
         }
 
-        // --- MEJORA: Obtener la dirección por defecto del usuario ---
         const addressResult = await dbClient.query(
             'SELECT address_line1, city, state, postal_code FROM user_addresses WHERE user_id = $1 AND is_default = true LIMIT 1',
             [userId]
@@ -270,7 +269,7 @@ export const processPayment = async (req, res, next) => {
 
         const payment = new Payment(mpClient);
         
-        // --- MEJORA: Se añade el bloque `additional_info` con todos los detalles ---
+        // --- MEJORA FINAL: Aseguramos que `first_name` y `last_name` estén en el objeto `payer` principal ---
         const payment_data = {
             transaction_amount: Number(transaction_amount),
             token,
@@ -278,7 +277,11 @@ export const processPayment = async (req, res, next) => {
             installments,
             payment_method_id,
             issuer_id,
-            payer,
+            payer: {
+              ...payer, // Mantenemos toda la información que ya envía el brick
+              first_name: payer.first_name, // Aseguramos explícitamente el nombre
+              last_name: payer.last_name,   // Aseguramos explícitamente el apellido
+            },
             external_reference: orderId.toString(),
             notification_url: `${process.env.BACKEND_URL}/api/payment/notification`,
             additional_info: {
@@ -286,13 +289,13 @@ export const processPayment = async (req, res, next) => {
                     id: item.id.toString(),
                     title: item.name,
                     description: item.description,
-                    category_id: item.category, // Categoría del item
+                    category_id: item.category,
                     quantity: item.quantity,
-                    unit_price: item.price // Precio unitario
+                    unit_price: item.price
                 })),
                 payer: {
-                    first_name: payer.first_name, // Nombre del comprador
-                    last_name: payer.last_name, // Apellido del comprador
+                    first_name: payer.first_name,
+                    last_name: payer.last_name,
                 },
                 shipments: {
                     receiver_address: {
