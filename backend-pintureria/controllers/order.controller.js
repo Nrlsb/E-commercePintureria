@@ -137,8 +137,6 @@ export const createPixPayment = async (req, res, next) => {
             zip_code: address.postal_code,
             street_name: address.address_line1,
             city: address.city,
-            // --- CORRECCIÓN FINAL ---
-            // Se elimina el campo 'state_name' de esta sección específica.
         }
       },
       additional_info: {
