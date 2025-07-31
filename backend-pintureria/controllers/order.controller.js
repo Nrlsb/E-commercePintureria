@@ -1,4 +1,4 @@
-// backend- pintureria/controllers/order.controller.js
+// backend-pintureria/controllers/order.controller.js
 import db from '../db.js';
 import mercadopago from 'mercadopago';
 import { sendOrderConfirmationEmail, sendBankTransferInstructionsEmail } from '../emailService.js';
@@ -137,7 +137,6 @@ export const createPixPayment = async (req, res, next) => {
             zip_code: address.postal_code,
             street_name: address.address_line1,
             city: address.city,
-            // --- CORRECCIÓN APLICADA AQUÍ ---
             state_name: address.state,
         }
       },
@@ -165,7 +164,6 @@ export const createPixPayment = async (req, res, next) => {
         shipments: {
             receiver_address: {
                 zip_code: address.postal_code,
-                // --- CORRECCIÓN APLICADA AQUÍ ---
                 state_name: address.state,
                 city_name: address.city,
                 street_name: address.address_line1,
