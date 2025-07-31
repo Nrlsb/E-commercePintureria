@@ -6,7 +6,8 @@ import { useNotificationStore } from '../stores/useNotificationStore';
 import Spinner from '../components/Spinner';
 import Icon from '../components/Icon';
 import ConfirmationModal from '../components/ConfirmationModal';
-import CouponFormModal from '../components/CouponFormModal'; // Crearemos este componente a continuación
+import CouponFormModal from '../components/CouponFormModal';
+import { fetchWithCsrf } from '../api/api'; // Importar fetchWithCsrf
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
@@ -30,7 +31,7 @@ const AdminCouponsPage = () => {
     const fetchCoupons = useCallback(async () => {
         setLoading(true);
         try {
-            const response = await fetch(`${API_URL}/api/coupons/admin`, {
+            const response = await fetchWithCsrf(`${API_URL}/api/coupons/admin`, {
                 headers: { 'Authorization': `Bearer ${token}` },
             });
             if (!response.ok) throw new Error('No se pudieron cargar los cupones.');
@@ -69,13 +70,13 @@ const AdminCouponsPage = () => {
 
     const handleSave = () => {
         handleCloseFormModal();
-        fetchCoupons(); // Recargar la lista de cupones
+        fetchCoupons();
     };
 
     const handleDeleteConfirm = async () => {
         if (!selectedCoupon) return;
         try {
-            const response = await fetch(`${API_URL}/api/coupons/admin/${selectedCoupon.id}`, {
+            const response = await fetchWithCsrf(`${API_URL}/api/coupons/admin/${selectedCoupon.id}`, {
                 method: 'DELETE',
                 headers: { 'Authorization': `Bearer ${token}` },
             });

@@ -7,6 +7,7 @@ import { useNotificationStore } from '../stores/useNotificationStore';
 import Icon from '../components/Icon';
 import Spinner from '../components/Spinner';
 import ConfirmationModal from '../components/ConfirmationModal';
+import { fetchWithCsrf } from '../api/api'; // Importar
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
@@ -26,7 +27,7 @@ const AdminProductsPage = () => {
   const [deletingId, setDeletingId] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [productToDelete, setProductToDelete] = useState(null);
-  const [isClearingCache, setIsClearingCache] = useState(false); // Estado de carga para limpiar caché
+  const [isClearingCache, setIsClearingCache] = useState(false);
 
   const token = useAuthStore(state => state.token);
   const showNotification = useNotificationStore(state => state.showNotification);
@@ -34,7 +35,7 @@ const AdminProductsPage = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const productsResponse = await fetch(`${API_URL}/api/products?page=1&limit=100`);
+        const productsResponse = await fetchWithCsrf(`${API_URL}/api/products?page=1&limit=100`);
         if (!productsResponse.ok) throw new Error('Error al cargar los productos');
         const productsData = await productsResponse.json();
         setProducts(productsData.products);
@@ -64,7 +65,7 @@ const AdminProductsPage = () => {
     closeDeleteModal();
 
     try {
-      const response = await fetch(`${API_URL}/api/products/${productToDelete.id}`, {
+      const response = await fetchWithCsrf(`${API_URL}/api/products/${productToDelete.id}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` },
       });
@@ -85,9 +86,9 @@ const AdminProductsPage = () => {
     if (!window.confirm('¿Estás seguro de que quieres limpiar toda la caché de productos? Esto puede hacer que el sitio cargue más lento temporalmente.')) {
       return;
     }
-    setIsClearingCache(true); // Activar spinner para limpiar caché
+    setIsClearingCache(true);
     try {
-      const response = await fetch(`${API_URL}/api/utils/clear-cache`, {
+      const response = await fetchWithCsrf(`${API_URL}/api/utils/clear-cache`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` },
       });
@@ -99,7 +100,7 @@ const AdminProductsPage = () => {
     } catch (err) {
       showNotification(err.message, 'error');
     } finally {
-      setIsClearingCache(false); // Desactivar spinner
+      setIsClearingCache(false);
     }
   };
 
@@ -129,7 +130,6 @@ const AdminProductsPage = () => {
         <Link to="/admin" className="text-blue-600 hover:underline">&larr; Volver al Dashboard</Link>
       </div>
       
-      {/* --- CORRECCIÓN: Se añaden los botones de acciones masivas --- */}
       <div className="mb-6 bg-white p-4 rounded-lg shadow-md">
         <h2 className="text-lg font-semibold mb-3">Acciones de Productos</h2>
         <div className="flex flex-wrap gap-2 sm:gap-4">
@@ -150,7 +150,7 @@ const AdminProductsPage = () => {
                 <span>Asociación Masiva con IA</span>
             </Link>
             <button onClick={handleClearCache} disabled={isClearingCache} className="bg-yellow-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-yellow-600 transition-colors flex items-center justify-center space-x-2 disabled:bg-gray-400">
-                {isClearingCache ? <Spinner className="w-5 h-5" /> : <Icon path={ICONS.cache} className="w-5 h-5" />} {/* Mostrar Spinner */}
+                {isClearingCache ? <Spinner className="w-5 h-5" /> : <Icon path={ICONS.cache} className="w-5 h-5" />}
                 <span>Limpiar Caché</span>
             </button>
         </div>

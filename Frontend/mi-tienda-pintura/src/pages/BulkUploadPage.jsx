@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useNotificationStore } from '../stores/useNotificationStore';
 import Spinner from '../components/Spinner';
+import { fetchWithCsrf } from '../api/api'; // Importar
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
@@ -33,7 +34,7 @@ const BulkUploadPage = () => {
     });
 
     try {
-      const response = await fetch(`${API_URL}/api/uploads`, {
+      const response = await fetchWithCsrf(`${API_URL}/api/uploads`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -51,7 +52,6 @@ const BulkUploadPage = () => {
       showNotification(err.message, 'error');
     } finally {
       setLoading(false);
-      // Limpiar el input de archivos
       document.getElementById('file-upload').value = '';
       setFiles([]);
     }

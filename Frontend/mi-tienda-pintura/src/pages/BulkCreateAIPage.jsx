@@ -4,10 +4,11 @@ import { Link } from 'react-router-dom';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useNotificationStore } from '../stores/useNotificationStore';
 import Spinner from '../components/Spinner';
+import { fetchWithCsrf } from '../api/api'; // Importar
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
-// --- NUEVO: Componente de Barra de Progreso ---
+// Componente de Barra de Progreso
 const ProgressBar = ({ progress }) => (
   <div className="w-full bg-gray-200 rounded-full h-2.5 mt-4">
     <div
@@ -21,21 +22,18 @@ const BulkCreateAIPage = () => {
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(false);
   const [uploadResult, setUploadResult] = useState(null);
-
-  // --- NUEVO: Estados para la barra de progreso ---
   const [progress, setProgress] = useState(0);
   const [progressText, setProgressText] = useState('');
 
   const token = useAuthStore(state => state.token);
   const showNotification = useNotificationStore(state => state.showNotification);
 
-  // --- NUEVO: useEffect para simular el progreso ---
   useEffect(() => {
     let interval;
     if (loading && files.length > 0) {
       const totalFiles = files.length;
       let processedFiles = 0;
-      const estimatedTimePerFile = 3000; // Coincide con el delay del backend
+      const estimatedTimePerFile = 3000; 
 
       interval = setInterval(() => {
         processedFiles++;
@@ -76,7 +74,7 @@ const BulkCreateAIPage = () => {
     });
 
     try {
-      const response = await fetch(`${API_URL}/api/uploads/bulk-create-ai`, {
+      const response = await fetchWithCsrf(`${API_URL}/api/uploads/bulk-create-ai`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -129,7 +127,6 @@ const BulkCreateAIPage = () => {
             />
           </div>
 
-          {/* --- NUEVO: Mostrar barra de progreso y texto durante la carga --- */}
           {loading && (
             <div className="my-4">
               <p className="text-center text-purple-700 font-semibold">{progressText}</p>

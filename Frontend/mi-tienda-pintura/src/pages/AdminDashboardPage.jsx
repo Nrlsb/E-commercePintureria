@@ -5,11 +5,11 @@ import { useAuthStore } from '../stores/useAuthStore';
 import { useNotificationStore } from '../stores/useNotificationStore';
 import Icon from '../components/Icon';
 import Spinner from '../components/Spinner';
-import { StatusBadge } from './AdminOrdersPage'; // Reutilizamos el StatusBadge
+import { StatusBadge } from './AdminOrdersPage';
+import { fetchWithCsrf } from '../api/api'; // Importar
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
-// --- Iconos para el Dashboard ---
 const ICONS = {
     revenue: "M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-.96.73-1.65 2.2-1.65 1.22 0 2.2.61 2.2 1.62h2.05c-.06-2.26-1.76-3.87-4.25-3.87-2.35 0-4.25 1.5-4.25 3.75 0 2.75 2.52 3.86 5.02 4.51 2.26.59 2.98 1.2 2.98 2.16 0 1.05-.83 1.78-2.3 1.78-1.42 0-2.3-.66-2.3-1.78h-2.05c.08 2.33 1.81 3.93 4.35 3.93 2.48 0 4.35-1.53 4.35-3.83.01-2.65-2.2-3.8-5.05-4.42z",
     orders: "M13 2.05v3.03c3.39.49 6 3.39 6 6.92 0 .9-.18 1.75-.48 2.54l2.6 1.53c.56-1.24.88-2.62.88-4.07 0-5.18-3.95-9.45-9-9.95zM12 19c-3.87 0-7-3.13-7-7 0-3.53 2.61-6.43 6-6.92V2.05c-5.06.5-9 4.76-9 9.95 0 5.52 4.48 10 10 10 3.31 0 6.24-1.61 8.06-4.09l-2.6-1.53C16.17 17.98 14.21 19 12 19z",
@@ -17,8 +17,6 @@ const ICONS = {
     box: "M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16zM12 12.78l-7-4V10l7 4.22V18l-7-4v-1.54l7 4zM13 18v-4.22l7-4V10l-7 4zM12 2.22L18.09 6 12 9.78 5.91 6 12 2.22z",
     products: "M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zM4 18V6h5v12H4zm7 0V6h9v12h-9z",
 };
-
-// --- Componentes del Dashboard ---
 
 const StatCard = ({ title, value, icon, color, format = (v) => v }) => (
   <div className="bg-white p-6 rounded-lg shadow-md flex items-center space-x-4">
@@ -74,7 +72,7 @@ const AdminDashboardPage = () => {
   useEffect(() => {
     const fetchAnalytics = async () => {
       try {
-        const response = await fetch(`${API_URL}/api/analytics`, {
+        const response = await fetchWithCsrf(`${API_URL}/api/analytics`, {
           headers: { 'Authorization': `Bearer ${token}` },
         });
         if (!response.ok) throw new Error('Error al cargar las analíticas');

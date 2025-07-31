@@ -4,10 +4,11 @@ import { Link } from 'react-router-dom';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useNotificationStore } from '../stores/useNotificationStore';
 import Spinner from '../components/Spinner';
+import { fetchWithCsrf } from '../api/api'; // Importar
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
-// --- NUEVO: Componente de Barra de Progreso ---
+// Componente de Barra de Progreso
 const ProgressBar = ({ progress }) => (
   <div className="w-full bg-gray-200 rounded-full h-2.5 mt-4">
     <div
@@ -22,20 +23,17 @@ const BulkAssociateAIPage = () => {
   const [loading, setLoading] = useState(false);
   const [uploadResult, setUploadResult] = useState(null);
   
-  // --- NUEVO: Estados para la barra de progreso ---
   const [progress, setProgress] = useState(0);
   const [progressText, setProgressText] = useState('');
   
   const token = useAuthStore(state => state.token);
   const showNotification = useNotificationStore(state => state.showNotification);
   
-  // --- NUEVO: useEffect para simular el progreso ---
   useEffect(() => {
     let interval;
     if (loading && files.length > 0) {
       const totalFiles = files.length;
       let processedFiles = 0;
-      // Estimamos 3 segundos por archivo, igual que el delay del backend
       const estimatedTimePerFile = 3000; 
 
       interval = setInterval(() => {
@@ -51,7 +49,6 @@ const BulkAssociateAIPage = () => {
       }, estimatedTimePerFile);
     }
     
-    // Función de limpieza para detener el intervalo si el componente se desmonta
     return () => {
       if (interval) {
         clearInterval(interval);
@@ -72,7 +69,7 @@ const BulkAssociateAIPage = () => {
     }
     setLoading(true);
     setUploadResult(null);
-    setProgress(0); // Reiniciar progreso al iniciar
+    setProgress(0);
     setProgressText('Iniciando subida...');
 
     const formData = new FormData();
@@ -81,7 +78,7 @@ const BulkAssociateAIPage = () => {
     });
 
     try {
-      const response = await fetch(`${API_URL}/api/uploads/bulk-associate-ai`, {
+      const response = await fetchWithCsrf(`${API_URL}/api/uploads/bulk-associate-ai`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -99,7 +96,7 @@ const BulkAssociateAIPage = () => {
       showNotification(err.message, 'error');
     } finally {
       setLoading(false);
-      setProgress(0); // Reiniciar al finalizar
+      setProgress(0);
       setProgressText('');
       document.getElementById('file-upload').value = '';
       setFiles([]);
@@ -130,11 +127,10 @@ const BulkAssociateAIPage = () => {
               accept="image/jpeg, image/png, image/webp"
               onChange={handleFileChange}
               className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-              disabled={loading} // Deshabilitar mientras carga
+              disabled={loading}
             />
           </div>
 
-          {/* --- NUEVO: Mostrar barra de progreso y texto durante la carga --- */}
           {loading && (
             <div className="my-4">
               <p className="text-center text-teal-700 font-semibold">{progressText}</p>
