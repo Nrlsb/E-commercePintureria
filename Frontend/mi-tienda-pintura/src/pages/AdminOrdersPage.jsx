@@ -42,7 +42,6 @@ const ShippingModal = ({ isOpen, onClose, onConfirm }) => {
 
     useEffect(() => {
         if (isOpen) {
-            // Enfocar el input cuando el modal se abre
             setTimeout(() => inputRef.current?.focus(), 100);
         }
     }, [isOpen]);
@@ -66,7 +65,6 @@ const ShippingModal = ({ isOpen, onClose, onConfirm }) => {
             confirmText="Confirmar Envío"
             iconPath={ICONS.shipping}
             iconColor="text-blue-500"
-            // --- CORRECCIÓN: Deshabilitar el botón si no hay número de seguimiento ---
             isConfirmDisabled={!trackingNumber.trim()}
         >
             <div className="mt-4">
@@ -321,6 +319,12 @@ const AdminOrdersPage = () => {
                       {order.status === 'pending_transfer' && (
                         <button onClick={() => openConfirmationModal('confirm', order.id)} className="bg-green-500 text-white text-xs font-bold py-1 px-2 rounded hover:bg-green-600">
                           Confirmar Pago
+                        </button>
+                      )}
+                      {/* --- BOTÓN DE CANCELAR AÑADIDO DE NUEVO --- */}
+                      {(order.status === 'approved' || order.status === 'shipped') && (
+                        <button onClick={() => openConfirmationModal('cancel', order.id)} className="bg-red-500 text-white text-xs font-bold py-1 px-2 rounded hover:bg-red-600">
+                          Cancelar
                         </button>
                       )}
                     </td>
