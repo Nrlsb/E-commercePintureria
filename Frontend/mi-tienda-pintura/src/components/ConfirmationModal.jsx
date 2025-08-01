@@ -1,6 +1,6 @@
 // src/components/ConfirmationModal.jsx
 import React from 'react';
-import { motion } from 'framer-motion'; // 1. Importar motion
+import { motion } from 'framer-motion';
 import Icon from './Icon';
 
 const ConfirmationModal = ({
@@ -12,14 +12,14 @@ const ConfirmationModal = ({
   confirmText = 'Confirmar',
   cancelText = 'Cancelar',
   iconPath = "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z",
-  iconColor = "text-yellow-500"
+  iconColor = "text-yellow-500",
+  isConfirmDisabled = false, // Prop para deshabilitar el botón de confirmación
+  children // Prop para renderizar contenido extra como inputs
 }) => {
-  // isOpen ya no se usa aquí, AnimatePresence se encargará de montarlo/desmontarlo
   if (!isOpen) {
     return null;
   }
 
-  // 2. Definir variantes para la animación del fondo y del modal
   const backdropVariants = {
     visible: { opacity: 1 },
     hidden: { opacity: 0 },
@@ -32,9 +32,8 @@ const ConfirmationModal = ({
   };
 
   return (
-    // 3. Usar motion.div y aplicar las variantes
     <motion.div
-      className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50"
+      className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50 p-4"
       variants={backdropVariants}
       initial="hidden"
       animate="visible"
@@ -52,6 +51,8 @@ const ConfirmationModal = ({
           </div>
           <h3 className="text-xl font-bold text-gray-800">{title}</h3>
           <p className="text-sm text-gray-600 mt-2">{message}</p>
+          {/* Aquí se renderizará el campo de texto del número de seguimiento */}
+          {children}
         </div>
         <div className="bg-gray-50 px-6 py-4 flex justify-end space-x-4 rounded-b-lg">
           <button
@@ -62,7 +63,8 @@ const ConfirmationModal = ({
           </button>
           <button
             onClick={onConfirm}
-            className="px-6 py-2 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700 transition-colors"
+            disabled={isConfirmDisabled}
+            className="px-6 py-2 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
           >
             {confirmText}
           </button>
