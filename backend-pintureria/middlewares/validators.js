@@ -26,22 +26,16 @@ export const loginRules = () => [
   body('password').notEmpty().withMessage('La contraseña es requerida.'),
 ];
 
-// --- CORRECCIÓN EN LAS REGLAS DE VALIDACIÓN DEL DNI ---
 export const updateProfileRules = () => [
   body('firstName').optional({ checkFalsy: true }).trim().escape(),
   body('lastName').optional({ checkFalsy: true }).trim().escape(),
   body('phone').optional({ checkFalsy: true }).isMobilePhone('any').withMessage('El número de teléfono no es válido.').trim().escape(),
   body('dni')
     .optional({ checkFalsy: true })
-    // 1. Usar `isString` para asegurar que es un string.
     .isString()
-    // 2. Usar `trim` para eliminar espacios al principio y al final.
     .trim()
-    // 3. Verificar que, después del trim, solo contenga números.
     .matches(/^[0-9]+$/).withMessage('El DNI debe contener solo números.')
-    // 4. Verificar la longitud.
     .isLength({ min: 7, max: 8 }).withMessage('El DNI debe tener entre 7 y 8 dígitos.'),
-    // 5. No usar `.escape()` en este campo.
 ];
 
 export const addressRules = () => [
@@ -111,7 +105,10 @@ export const productQueryParamsRules = () => [
   query('minPrice').optional({ checkFalsy: true }).isFloat({ min: 0 }),
   query('maxPrice').optional({ checkFalsy: true }).isFloat({ min: 0 }),
   query('page').optional({ checkFalsy: true }).isInt({ min: 1 }),
-  query('limit').optional({ checkFalsy: true }).isInt({ min: 1, max: 100 }),
+  // --- INICIO DE LA CORRECCIÓN ---
+  // Aumentamos el límite máximo para permitir la carga masiva en el panel de admin.
+  query('limit').optional({ checkFalsy: true }).isInt({ min: 1, max: 1000 }),
+  // --- FIN DE LA CORRECCIÓN ---
 ];
 
 export const orderQueryParamsRules = () => [
