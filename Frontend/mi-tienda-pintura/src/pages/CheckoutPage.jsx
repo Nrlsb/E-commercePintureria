@@ -29,8 +29,6 @@ const CheckoutPage = () => {
   const [paymentMethod, setPaymentMethod] = useState('card_payment');
   const { isProcessing, error, submitCardPayment, submitPixPayment, setError } = usePayment();
 
-  const cardPaymentBrickContainerRef = useRef(null);
-
   const subtotal = cart.reduce((total, item) => total + item.price * item.quantity, 0);
   const total = (subtotal - discountAmount) + shippingCost;
 
@@ -76,32 +74,33 @@ const CheckoutPage = () => {
             </button>
           </div>
 
-          {paymentMethod === 'card_payment' && (
-            <>
-              {total < MIN_TRANSACTION_AMOUNT ? (
-                <div className="text-center p-6 bg-yellow-50 border border-yellow-200 rounded-lg">
-                  <h3 className="text-xl font-semibold text-yellow-800">Monto mínimo no alcanzado</h3>
-                  <p className="text-yellow-700 mt-2">El total de tu compra debe ser de al menos ${MIN_TRANSACTION_AMOUNT} para pagar con este método.</p>
-                </div>
-              ) : (
-                <div key={paymentMethod} ref={cardPaymentBrickContainerRef}>
-                    <CardPayment 
-                        initialization={initialization} 
-                        customization={customization} 
-                        onSubmit={submitCardPayment} 
-                        onError={handleOnError} 
-                    />
-                </div>
-              )}
-            </>
-          )}
+          {/* --- INICIO DE LA SOLUCIÓN --- */}
+          {/* Ocultamos el contenedor en lugar de desmontarlo para mantener la estabilidad del Brick */}
+          <div style={{ display: paymentMethod === 'card_payment' ? 'block' : 'none' }}>
+            {total < MIN_TRANSACTION_AMOUNT ? (
+              <div className="text-center p-6 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <h3 className="text-xl font-semibold text-yellow-800">Monto mínimo no alcanzado</h3>
+                <p className="text-yellow-700 mt-2">El total de tu compra debe ser de al menos ${MIN_TRANSACTION_AMOUNT} para pagar con este método.</p>
+              </div>
+            ) : (
+              // La key se elimina para evitar re-montajes innecesarios
+              <div>
+                  <CardPayment 
+                      initialization={initialization} 
+                      customization={customization} 
+                      onSubmit={submitCardPayment} 
+                      onError={handleOnError} 
+                  />
+              </div>
+            )}
+          </div>
+          {/* --- FIN DE LA SOLUCIÓN --- */}
 
           {paymentMethod === 'pix_transfer' && (
             <div>
               <h3 className="text-xl font-bold mb-4">Pagar con Transferencia / PIX</h3>
               <p className="text-gray-600 mb-6">Al confirmar, te mostraremos los datos para que realices el pago desde tu home banking o billetera virtual. La confirmación es automática.</p>
               
-              {/* --- INICIO DE LA VALIDACIÓN DE DNI --- */}
               {!user?.dni ? (
                 <div className="p-4 bg-red-50 border-l-4 border-red-400 text-red-700">
                   <p className="font-bold">DNI Requerido</p>
@@ -109,11 +108,9 @@ const CheckoutPage = () => {
                   <Link to="/profile" className="font-bold underline hover:text-red-800">Ir a Mi Perfil</Link>
                 </div>
               ) : null}
-              {/* --- FIN DE LA VALIDACIÓN DE DNI --- */}
 
               <button 
                 onClick={submitPixPayment} 
-                // El botón se deshabilita si está procesando O si el DNI no existe
                 disabled={isProcessing || !user?.dni}
                 className="w-full mt-6 bg-[#0F3460] text-white font-bold py-3 rounded-lg hover:bg-[#1a4a8a] transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center"
               >
