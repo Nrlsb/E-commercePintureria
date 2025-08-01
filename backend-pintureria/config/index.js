@@ -35,7 +35,6 @@ const config = {
     url: process.env.REDIS_URL || 'redis://localhost:6379'
   },
 
-  // CORRECCIÓN: Cambiado 'process.out' a 'process.env'
   google: {
     clientId: process.env.GOOGLE_CLIENT_ID,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET,
@@ -53,6 +52,9 @@ const config = {
   
   shipping: {
     originPostalCode: process.env.SHIPPING_API_ORIGIN_POSTAL_CODE || '3080',
+    // --- CORRECCIÓN: Credenciales de Correo Argentino actualizadas ---
+    correoArgentinoAgreement: process.env.CORREO_ARGENTINO_AGREEMENT,
+    correoArgentinoApiKey: process.env.CORREO_ARGENTINO_API_KEY,
   }
 };
 

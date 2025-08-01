@@ -1,51 +1,69 @@
 // backend-pintureria/services/shippingService.js
 import fetch from 'node-fetch';
 import logger from '../logger.js';
+import config from '../config/index.js';
+import AppError from '../utils/AppError.js';
 
-// Código postal de origen de los envíos (configurable en .env)
-const ORIGIN_POSTAL_CODE = process.env.SHIPPING_API_ORIGIN_POSTAL_CODE || '3080';
+// --- Lógica de cálculo de paquete (mejorada) ---
 
 /**
- * Calcula el peso total de los items del carrito.
- * En una implementación real, cada producto debería tener su peso en la BD.
+ * Calcula el peso y volumen total de los items del carrito.
+ * NOTA: Para mayor precisión, se recomienda añadir peso y dimensiones a cada producto en la DB.
  * @param {Array} items - Los items del carrito.
- * @returns {number} - El peso total en kg.
+ * @returns {{totalWeightKg: number, totalVolumeCm3: number}} - El peso y volumen totales.
  */
-const calculateTotalWeight = (items) => {
-  // Simulación: asumimos que cada lata de pintura pesa 4kg.
-  const DEFAULT_WEIGHT_KG = 4;
-  return items.reduce((total, item) => total + (item.quantity * DEFAULT_WEIGHT_KG), 0);
+const calculatePackageDetails = (items) => {
+  // Simulación: asumimos valores por defecto para cada lata de pintura.
+  const DEFAULT_WEIGHT_KG = 4; // 4 kg por lata
+  const DEFAULT_VOLUME_CM3 = 15 * 15 * 20; // 4500 cm³ (15x15x20 cm) por lata
+
+  return items.reduce((totals, item) => {
+    const quantity = item.quantity || 1;
+    totals.totalWeightKg += quantity * (item.weight || DEFAULT_WEIGHT_KG);
+    totals.totalVolumeCm3 += quantity * (item.volume || DEFAULT_VOLUME_CM3);
+    return totals;
+  }, { totalWeightKg: 0, totalVolumeCm3: 0 });
 };
 
 /**
- * Obtiene el costo de envío.
- * Esta función está diseñada para ser reemplazada fácilmente por una llamada a una API real.
+ * --- ACTUALIZADO: Obtiene el costo de envío desde la API de Correo Argentino. ---
  * @param {object} params
  * @param {string} params.postalCode - Código postal de destino.
  * @param {Array} params.items - Items del carrito.
  * @returns {Promise<number>} - El costo de envío.
  */
 export const getShippingCost = async ({ postalCode, items }) => {
-  const totalWeightKg = calculateTotalWeight(items);
+  const { 
+    correoArgentinoAgreement, 
+    correoArgentinoApiKey,
+    originPostalCode 
+  } = config.shipping;
 
-  // --- PUNTO DE INTEGRACIÓN REAL ---
-  /*
-  try {
-    // Si se integrara con una API externa de envíos, la llamada fetch
-    // a esa API debería manejar sus propios parámetros de forma segura.
-    // No hay riesgo de SQL Injection aquí ya que no se interactúa con la DB.
-  } catch (error) {
-    logger.error("Error al contactar la API de envíos:", error);
-    throw new Error("No se pudo cotizar el envío en este momento.");
+  // 1. Validar que las credenciales estén configuradas
+  if (!correoArgentinoAgreement || !correoArgentinoApiKey) {
+    logger.error('Credenciales de Correo Argentino (agreement o api-key) no configuradas en el archivo .env');
+    throw new AppError('El servicio de envíos no está configurado correctamente.', 500);
   }
-  */
 
-  // --- SIMULACIÓN MEJORADA (mientras no tengas credenciales) ---
-  logger.debug(`Calculando envío desde ${ORIGIN_POSTAL_CODE} a ${postalCode} con peso ${totalWeightKg.toFixed(2)}kg`);
+  // 2. Calcular detalles del paquete
+  const { totalWeightKg, totalVolumeCm3 } = calculatePackageDetails(items);
+  
+  const totalWeightGrams = totalWeightKg * 1000;
+
+  // 3. Construir el cuerpo de la solicitud para la API de cotización (si existiera una)
+  // Como la documentación no muestra un endpoint de cotización, simularemos el costo
+  // basado en la información que SÍ se usaría para crear una orden.
+  
+  // --- SIMULACIÓN MANTENIDA HASTA TENER ENDPOINT DE COTIZACIÓN ---
+  // La API que proporcionaste se enfoca en "Alta de orden", no en "Cotización".
+  // Mantendremos la simulación por ahora, pero con las credenciales listas para cuando
+  // encuentres el endpoint correcto o decidas implementarlo al crear la orden.
+  
+  logger.debug(`Calculando envío simulado desde ${originPostalCode} a ${postalCode} con peso ${totalWeightKg.toFixed(2)}kg`);
 
   const baseCost = 800;
   const costPerKg = 250;
-  const distanceFactor = 1 + (Math.abs(parseInt(ORIGIN_POSTAL_CODE.charAt(0), 10) - parseInt(postalCode.charAt(0), 10))) * 0.15;
+  const distanceFactor = 1 + (Math.abs(parseInt(originPostalCode.charAt(0), 10) - parseInt(postalCode.charAt(0), 10))) * 0.15;
   
   const shippingCost = (baseCost + (costPerKg * totalWeightKg)) * distanceFactor;
   
