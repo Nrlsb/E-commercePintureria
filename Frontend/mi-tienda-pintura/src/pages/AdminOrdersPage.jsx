@@ -1,5 +1,5 @@
 // Frontend/mi-tienda-pintura/src/pages/AdminOrdersPage.jsx
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useNotificationStore } from '../stores/useNotificationStore';
@@ -35,9 +35,18 @@ export const StatusBadge = ({ status }) => {
   );
 };
 
-// --- NUEVO: Modal para ingresar el número de seguimiento ---
+// --- Modal para ingresar el número de seguimiento ---
 const ShippingModal = ({ isOpen, onClose, onConfirm }) => {
     const [trackingNumber, setTrackingNumber] = useState('');
+    const inputRef = useRef(null);
+
+    useEffect(() => {
+        if (isOpen) {
+            // Enfocar el input cuando el modal se abre
+            setTimeout(() => inputRef.current?.focus(), 100);
+        }
+    }, [isOpen]);
+
 
     if (!isOpen) return null;
 
@@ -57,10 +66,13 @@ const ShippingModal = ({ isOpen, onClose, onConfirm }) => {
             confirmText="Confirmar Envío"
             iconPath={ICONS.shipping}
             iconColor="text-blue-500"
+            // --- CORRECCIÓN: Deshabilitar el botón si no hay número de seguimiento ---
+            isConfirmDisabled={!trackingNumber.trim()}
         >
             <div className="mt-4">
                 <label htmlFor="trackingNumber" className="sr-only">Número de Seguimiento</label>
                 <input
+                    ref={inputRef}
                     id="trackingNumber"
                     type="text"
                     value={trackingNumber}
