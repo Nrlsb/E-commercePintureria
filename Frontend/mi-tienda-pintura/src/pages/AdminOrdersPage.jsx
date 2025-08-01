@@ -8,20 +8,22 @@ import Spinner from '../components/Spinner';
 import ConfirmationModal from '../components/ConfirmationModal';
 import Icon from '../components/Icon';
 import Pagination from '../components/Pagination';
-import { fetchWithCsrf } from '../api/api'; // Importar fetchWithCsrf
+import { fetchWithCsrf } from '../api/api';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
 const ICONS = {
     cancel: "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z",
-    confirm: "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zM9.29 16.29L5.7 12.7c-.39-.39-.39-1.02 0-1.41.39-.39 1.02-.39 1.41 0L10 14.17l6.88-6.88c.39-.39 1.02-.39 1.41 0 .39.39.39 1.02 0 1.41L11.12 16.7c-.38.38-1.02.38-1.41-.01z"
+    confirm: "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zM9.29 16.29L5.7 12.7c-.39-.39-.39-1.02 0-1.41.39-.39 1.02-.39 1.41 0L10 14.17l6.88-6.88c.39-.39 1.02-.39 1.41 0 .39.39.39 1.02 0 1.41L11.12 16.7c-.38.38-1.02.38-1.41-.01z",
+    shipping: "M20 8h-3V4H3c-1.1 0-2 .9-2 2v11h2c0 1.66 1.34 3 3 3s3-1.34 3-3h6c0 1.66 1.34 3 3 3s3-1.34 3-3h2v-5l-3-4zM6 18.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm13.5-9l1.96 2.5H17V9.5h2.5zM18 18.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"
 };
 
-// Se exporta el componente para que pueda ser usado en otros archivos.
 export const StatusBadge = ({ status }) => {
   const styles = {
     approved: 'bg-green-100 text-green-800',
-    pending_transfer: 'bg-blue-100 text-blue-800',
+    shipped: 'bg-blue-100 text-blue-800',
+    delivered: 'bg-purple-100 text-purple-800',
+    pending_transfer: 'bg-yellow-100 text-yellow-800',
     pending: 'bg-yellow-100 text-yellow-800',
     cancelled: 'bg-red-100 text-red-800',
   };
@@ -31,6 +33,44 @@ export const StatusBadge = ({ status }) => {
       {statusText}
     </span>
   );
+};
+
+// --- NUEVO: Modal para ingresar el número de seguimiento ---
+const ShippingModal = ({ isOpen, onClose, onConfirm }) => {
+    const [trackingNumber, setTrackingNumber] = useState('');
+
+    if (!isOpen) return null;
+
+    const handleSubmit = () => {
+        if (trackingNumber.trim()) {
+            onConfirm(trackingNumber);
+        }
+    };
+
+    return (
+        <ConfirmationModal
+            isOpen={isOpen}
+            onClose={onClose}
+            onConfirm={handleSubmit}
+            title="Marcar como Enviado"
+            message="Ingresa el número de seguimiento para este envío."
+            confirmText="Confirmar Envío"
+            iconPath={ICONS.shipping}
+            iconColor="text-blue-500"
+        >
+            <div className="mt-4">
+                <label htmlFor="trackingNumber" className="sr-only">Número de Seguimiento</label>
+                <input
+                    id="trackingNumber"
+                    type="text"
+                    value={trackingNumber}
+                    onChange={(e) => setTrackingNumber(e.target.value)}
+                    placeholder="Ej: 123456789"
+                    className="w-full p-2 border border-gray-300 rounded-md"
+                />
+            </div>
+        </ConfirmationModal>
+    );
 };
 
 const AdminOrdersPage = () => {
@@ -44,6 +84,7 @@ const AdminOrdersPage = () => {
   const [totalPages, setTotalPages] = useState(1);
   
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isShippingModalOpen, setIsShippingModalOpen] = useState(false);
   const [actionToConfirm, setActionToConfirm] = useState(null);
 
   const navigate = useNavigate();
@@ -109,31 +150,49 @@ const AdminOrdersPage = () => {
 
   const openConfirmationModal = (action, orderId) => {
     setActionToConfirm({ action, orderId });
-    setIsModalOpen(true);
+    if (action === 'shipped') {
+        setIsShippingModalOpen(true);
+    } else {
+        setIsModalOpen(true);
+    }
   };
 
   const closeConfirmationModal = () => {
     setActionToConfirm(null);
     setIsModalOpen(false);
+    setIsShippingModalOpen(false);
   };
 
-  const handleActionConfirm = async () => {
+  const handleActionConfirm = async (trackingNumber = null) => {
     if (!actionToConfirm) return;
 
     const { action, orderId } = actionToConfirm;
     closeConfirmationModal();
 
-    const urls = {
-      cancel: `${API_URL}/api/orders/${orderId}/cancel`,
-      confirm: `${API_URL}/api/orders/${orderId}/confirm-payment`
-    };
+    let url;
+    let body = {};
+    let method = 'POST';
+
+    if (action === 'cancel') {
+        url = `${API_URL}/api/orders/${orderId}/cancel`;
+    } else if (action === 'confirm') {
+        url = `${API_URL}/api/orders/${orderId}/confirm-payment`;
+    } else {
+        url = `${API_URL}/api/orders/admin/${orderId}/status`;
+        body = { status: action };
+        if (trackingNumber) {
+            body.trackingNumber = trackingNumber;
+        }
+    }
 
     try {
-      // *** CORRECCIÓN APLICADA AQUÍ ***
-      // Se utiliza fetchWithCsrf para incluir el token de seguridad necesario.
-      const response = await fetchWithCsrf(urls[action], {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` },
+      const response = await fetchWithCsrf(url, {
+        method,
+        headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}` 
+        },
+        body: Object.keys(body).length > 0 ? JSON.stringify(body) : null,
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || 'Error al procesar la acción.');
@@ -166,12 +225,18 @@ const AdminOrdersPage = () => {
       <ConfirmationModal
         isOpen={isModalOpen}
         onClose={closeConfirmationModal}
-        onConfirm={handleActionConfirm}
+        onConfirm={() => handleActionConfirm()}
         title={modalContent.title}
         message={modalContent.message}
         confirmText={modalContent.confirmText}
         iconPath={modalContent.iconPath}
         iconColor={modalContent.iconColor}
+      />
+
+      <ShippingModal
+        isOpen={isShippingModalOpen}
+        onClose={closeConfirmationModal}
+        onConfirm={(trackingNumber) => handleActionConfirm(trackingNumber)}
       />
       
       <div className="flex justify-between items-center mb-8">
@@ -196,6 +261,8 @@ const AdminOrdersPage = () => {
         >
           <option value="">Todos los estados</option>
           <option value="approved">Aprobado</option>
+          <option value="shipped">Enviado</option>
+          <option value="delivered">Entregado</option>
           <option value="pending_transfer">Pendiente (Transferencia)</option>
           <option value="pending">Pendiente (Otro)</option>
           <option value="cancelled">Cancelado</option>
@@ -230,8 +297,13 @@ const AdminOrdersPage = () => {
                     <td className="p-4"><StatusBadge status={order.status} /></td>
                     <td className="p-4 text-center space-x-2" onClick={(e) => e.stopPropagation()}>
                       {order.status === 'approved' && (
-                        <button onClick={() => openConfirmationModal('cancel', order.id)} className="bg-red-500 text-white text-xs font-bold py-1 px-2 rounded hover:bg-red-600">
-                          Cancelar
+                        <button onClick={() => openConfirmationModal('shipped', order.id)} className="bg-blue-500 text-white text-xs font-bold py-1 px-2 rounded hover:bg-blue-600">
+                          Marcar Enviado
+                        </button>
+                      )}
+                      {order.status === 'shipped' && (
+                        <button onClick={() => openConfirmationModal('delivered', order.id)} className="bg-purple-500 text-white text-xs font-bold py-1 px-2 rounded hover:bg-purple-600">
+                          Marcar Entregado
                         </button>
                       )}
                       {order.status === 'pending_transfer' && (

@@ -5,9 +5,10 @@ import {
   getAllOrders,
   cancelOrder,
   processPayment,
-  createPixPayment, // --- CAMBIO: Se importa el nuevo controlador ---
+  createPixPayment,
   confirmTransferPayment,
   getOrderById,
+  updateOrderStatus, // Importar el nuevo controlador
 } from '../controllers/order.controller.js';
 import { authenticateToken, isAdmin } from '../middlewares/auth.middleware.js';
 import { orderQueryParamsRules, validate } from '../middlewares/validators.js';
@@ -19,11 +20,14 @@ router.get('/admin', [authenticateToken, isAdmin, orderQueryParamsRules(), valid
 router.post('/:orderId/cancel', [authenticateToken, isAdmin], cancelOrder);
 router.post('/:orderId/confirm-payment', [authenticateToken, isAdmin], confirmTransferPayment);
 
+// --- NUEVO: Ruta para que el admin actualice el estado de una orden ---
+router.post('/admin/:orderId/status', [authenticateToken, isAdmin], updateOrderStatus);
+
+
 // --- Rutas de Usuario (Más genéricas después) ---
 router.get('/', authenticateToken, getOrderHistory);
 router.get('/:orderId', authenticateToken, getOrderById);
 router.post('/process-payment', authenticateToken, processPayment);
-// --- CAMBIO: La ruta ahora se llama /pix-payment y usa el nuevo controlador ---
 router.post('/pix-payment', authenticateToken, createPixPayment);
 
 export default router;

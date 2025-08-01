@@ -1,7 +1,7 @@
 // backend-pintureria/controllers/order.controller.js
 import db from '../db.js';
 import mercadopago from 'mercadopago';
-import { sendOrderConfirmationEmail, sendBankTransferInstructionsEmail } from '../emailService.js';
+import { sendOrderConfirmationEmail, sendBankTransferInstructionsEmail, sendOrderStatusUpdateEmail } from '../emailService.js';
 import logger from '../logger.js';
 import AppError from '../utils/AppError.js';
 
@@ -12,7 +12,7 @@ const MIN_TRANSACTION_AMOUNT = 100;
 // Helper function to get order details for email, using parameterized query
 const getOrderDetailsForEmail = async (orderId, dbClient) => {
   const orderQuery = `
-    SELECT o.id, o.total_amount, u.email,
+    SELECT o.id, o.total_amount, o.tracking_number, u.email,
     COALESCE((SELECT json_agg(items) FROM (
       SELECT oi.quantity, oi.price, p.name, p.image_url as "imageUrl"
       FROM order_items oi JOIN products p ON oi.product_id = p.id
@@ -44,15 +44,9 @@ export const confirmTransferPayment = async (req, res, next) => {
 
     const order = result.rows[0];
 
-    const userData = await dbClient.query('SELECT email FROM users WHERE id = $1', [order.user_id]);
-    const itemsData = await dbClient.query('SELECT p.name, oi.quantity, oi.price FROM order_items oi JOIN products p ON p.id = oi.product_id WHERE oi.order_id = $1', [orderId]);
-    
-    const orderForEmail = {
-      ...order,
-      items: itemsData.rows,
-    };
+    const orderForEmail = await getOrderDetailsForEmail(order.id, dbClient);
 
-    await sendOrderConfirmationEmail(userData.rows[0].email, orderForEmail);
+    await sendOrderConfirmationEmail(orderForEmail.email, orderForEmail);
     
     await dbClient.query('COMMIT');
 
@@ -65,6 +59,59 @@ export const confirmTransferPayment = async (req, res, next) => {
     dbClient.release();
   }
 };
+
+/**
+ * --- NUEVO: Actualiza el estado de una orden (ej. a 'shipped' o 'delivered'). ---
+ * Solo para administradores.
+ */
+export const updateOrderStatus = async (req, res, next) => {
+  const { orderId } = req.params;
+  const { status, trackingNumber } = req.body;
+  const validStatuses = ['shipped', 'delivered'];
+
+  if (!status || !validStatuses.includes(status)) {
+    return next(new AppError('Estado no válido.', 400));
+  }
+  if (status === 'shipped' && !trackingNumber) {
+    return next(new AppError('Se requiere un número de seguimiento para marcar como enviado.', 400));
+  }
+
+  const dbClient = await db.connect();
+  try {
+    await dbClient.query('BEGIN');
+
+    let updateQuery = 'UPDATE orders SET status = $1 WHERE id = $2 RETURNING *';
+    const queryParams = [status, orderId];
+
+    if (status === 'shipped') {
+      updateQuery = 'UPDATE orders SET status = $1, tracking_number = $2 WHERE id = $3 RETURNING *';
+      queryParams.splice(1, 0, trackingNumber); // Insert trackingNumber into params
+    }
+    
+    const result = await dbClient.query(updateQuery, queryParams);
+
+    if (result.rowCount === 0) {
+      throw new AppError('Orden no encontrada.', 404);
+    }
+
+    const orderDetails = await getOrderDetailsForEmail(orderId, dbClient);
+    if (orderDetails) {
+      await sendOrderStatusUpdateEmail(orderDetails.email, orderDetails, status);
+    }
+    
+    await dbClient.query('COMMIT');
+
+    logger.info(`Orden #${orderId} actualizada al estado '${status}' por un administrador.`);
+    res.status(200).json({ message: `Orden actualizada a '${status}' y email enviado.`, order: result.rows[0] });
+
+  } catch (error) {
+    await dbClient.query('ROLLBACK');
+    next(error);
+  } finally {
+    dbClient.release();
+  }
+};
+
 
 export const createPixPayment = async (req, res, next) => {
   const { cart, total, shippingCost, postalCode } = req.body;

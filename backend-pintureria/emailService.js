@@ -188,3 +188,57 @@ export const sendPasswordResetEmail = async (userEmail, token) => {
     throw new Error('No se pudo enviar el correo de restablecimiento.');
   }
 };
+
+/**
+ * --- NUEVO: Envía un email genérico de actualización de estado de la orden. ---
+ * @param {string} userEmail - El email del destinatario.
+ * @param {object} order - El objeto de la orden.
+ * @param {string} newStatus - El nuevo estado de la orden (ej. 'shipped', 'delivered').
+ */
+export const sendOrderStatusUpdateEmail = async (userEmail, order, newStatus) => {
+  const statusMap = {
+    shipped: {
+      subject: `Tu pedido #${order.id} ha sido enviado`,
+      title: '¡Tu pedido está en camino!',
+      message: `Hola, te informamos que tu pedido #${order.id} ha sido enviado.`,
+      trackingMessage: order.tracking_number 
+        ? `<p>Puedes seguir tu envío con el siguiente número de seguimiento: <strong>${order.tracking_number}</strong></p>`
+        : ''
+    },
+    delivered: {
+      subject: `Tu pedido #${order.id} ha sido entregado`,
+      title: '¡Pedido Entregado!',
+      message: `Hola, ¡buenas noticias! Tu pedido #${order.id} ha sido entregado. Esperamos que disfrutes tus productos.`,
+      trackingMessage: ''
+    }
+  };
+
+  const statusInfo = statusMap[newStatus];
+  if (!statusInfo) {
+    logger.warn(`Intento de enviar email para un estado desconocido: ${newStatus}`);
+    return;
+  }
+
+  const emailHtml = `
+    <div style="font-family: Arial, sans-serif; color: #333;">
+      <h1 style="color: #0F3460;">${statusInfo.title}</h1>
+      <p>${statusInfo.message}</p>
+      ${statusInfo.trackingMessage}
+      <p style="margin-top: 20px;">Gracias por confiar en Pinturerías Mercurio.</p>
+    </div>
+  `;
+
+  const mailOptions = {
+    from: `"Pinturerías Mercurio" <no-reply@nrlsb.com>`,
+    to: userEmail,
+    subject: statusInfo.subject,
+    html: emailHtml,
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    logger.info(`Email de estado '${newStatus}' enviado a ${userEmail} para la orden ${order.id}`);
+  } catch (error) {
+    logger.error(`Error al enviar email de estado '${newStatus}' para la orden ${order.id}:`, error);
+  }
+};
