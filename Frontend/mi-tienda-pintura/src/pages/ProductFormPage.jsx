@@ -5,7 +5,7 @@ import { useAuthStore } from '../stores/useAuthStore';
 import { useNotificationStore } from '../stores/useNotificationStore';
 import Spinner from '../components/Spinner';
 import Icon from '../components/Icon';
-import { fetchWithCsrf } from '../api/api'; // Importar fetchWithCsrf
+import { fetchWithCsrf } from '../api/api';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
@@ -94,6 +94,11 @@ const ProductFormPage = () => {
   const [error, setError] = useState(null);
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [uploadedImageFile, setUploadedImageFile] = useState(null);
+  
+  // --- INICIO DE CAMBIOS ---
+  const [isGeneratingDesc, setIsGeneratingDesc] = useState(false);
+  const [descriptionTone, setDescriptionTone] = useState('persuasivo');
+  // --- FIN DE CAMBIOS ---
 
   const isEditing = Boolean(productId);
 
@@ -167,6 +172,35 @@ const ProductFormPage = () => {
         setIsAiLoading(false);
     }
   };
+
+  // --- INICIO DE CAMBIOS ---
+  const handleGenerateDescription = async () => {
+    if (!product.name || !product.brand) {
+        showNotification('El nombre y la marca del producto son necesarios para generar una descripción.', 'error');
+        return;
+    }
+    setIsGeneratingDesc(true);
+    try {
+        const response = await fetchWithCsrf(`${API_URL}/api/uploads/generate-description`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ productName: product.name, brand: product.brand, tone: descriptionTone })
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message || 'No se pudo generar la descripción.');
+
+        setProduct(prev => ({ ...prev, description: data.description }));
+        showNotification('Descripción generada con éxito.', 'success');
+    } catch (err) {
+        showNotification(err.message, 'error');
+    } finally {
+        setIsGeneratingDesc(false);
+    }
+  };
+  // --- FIN DE CAMBIOS ---
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -246,16 +280,40 @@ const ProductFormPage = () => {
                 ) : (
                     <>
                         <Icon path="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z" className="w-5 h-5" />
-                        <span>Generar datos con IA</span>
+                        <span>Sugerir Nombre/Categoría con IA</span>
                     </>
                 )}
             </button>
 
-
+            {/* --- INICIO DE CAMBIOS --- */}
             <div>
-              <label className="block mb-2 font-medium text-gray-700">Descripción</label>
-              <textarea name="description" value={product.description} onChange={handleChange} className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0F3460]" rows="6" required></textarea>
+                <div className="flex justify-between items-center mb-2">
+                    <label className="block font-medium text-gray-700">Descripción</label>
+                    <div className="flex items-center gap-2">
+                        <select
+                            value={descriptionTone}
+                            onChange={(e) => setDescriptionTone(e.target.value)}
+                            className="text-sm border-gray-300 rounded-md shadow-sm"
+                            disabled={isGeneratingDesc}
+                        >
+                            <option value="persuasivo">Tono Persuasivo</option>
+                            <option value="formal">Tono Formal</option>
+                            <option value="informal">Tono Informal</option>
+                        </select>
+                        <button
+                            type="button"
+                            onClick={handleGenerateDescription}
+                            disabled={isGeneratingDesc}
+                            className="flex items-center justify-center gap-1 px-3 py-1 bg-blue-500 text-white text-sm font-semibold rounded-lg hover:bg-blue-600 transition-colors disabled:bg-gray-400"
+                        >
+                            {isGeneratingDesc ? <Spinner className="w-4 h-4" /> : <Icon path="M12 2L9.5 7.5L4 10l5.5 2.5L12 18l2.5-5.5L20 10l-5.5-2.5z" className="w-4 h-4" />}
+                            <span>Generar</span>
+                        </button>
+                    </div>
+                </div>
+                <textarea name="description" value={product.description} onChange={handleChange} className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0F3460]" rows="6" required></textarea>
             </div>
+            {/* --- FIN DE CAMBIOS --- */}
             
             {error && <p className="text-red-500 text-sm text-center col-span-2">{error}</p>}
             

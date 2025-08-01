@@ -7,7 +7,8 @@ import {
   handleSingleImageUpload,
   analyzeImageWithAI,
   bulkCreateProductsWithAI,
-  bulkAssociateImagesWithAI
+  bulkAssociateImagesWithAI,
+  generateAIDescription // Importar el nuevo controlador
 } from '../controllers/upload.controller.js';
 import { authenticateToken, isAdmin } from '../middlewares/auth.middleware.js';
 
@@ -26,5 +27,8 @@ router.post('/analyze-image', [authenticateToken, isAdmin], analyzeImageWithAI);
 router.post('/bulk-create-ai', [authenticateToken, isAdmin, uploadMultipleImages], bulkCreateProductsWithAI);
 // Asociación masiva de imágenes a productos existentes con IA
 router.post('/bulk-associate-ai', [authenticateToken, isAdmin, uploadMultipleImages], bulkAssociateImagesWithAI);
+
+// --- NUEVA RUTA PARA GENERAR DESCRIPCIONES ---
+router.post('/generate-description', [authenticateToken, isAdmin], generateAIDescription);
 
 export default router;

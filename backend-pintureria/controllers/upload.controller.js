@@ -16,7 +16,7 @@ export const uploadSingleImage = upload.single('productImage');
 
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-// --- NUEVO: Función centralizada para procesar y subir imágenes en varios tamaños ---
+// --- Función centralizada para procesar y subir imágenes en varios tamaños ---
 const processAndUploadImage = async (fileBuffer) => {
     const baseFilename = `prod-${Date.now()}`;
     const sizes = {
@@ -83,7 +83,53 @@ async function getAIDataForImage(imageData, mimeType, apiKey, productNamesForBra
     }
 }
 
-// --- MODIFICADO: Ahora usa la nueva función y devuelve un objeto de URLs ---
+// --- NUEVA FUNCIÓN PARA GENERAR DESCRIPCIONES DETALLADAS ---
+export const generateAIDescription = async (req, res, next) => {
+    const { productName, brand, tone } = req.body;
+    const apiKey = config.geminiApiKey;
+
+    if (!productName || !brand || !tone) {
+        return next(new AppError('Faltan el nombre, la marca o el tono del producto.', 400));
+    }
+    if (!apiKey) {
+        return next(new AppError('La clave de API de Gemini no está configurada.', 500));
+    }
+
+    try {
+        const prompt = `Actúa como un experto en marketing para una pinturería. Genera una descripción de producto atractiva y en tono "${tone}" para el siguiente producto: "${productName}" de la marca "${brand}". La descripción debe ser de aproximadamente 3 a 4 párrafos, destacando sus beneficios, usos ideales y características clave.`;
+
+        const payload = {
+            contents: [{ role: "user", parts: [{ text: prompt }] }],
+        };
+
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+        const apiResponse = await fetch(apiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (!apiResponse.ok) {
+            const errorBody = await apiResponse.text();
+            logger.error("Error from Gemini API for description:", errorBody);
+            throw new AppError('No se pudo generar la descripción desde la IA.', apiResponse.status);
+        }
+
+        const result = await apiResponse.json();
+        const description = result.candidates?.[0]?.content?.parts?.[0]?.text;
+
+        if (!description) {
+            throw new AppError('La respuesta de la IA para la descripción no tuvo el formato esperado.', 500);
+        }
+
+        res.status(200).json({ description });
+
+    } catch (err) {
+        next(err);
+    }
+};
+
+
 export const handleSingleImageUpload = async (req, res, next) => {
     if (!req.file) {
         throw new AppError('No se subió ningún archivo.', 400);
@@ -166,11 +212,8 @@ export const bulkAssociateImagesWithAI = async (req, res, next) => {
                 
                 const matchedProduct = bestMatch;
                 
-                // --- MODIFICADO: Usa la nueva función para subir múltiples tamaños ---
                 const imageUrls = await processAndUploadImage(file.buffer);
                 
-                // Guardamos el objeto como un string JSON en la base de datos
-                // Using parameterized query to prevent SQL Injection
                 await db.query('UPDATE products SET image_url = $1 WHERE id = $2', [JSON.stringify(imageUrls), matchedProduct.id]);
 
 
@@ -192,8 +235,6 @@ export const bulkAssociateImagesWithAI = async (req, res, next) => {
 };
 
 export const analyzeImageWithAI = async (req, res, next) => {
-    // This function doesn't interact with the database directly, so no SQL injection risk here.
-    // It calls getAIDataForImage which uses parameterized queries for its internal prompt construction.
     if (!req.body.imageData || !req.body.mimeType) {
         throw new AppError('Faltan datos de imagen o tipo MIME.', 400);
     }
@@ -228,7 +269,6 @@ export const bulkCreateProductsWithAI = async (req, res, next) => {
                 const base64ImageData = file.buffer.toString('base64');
                 const aiData = await getAIDataForImage(base64ImageData, file.mimetype, apiKey);
                 
-                // --- MODIFICADO: Usa la nueva función para subir múltiples tamaños ---
                 const imageUrls = await processAndUploadImage(file.buffer);
 
                 const newProduct = {
@@ -242,7 +282,6 @@ export const bulkCreateProductsWithAI = async (req, res, next) => {
                     image_url: JSON.stringify(imageUrls), // Guardamos el objeto como string
                 };
 
-                // Using parameterized query to prevent SQL Injection
                 const result = await db.query(
                     'INSERT INTO products (name, brand, category, price, image_url, description, stock, is_active) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, name',
                     [newProduct.name, newProduct.brand, newProduct.category, newProduct.price, newProduct.image_url, newProduct.description, newProduct.stock, newProduct.is_active]
@@ -281,11 +320,7 @@ export const processAndAssociateImages = async (req, res, next) => {
         const productId = productIdMatch[1];
 
         try {
-            // --- MODIFICADO: Usa la nueva función para subir múltiples tamaños ---
             const imageUrls = await processAndUploadImage(file.buffer);
-
-            // Guardamos el objeto como un string JSON en la base de datos
-            // Using parameterized query to prevent SQL Injection
             await db.query('UPDATE products SET image_url = $1 WHERE id = $2', [JSON.stringify(imageUrls), productId]);
             
             results.success.push(file.originalname);
