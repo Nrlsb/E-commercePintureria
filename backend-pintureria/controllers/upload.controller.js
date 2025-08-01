@@ -6,7 +6,7 @@ import fetch from 'node-fetch';
 import logger from '../logger.js';
 import { uploadImageToGCS } from '../services/gcs.service.js';
 import config from '../config/index.js';
-import AppError from '../utils/AppError.js'; // Importar AppError
+import AppError from '../utils/AppError.js';
 
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
@@ -36,7 +36,6 @@ const processAndUploadImage = async (fileBuffer) => {
     });
 
     const uploadedUrlsArray = await Promise.all(uploadPromises);
-    // Combina el array de objetos en un solo objeto: { small: 'url', medium: 'url', large: 'url' }
     return uploadedUrlsArray.reduce((acc, curr) => ({ ...acc, ...curr }), {});
 };
 
@@ -44,10 +43,8 @@ const processAndUploadImage = async (fileBuffer) => {
 async function getAIDataForImage(imageData, mimeType, apiKey, productNamesForBrand = []) {
     let prompt;
     if (productNamesForBrand.length > 0) {
-        // This prompt is static, no user input concatenation.
         prompt = `Analiza la imagen de un producto de pinturería. De la siguiente lista de nombres de productos: [${productNamesForBrand.join(', ')}], ¿cuál es el nombre exacto que mejor coincide con el producto en la imagen? También identifica la marca visible. Responde únicamente con un objeto JSON válido que contenga las claves "productName" y "brand".`;
     } else {
-        // This prompt is static, no user input concatenation.
         prompt = `Analiza la imagen de un producto de pinturería. Extrae el nombre exacto del producto y la marca visible en el envase. Responde únicamente con un objeto JSON válido que contenga las claves "productName" y "brand". Si no puedes identificar alguno de los dos, deja el valor como null.`;
     }
     
@@ -83,7 +80,6 @@ async function getAIDataForImage(imageData, mimeType, apiKey, productNamesForBra
     }
 }
 
-// --- NUEVA FUNCIÓN PARA GENERAR DESCRIPCIONES DETALLADAS ---
 export const generateAIDescription = async (req, res, next) => {
     const { productName, brand, tone } = req.body;
     const apiKey = config.geminiApiKey;
@@ -129,6 +125,67 @@ export const generateAIDescription = async (req, res, next) => {
     }
 };
 
+// --- NUEVA FUNCIÓN PARA GENERACIÓN MASIVA DE DESCRIPCIONES ---
+export const bulkGenerateAIDescriptions = async (req, res, next) => {
+    const { productIds, tone } = req.body;
+    const apiKey = config.geminiApiKey;
+
+    if (!productIds || !Array.isArray(productIds) || productIds.length === 0 || !tone) {
+        return next(new AppError('Se requiere una lista de IDs de producto y un tono.', 400));
+    }
+    if (!apiKey) {
+        return next(new AppError('La clave de API de Gemini no está configurada.', 500));
+    }
+
+    const results = { success: [], failed: [] };
+
+    try {
+        const productsResult = await db.query('SELECT id, name, brand FROM products WHERE id = ANY($1)', [productIds]);
+        const productsToUpdate = productsResult.rows;
+
+        if (productsToUpdate.length === 0) {
+            throw new AppError('No se encontraron productos para los IDs proporcionados.', 404);
+        }
+
+        for (const product of productsToUpdate) {
+            try {
+                await delay(2000); // Retardo de 2 segundos para no saturar la API
+
+                const prompt = `Actúa como un experto en marketing para una pinturería. Genera una descripción de producto atractiva y en tono "${tone}" para el siguiente producto: "${product.name}" de la marca "${product.brand}". La descripción debe ser de aproximadamente 3 a 4 párrafos, destacando sus beneficios, usos ideales y características clave.`;
+                const payload = { contents: [{ role: "user", parts: [{ text: prompt }] }] };
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+                
+                const apiResponse = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!apiResponse.ok) throw new Error(`API de IA falló con estado ${apiResponse.status}`);
+
+                const result = await apiResponse.json();
+                const description = result.candidates?.[0]?.content?.parts?.[0]?.text;
+
+                if (!description) throw new Error('La respuesta de la IA no contenía una descripción válida.');
+
+                await db.query('UPDATE products SET description = $1 WHERE id = $2', [description, product.id]);
+
+                results.success.push({ productId: product.id, productName: product.name });
+                logger.info(`Descripción generada y actualizada para el producto ID ${product.id}`);
+
+            } catch (error) {
+                logger.warn(`Fallo al generar descripción para el producto ID ${product.id}: ${error.message}`);
+                results.failed.push({ productId: product.id, productName: product.name, reason: error.message });
+            }
+        }
+
+        res.status(200).json({ message: 'Proceso de generación masiva completado.', ...results });
+
+    } catch (err) {
+        next(err);
+    }
+};
+
 
 export const handleSingleImageUpload = async (req, res, next) => {
     if (!req.file) {
@@ -136,12 +193,13 @@ export const handleSingleImageUpload = async (req, res, next) => {
     }
     try {
         const imageUrls = await processAndUploadImage(req.file.buffer);
-        res.status(201).json({ imageUrls }); // Devuelve el objeto con todas las URLs
+        res.status(201).json({ imageUrls });
     } catch (err) {
-        next(err); // Pasa cualquier error al errorHandler
+        next(err);
     }
 };
 
+// ... (resto del archivo sin cambios) ...
 export const bulkAssociateImagesWithAI = async (req, res, next) => {
     if (!req.files || req.files.length === 0) {
         throw new AppError('No se subieron archivos.', 400);
@@ -164,7 +222,6 @@ export const bulkAssociateImagesWithAI = async (req, res, next) => {
                     throw new AppError('La IA no pudo identificar una marca en la imagen.', 400);
                 }
                 
-                // Using parameterized query to prevent SQL Injection
                 const productsOfBrandResult = await db.query('SELECT id, name, brand FROM products WHERE brand ILIKE $1', [initialAIData.brand]);
                 const dbProducts = productsOfBrandResult.rows;
 
@@ -230,7 +287,7 @@ export const bulkAssociateImagesWithAI = async (req, res, next) => {
         }
         res.status(200).json({ message: 'Proceso de asociación masiva completado.', ...results });
     } catch(err) {
-        next(err); // Pasa cualquier error al errorHandler
+        next(err);
     }
 };
 
@@ -248,7 +305,7 @@ export const analyzeImageWithAI = async (req, res, next) => {
         const aiData = await getAIDataForImage(imageData, mimeType, apiKey);
         res.status(200).json(aiData);
     } catch (err) {
-        next(err); // Pasa cualquier error al errorHandler
+        next(err);
     }
 };
 
@@ -279,7 +336,7 @@ export const bulkCreateProductsWithAI = async (req, res, next) => {
                     price: 0,
                     stock: 0,
                     is_active: false,
-                    image_url: JSON.stringify(imageUrls), // Guardamos el objeto como string
+                    image_url: JSON.stringify(imageUrls),
                 };
 
                 const result = await db.query(
@@ -301,7 +358,7 @@ export const bulkCreateProductsWithAI = async (req, res, next) => {
         }
         res.status(200).json({ message: 'Proceso de creación masiva completado.', ...results });
     } catch (err) {
-        next(err); // Pasa cualquier error al errorHandler
+        next(err);
     }
 };
 

@@ -7,7 +7,7 @@ import { useNotificationStore } from '../stores/useNotificationStore';
 import Icon from '../components/Icon';
 import Spinner from '../components/Spinner';
 import ConfirmationModal from '../components/ConfirmationModal';
-import { fetchWithCsrf } from '../api/api'; // Importar
+import { fetchWithCsrf } from '../api/api';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
@@ -148,6 +148,11 @@ const AdminProductsPage = () => {
             <Link to="/admin/product/bulk-associate-ai" className="bg-teal-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-teal-600 transition-colors flex items-center justify-center space-x-2">
                 <Icon path={ICONS.sparkles} className="w-5 h-5" />
                 <span>Asociación Masiva con IA</span>
+            </Link>
+            {/* --- NUEVO BOTÓN --- */}
+            <Link to="/admin/product/bulk-generate-descriptions" className="bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center space-x-2">
+                <Icon path={ICONS.sparkles} className="w-5 h-5" />
+                <span>Generar Descripciones (IA)</span>
             </Link>
             <button onClick={handleClearCache} disabled={isClearingCache} className="bg-yellow-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-yellow-600 transition-colors flex items-center justify-center space-x-2 disabled:bg-gray-400">
                 {isClearingCache ? <Spinner className="w-5 h-5" /> : <Icon path={ICONS.cache} className="w-5 h-5" />}

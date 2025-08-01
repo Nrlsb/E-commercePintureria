@@ -6,7 +6,6 @@ import { AnimatePresence, motion } from 'framer-motion';
 
 import { useProductStore } from './stores/useProductStore';
 import { useNotificationStore } from './stores/useNotificationStore';
-// --- CAMBIO: Se importa la función para inicializar la protección CSRF ---
 import { initializeCsrf } from './api/api';
 
 // Componentes principales
@@ -49,6 +48,7 @@ const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage.jsx'));
 const BulkUploadPage = lazy(() => import('./pages/BulkUploadPage.jsx'));
 const BulkCreateAIPage = lazy(() => import('./pages/BulkCreateAIPage.jsx'));
 const BulkAssociateAIPage = lazy(() => import('./pages/BulkAssociateAIPage.jsx'));
+const BulkGenerateAIDescriptionsPage = lazy(() => import('./pages/BulkGenerateAIDescriptionsPage.jsx')); // Nueva página
 const WishlistPage = lazy(() => import('./pages/WishlistPage.jsx'));
 const ProfilePage = lazy(() => import('./pages/ProfilePage.jsx'));
 const AdminCouponsPage = lazy(() => import('./pages/AdminCouponsPage.jsx'));
@@ -74,7 +74,6 @@ export default function App() {
   const location = useLocation();
 
   useEffect(() => {
-    // --- CAMBIO: Se llama a la función de inicialización CSRF una sola vez ---
     initializeCsrf();
     fetchAvailableBrands();
   }, [fetchAvailableBrands]);
@@ -130,6 +129,8 @@ export default function App() {
               <Route path="/admin/product/bulk-upload" element={<BulkUploadPage />} />
               <Route path="/admin/product/bulk-create-ai" element={<BulkCreateAIPage />} />
               <Route path="/admin/product/bulk-associate-ai" element={<BulkAssociateAIPage />} />
+              {/* --- NUEVA RUTA --- */}
+              <Route path="/admin/product/bulk-generate-descriptions" element={<BulkGenerateAIDescriptionsPage />} />
             </Route>
 
             <Route path="/error/500" element={<ServerErrorPage />} />
