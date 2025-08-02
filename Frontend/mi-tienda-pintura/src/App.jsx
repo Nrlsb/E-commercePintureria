@@ -17,6 +17,7 @@ import Spinner from './components/Spinner.jsx';
 import AdminRoute from './components/AdminRoute.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
 import QuickViewModal from './components/QuickViewModal.jsx';
+import Chatbot from './components/Chatbot.jsx'; // Importar el nuevo componente Chatbot
 
 const ScrollToTop = () => {
   const { pathname } = useLocation();
@@ -29,6 +30,7 @@ const ScrollToTop = () => {
 // Lazy Loading de Páginas
 const AuthCallbackPage = lazy(() => import('./pages/AuthCallbackPage.jsx'));
 const HomePage = lazy(() => import('./pages/HomePage.jsx'));
+// ... (resto de las importaciones lazy)
 const ProductDetailPage = lazy(() => import('./pages/ProductDetailPage.jsx'));
 const CartPage = lazy(() => import('./pages/CartPage.jsx'));
 const CheckoutPage = lazy(() => import('./pages/CheckoutPage.jsx'));
@@ -48,7 +50,7 @@ const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage.jsx'));
 const BulkUploadPage = lazy(() => import('./pages/BulkUploadPage.jsx'));
 const BulkCreateAIPage = lazy(() => import('./pages/BulkCreateAIPage.jsx'));
 const BulkAssociateAIPage = lazy(() => import('./pages/BulkAssociateAIPage.jsx'));
-const BulkGenerateAIDescriptionsPage = lazy(() => import('./pages/BulkGenerateAIDescriptionsPage.jsx')); // Nueva página
+const BulkGenerateAIDescriptionsPage = lazy(() => import('./pages/BulkGenerateAIDescriptionsPage.jsx'));
 const WishlistPage = lazy(() => import('./pages/WishlistPage.jsx'));
 const ProfilePage = lazy(() => import('./pages/ProfilePage.jsx'));
 const AdminCouponsPage = lazy(() => import('./pages/AdminCouponsPage.jsx'));
@@ -129,7 +131,6 @@ export default function App() {
               <Route path="/admin/product/bulk-upload" element={<BulkUploadPage />} />
               <Route path="/admin/product/bulk-create-ai" element={<BulkCreateAIPage />} />
               <Route path="/admin/product/bulk-associate-ai" element={<BulkAssociateAIPage />} />
-              {/* --- NUEVA RUTA --- */}
               <Route path="/admin/product/bulk-generate-descriptions" element={<BulkGenerateAIDescriptionsPage />} />
             </Route>
 
@@ -139,6 +140,9 @@ export default function App() {
         </Suspense>
       </motion.main>
       <Footer />
+      
+      {/* --- AÑADIR EL COMPONENTE CHATBOT AQUÍ --- */}
+      <Chatbot />
       
       <AnimatePresence>
         {quickViewProduct && (

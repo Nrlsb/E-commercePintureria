@@ -26,6 +26,7 @@ import utilsRoutes from './routes/utils.routes.js';
 import analyticsRoutes from './routes/analytics.routes.js';
 import wishlistRoutes from './routes/wishlist.routes.js';
 import userRoutes from './routes/user.routes.js';
+import chatbotRoutes from './routes/chatbot.routes.js'; // Importar nuevas rutas del chatbot
 import errorHandler from './middlewares/errorHandler.js';
 import { handlePaymentNotification } from './controllers/payment.controller.js';
 
@@ -78,17 +79,12 @@ app.use(cors(corsOptions));
 app.use(compression()); 
 app.use(passport.initialize());
 
-// *** CORRECCIÓN APLICADA AQUÍ ***
-// 1. Se define la ruta del webhook de Mercado Pago ANTES de la protección CSRF.
-//    Se usa express.raw() para que el cuerpo de la solicitud no sea parseado a JSON,
-//    lo cual es a veces necesario para que Mercado Pago pueda verificar la firma.
 app.post('/api/payment/notification', express.raw({ type: 'application/json' }), handlePaymentNotification);
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
 app.use(cookieParser());
 
-// 2. Se configura y aplica la protección CSRF para el resto de las rutas.
 const csrfProtection = csurf({
   cookie: {
     httpOnly: true,
@@ -97,13 +93,15 @@ const csrfProtection = csurf({
   },
 });
 
+// La ruta del chatbot no necesita protección CSRF ya que es una API de solo lectura de datos
+app.use('/api/chatbot', chatbotRoutes);
+
 app.get('/api/csrf-token', csrfProtection, (req, res) => {
   res.json({ csrfToken: req.csrfToken() });
 });
 
 app.use(csrfProtection);
 
-// Logger de Winston para peticiones HTTP
 app.use(expressWinston.logger({
   winstonInstance: logger,
   meta: true,
@@ -115,12 +113,11 @@ app.use(expressWinston.logger({
 
 app.use(express.static('public'));
 
-// --- RUTAS DE LA API (AHORA PROTEGIDAS POR CSRF) ---
+// --- RUTAS DE LA API ---
 app.use('/api/products', productRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/shipping', shippingRoutes);
-// La ruta de notificación ya fue definida, pero el resto de rutas de pago sí usan CSRF si las hubiera.
 app.use('/api/payment', paymentRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/coupons', couponRoutes);
@@ -146,7 +143,6 @@ process.on('uncaughtException', (error) => {
   process.exit(1);
 });
 
-// Middleware para manejar errores específicos de CSRF
 app.use((err, req, res, next) => {
   if (err.code === 'EBADCSRFTOKEN') {
     logger.warn(`Token CSRF inválido para la petición: ${req.method} ${req.originalUrl}`);
@@ -156,7 +152,6 @@ app.use((err, req, res, next) => {
   }
 });
 
-// Middleware de manejo de errores general
 app.use(errorHandler);
 
 app.listen(PORT, () => {
