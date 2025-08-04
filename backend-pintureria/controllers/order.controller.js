@@ -180,8 +180,8 @@ export const createPixPayment = async (req, res, next) => {
           type: 'DNI',
           number: dni
         }
-        // --- CORRECCIÓN: Se eliminó el bloque de 'address' de aquí ---
       },
+      // --- CORRECCIÓN: Se simplifica el bloque additional_info ---
       additional_info: {
         items: cart.map(item => ({
             id: item.id.toString(),
@@ -190,27 +190,7 @@ export const createPixPayment = async (req, res, next) => {
             category_id: item.category,
             quantity: item.quantity,
             unit_price: Number(item.price)
-        })),
-        payer: {
-            first_name: firstName,
-            last_name: lastName,
-            phone: {
-                area_code: "549",
-                number: phone
-            },
-            address: {
-                zip_code: address.postal_code,
-                street_name: address.address_line1,
-            }
-        },
-        shipments: {
-            receiver_address: {
-                zip_code: address.postal_code,
-                state_name: address.state,
-                city_name: address.city,
-                street_name: address.address_line1,
-            }
-        }
+        }))
       },
       external_reference: orderId.toString(),
       notification_url: `${process.env.BACKEND_URL}/api/payment/notification`,
