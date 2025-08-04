@@ -177,11 +177,11 @@ export const createPixPayment = async (req, res, next) => {
         first_name: firstName,
         last_name: lastName,
         identification: {
-          type: 'DNI',
+          // --- CORRECCIÓN FINAL: Cambiado de 'DNI' a 'CUIT' ---
+          type: 'CUIT',
           number: dni
         }
       },
-      // --- CORRECCIÓN: Se simplifica el bloque additional_info ---
       additional_info: {
         items: cart.map(item => ({
             id: item.id.toString(),
