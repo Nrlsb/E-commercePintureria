@@ -171,7 +171,8 @@ export const createPixPayment = async (req, res, next) => {
     paymentData = {
       transaction_amount: Number(total),
       description: `Compra en Pinturerías Mercurio - Orden #${orderId}`,
-      payment_method_id: 'pix',
+      // --- CORRECCIÓN: Cambiado de 'pix' a 'transfer' ---
+      payment_method_id: 'transfer',
       payer: {
         email: email,
         first_name: firstName,
@@ -221,7 +222,7 @@ export const createPixPayment = async (req, res, next) => {
       date_of_expiration: expirationDate,
     };
     
-    logger.debug('Enviando el siguiente payload a Mercado Pago para pago PIX/Transfer:', JSON.stringify(paymentData, null, 2));
+    logger.debug('Enviando el siguiente payload a Mercado Pago para pago por Transferencia:', JSON.stringify(paymentData, null, 2));
 
     const mpPayment = await payment.create({ body: paymentData });
     
@@ -240,7 +241,7 @@ export const createPixPayment = async (req, res, next) => {
     await sendBankTransferInstructionsEmail(email, orderDataForEmail);
 
     await dbClient.query('COMMIT');
-    logger.info(`Orden de pago PIX/Transfer #${orderId} (MP ID: ${mpPayment.id}) creada para usuario ID: ${userId}`);
+    logger.info(`Orden de pago por Transferencia #${orderId} (MP ID: ${mpPayment.id}) creada para usuario ID: ${userId}`);
     
     res.status(201).json({
       status: 'pending_payment',
@@ -250,7 +251,7 @@ export const createPixPayment = async (req, res, next) => {
 
   } catch (error) {
     if (dbClient) await dbClient.query('ROLLBACK');
-    const errorMessage = `Error completo creando pago PIX/Transfer para la orden #${orderId}:`;
+    const errorMessage = `Error completo creando pago por Transferencia para la orden #${orderId}:`;
     logger.error(errorMessage, error);
     const detailedError = new AppError(
       error.message || 'Error al procesar el pago.',
