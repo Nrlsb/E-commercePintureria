@@ -179,12 +179,8 @@ export const createPixPayment = async (req, res, next) => {
         identification: {
           type: 'DNI',
           number: dni
-        },
-        address: {
-            zip_code: address.postal_code,
-            street_name: address.address_line1,
-            city: address.city,
         }
+        // --- CORRECCIÓN: Se eliminó el bloque de 'address' de aquí ---
       },
       additional_info: {
         items: cart.map(item => ({
@@ -193,7 +189,6 @@ export const createPixPayment = async (req, res, next) => {
             description: item.description,
             category_id: item.category,
             quantity: item.quantity,
-            // --- CORRECCIÓN: Asegurarse de que unit_price sea un número ---
             unit_price: Number(item.price)
         })),
         payer: {
@@ -338,7 +333,6 @@ export const processPayment = async (req, res, next) => {
                     description: item.description,
                     category_id: item.category,
                     quantity: item.quantity,
-                    // --- CORRECCIÓN: Asegurarse de que unit_price sea un número ---
                     unit_price: Number(item.price)
                 })),
                 payer: {
