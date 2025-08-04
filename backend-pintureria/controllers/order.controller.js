@@ -177,8 +177,8 @@ export const createPixPayment = async (req, res, next) => {
         first_name: firstName,
         last_name: lastName,
         identification: {
-          // --- CORRECCIÓN FINAL: Cambiado de 'DNI' a 'CUIT' ---
-          type: 'CUIT',
+          // --- CORRECCIÓN FINAL: Volvemos a usar 'DNI' que es el dato que tenemos ---
+          type: 'DNI',
           number: dni
         }
       },
