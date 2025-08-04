@@ -171,7 +171,6 @@ export const createPixPayment = async (req, res, next) => {
     paymentData = {
       transaction_amount: Number(total),
       description: `Compra en Pinturerías Mercurio - Orden #${orderId}`,
-      // --- CORRECCIÓN: Cambiado de 'pix' a 'transfer' ---
       payment_method_id: 'transfer',
       payer: {
         email: email,
@@ -194,7 +193,8 @@ export const createPixPayment = async (req, res, next) => {
             description: item.description,
             category_id: item.category,
             quantity: item.quantity,
-            unit_price: item.price
+            // --- CORRECCIÓN: Asegurarse de que unit_price sea un número ---
+            unit_price: Number(item.price)
         })),
         payer: {
             first_name: firstName,
@@ -317,7 +317,6 @@ export const processPayment = async (req, res, next) => {
 
         const payment = new Payment(mpClient);
         
-        // --- MEJORA FINAL: Aseguramos que `first_name` y `last_name` estén en el objeto `payer` principal ---
         const payment_data = {
             transaction_amount: Number(transaction_amount),
             token,
@@ -326,9 +325,9 @@ export const processPayment = async (req, res, next) => {
             payment_method_id,
             issuer_id,
             payer: {
-              ...payer, // Mantenemos toda la información que ya envía el brick
-              first_name: payer.first_name, // Aseguramos explícitamente el nombre
-              last_name: payer.last_name,   // Aseguramos explícitamente el apellido
+              ...payer,
+              first_name: payer.first_name,
+              last_name: payer.last_name,
             },
             external_reference: orderId.toString(),
             notification_url: `${process.env.BACKEND_URL}/api/payment/notification`,
@@ -339,7 +338,8 @@ export const processPayment = async (req, res, next) => {
                     description: item.description,
                     category_id: item.category,
                     quantity: item.quantity,
-                    unit_price: item.price
+                    // --- CORRECCIÓN: Asegurarse de que unit_price sea un número ---
+                    unit_price: Number(item.price)
                 })),
                 payer: {
                     first_name: payer.first_name,
