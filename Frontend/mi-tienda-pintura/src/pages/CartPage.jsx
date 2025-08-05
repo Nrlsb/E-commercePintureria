@@ -1,37 +1,64 @@
 // src/pages/CartPage.jsx
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion'; // 1. Importar AnimatePresence y motion
+import { motion, AnimatePresence } from 'framer-motion';
 import { useCartStore } from '../stores/useCartStore';
 import { useAuthStore } from '../stores/useAuthStore';
+import { useNotificationStore } from '../stores/useNotificationStore';
 import Spinner from '../components/Spinner';
+import ConfirmationModal from '../components/ConfirmationModal'; // Importar el modal
+import AnimatedNumber from '../components/AnimatedNumber'; // Importar el nuevo componente
 
 const CartPage = () => {
-  const { cart, updateQuantity, removeItem, shippingCost, postalCode, calculateShipping, appliedCoupon, discountAmount, applyCoupon, removeCoupon } = useCartStore();
+  const { cart, updateQuantity, removeItem, shippingCost, postalCode, calculateShipping, appliedCoupon, discountAmount, applyCoupon, removeCoupon, clearCart } = useCartStore();
   const { token } = useAuthStore();
+  const showNotification = useNotificationStore(state => state.showNotification);
   
   const [localPostalCode, setLocalPostalCode] = useState(postalCode);
   const [couponCode, setCouponCode] = useState('');
-  const [loadingShipping, setLoadingShipping] = useState(false); // Estado de carga para el envío
+  const [loadingShipping, setLoadingShipping] = useState(false);
+  
+  // --- NUEVOS ESTADOS ---
+  const [stockErrorId, setStockErrorId] = useState(null);
+  const [isClearCartModalOpen, setIsClearCartModalOpen] = useState(false);
+  // --- FIN NUEVOS ESTADOS ---
 
-  const calculateSubtotal = (item) => item.price * item.quantity;
-  const cartSubtotal = cart.reduce((total, item) => total + calculateSubtotal(item), 0);
+  const cartSubtotal = cart.reduce((total, item) => total + (item.price * item.quantity), 0);
   const cartTotal = (cartSubtotal - discountAmount) + shippingCost;
 
   const handleShippingCalculation = async () => {
     if (!localPostalCode || !/^\d{4}$/.test(localPostalCode)) {
-      alert('Por favor, ingresa un código postal válido de 4 dígitos.');
+      showNotification('Por favor, ingresa un código postal válido de 4 dígitos.', 'error');
       return;
     }
-    setLoadingShipping(true); // Activar spinner
+    setLoadingShipping(true);
     await calculateShipping(localPostalCode);
-    setLoadingShipping(false); // Desactivar spinner
+    setLoadingShipping(false);
   };
 
   const handleApplyCoupon = () => {
     if (couponCode.trim()) {
       applyCoupon(couponCode, token);
     }
+  };
+
+  // --- NUEVO: Manejador de cantidad con feedback de stock ---
+  const handleQuantityChange = (item, amount) => {
+    const newQuantity = item.quantity + amount;
+    if (newQuantity > item.stock) {
+      showNotification(`No puedes añadir más. Stock máximo: ${item.stock}`, 'error');
+      setStockErrorId(item.id);
+      setTimeout(() => setStockErrorId(null), 500); // Resetea el estado para futuras animaciones
+    } else {
+      updateQuantity(item.id, newQuantity);
+    }
+  };
+  // --- FIN NUEVO MANEJADOR ---
+
+  const handleClearCartConfirm = () => {
+    clearCart();
+    setIsClearCartModalOpen(false);
+    showNotification('Tu carrito ha sido vaciado.', 'success');
   };
 
   const getCartItemImageUrl = (item) => {
@@ -57,18 +84,39 @@ const CartPage = () => {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <h1 className="text-3xl font-bold text-gray-800 mb-8">Mi Carrito</h1>
+      {/* --- NUEVO: Modal de confirmación para vaciar carrito --- */}
+      <ConfirmationModal
+        isOpen={isClearCartModalOpen}
+        onClose={() => setIsClearCartModalOpen(false)}
+        onConfirm={handleClearCartConfirm}
+        title="Vaciar Carrito"
+        message="¿Estás seguro de que quieres eliminar todos los productos de tu carrito?"
+        confirmText="Sí, Vaciar"
+        iconPath="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"
+        iconColor="text-red-500"
+      />
+      {/* --- FIN MODAL --- */}
+
+      <div className="flex justify-between items-center mb-8">
+        <h1 className="text-3xl font-bold text-gray-800">Mi Carrito</h1>
+        {/* --- NUEVO: Botón para vaciar carrito --- */}
+        <button 
+          onClick={() => setIsClearCartModalOpen(true)} 
+          className="text-sm text-gray-500 hover:text-red-600 hover:underline"
+        >
+          Vaciar Carrito
+        </button>
+        {/* --- FIN BOTÓN --- */}
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        
         <div className="lg:col-span-2 bg-white p-6 rounded-lg shadow-md">
           <div className="space-y-6">
-            {/* 2. Envolver la lista de productos con AnimatePresence */}
             <AnimatePresence>
               {cart.map(item => (
-                // 3. Convertir cada item del carrito en un motion.div para animar su entrada y salida
                 <motion.div
                   key={item.id}
-                  layout // Anima el cambio de posición cuando otros elementos se eliminan
+                  layout
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, x: -50, transition: { duration: 0.2 } }}
@@ -82,12 +130,18 @@ const CartPage = () => {
                     </div>
                   </div>
                   <div className="flex items-center space-x-4">
-                    <div className="flex items-center border border-gray-300 rounded-md">
+                    {/* --- NUEVO: Contenedor animado para feedback de stock --- */}
+                    <motion.div 
+                      animate={{ x: stockErrorId === item.id ? [-5, 5, -5, 5, 0] : 0 }}
+                      transition={{ duration: 0.3 }}
+                      className="flex items-center border border-gray-300 rounded-md"
+                    >
                       <button onClick={() => updateQuantity(item.id, item.quantity - 1)} className="px-3 py-1 text-lg font-bold hover:bg-gray-100 rounded-l-md transition-colors">-</button>
                       <span className="px-4 py-1 text-lg">{item.quantity}</span>
-                      <button onClick={() => updateQuantity(item.id, item.quantity + 1)} className="px-3 py-1 text-lg font-bold hover:bg-gray-100 rounded-r-md transition-colors">+</button>
-                    </div>
-                    <p className="font-bold text-lg w-28 text-right">${new Intl.NumberFormat('es-AR').format(calculateSubtotal(item))}</p>
+                      <button onClick={() => handleQuantityChange(item, 1)} className="px-3 py-1 text-lg font-bold hover:bg-gray-100 rounded-r-md transition-colors">+</button>
+                    </motion.div>
+                    {/* --- FIN CONTENEDOR ANIMADO --- */}
+                    <p className="font-bold text-lg w-28 text-right">$<AnimatedNumber value={item.price * item.quantity} /></p>
                     <button onClick={() => removeItem(item.id)} className="text-gray-400 hover:text-red-500 transition-colors">
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -107,12 +161,12 @@ const CartPage = () => {
                 <div className="space-y-2 text-lg mb-4">
                   <div className="flex justify-between">
                       <span>Subtotal</span>
-                      <span>${new Intl.NumberFormat('es-AR').format(cartSubtotal)}</span>
+                      <span>$<AnimatedNumber value={cartSubtotal} /></span>
                   </div>
                   {appliedCoupon && (
                     <div className="flex justify-between text-green-600">
                       <span>Descuento ({appliedCoupon.code})</span>
-                      <span>- ${new Intl.NumberFormat('es-AR').format(discountAmount)}</span>
+                      <span>- $<AnimatedNumber value={discountAmount} /></span>
                     </div>
                   )}
                   <div className="flex justify-between">
@@ -127,10 +181,10 @@ const CartPage = () => {
                     <input type="text" value={localPostalCode} onChange={(e) => setLocalPostalCode(e.target.value)} placeholder="Cód. Postal" className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#0F3460]" />
                     <button 
                       onClick={handleShippingCalculation} 
-                      disabled={loadingShipping} // Deshabilitar botón mientras carga
+                      disabled={loadingShipping}
                       className="bg-gray-200 px-4 py-2 rounded-md hover:bg-gray-300 disabled:opacity-50 flex items-center justify-center w-24"
                     >
-                      {loadingShipping ? <Spinner className="w-5 h-5 text-gray-700" /> : 'OK'} {/* Mostrar Spinner */}
+                      {loadingShipping ? <Spinner className="w-5 h-5 text-gray-700" /> : 'OK'}
                     </button>
                   </div>
                 </div>
@@ -152,7 +206,7 @@ const CartPage = () => {
 
                 <div className="flex justify-between font-bold text-2xl border-t pt-4 mt-4">
                     <span>Total</span>
-                    <span>${new Intl.NumberFormat('es-AR').format(cartTotal)}</span>
+                    <span>$<AnimatedNumber value={cartTotal} /></span>
                 </div>
 
                 <Link to="/checkout" className="block text-center w-full mt-6 bg-[#10B981] text-white font-bold py-3 rounded-lg hover:bg-green-600 transition-colors">
