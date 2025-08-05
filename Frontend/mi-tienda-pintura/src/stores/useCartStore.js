@@ -2,7 +2,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { useNotificationStore } from './useNotificationStore';
-import { fetchWithCsrf } from '../api/api'; // Importar fetchWithCsrf
+import { fetchWithCsrf } from '../api/api';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
@@ -14,6 +14,11 @@ export const useCartStore = create(
       postalCode: '',
       appliedCoupon: null,
       discountAmount: 0,
+
+      // --- NUEVA ACCIÓN ---
+      // Permite establecer manualmente el costo de envío, útil para el checkout multi-paso.
+      setShippingCost: (cost) => set({ shippingCost: cost }),
+      // --- FIN NUEVA ACCIÓN ---
 
       addToCart: (product, quantity = 1) => {
         const { cart, postalCode } = get();
