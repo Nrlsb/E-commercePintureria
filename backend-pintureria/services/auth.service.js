@@ -10,14 +10,16 @@ import AppError from '../utils/AppError.js';
 
 const JWT_SECRET = config.jwtSecret;
 
+// --- INICIO DE LA MODIFICACIÓN ---
+// Se incluyen first_name y last_name en el payload del token.
 const generateToken = (user) => {
   return jwt.sign(
     {
       userId: user.id,
       email: user.email,
       role: user.role,
-      firstName: user.first_name,
-      lastName: user.last_name,
+      firstName: user.first_name, // Añadido
+      lastName: user.last_name,   // Añadido
       phone: user.phone,
       dni: user.dni,
     },
@@ -25,6 +27,7 @@ const generateToken = (user) => {
     { expiresIn: '1h' }
   );
 };
+// --- FIN DE LA MODIFICACIÓN ---
 
 export const findOrCreateGoogleUser = async (profile) => {
   const { id: googleId, displayName, emails, name } = profile;
@@ -82,7 +85,7 @@ export const register = async (userData) => {
     logger.info(`Usuario registrado con éxito: ${result.rows[0].email}`);
     return result.rows[0];
   } catch (err) {
-    if (err.code === '23505') {
+    if (err.code === '23505') { 
       throw err; 
     }
     throw err;
@@ -138,7 +141,6 @@ export const forgotPassword = async (email) => {
       [hashedToken, passwordResetExpires, email]
     );
     
-    // Log para depuración
     logger.debug(`Token generado para ${email}. Token original: ${resetToken}. Hash guardado: ${hashedToken}`);
 
     await sendPasswordResetEmail(email, resetToken);
@@ -152,7 +154,6 @@ export const resetPassword = async (token, password) => {
 
     const hashedToken = crypto.createHash('sha512').update(token).digest('hex');
     
-    // Log para depuración
     logger.debug(`Intentando resetear con token: ${token}. Hash calculado: ${hashedToken}`);
 
     const userResult = await db.query(
