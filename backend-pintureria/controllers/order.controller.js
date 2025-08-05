@@ -171,15 +171,19 @@ export const createPixPayment = async (req, res, next) => {
     paymentData = {
       transaction_amount: Number(total),
       description: `Compra en Pinturerías Mercurio - Orden #${orderId}`,
-      payment_method_id: 'transfer',
+      payment_method_id: 'pix',
       payer: {
         email: email,
         first_name: firstName,
         last_name: lastName,
         identification: {
-          // --- CORRECCIÓN FINAL: Volvemos a usar 'DNI' que es el dato que tenemos ---
           type: 'DNI',
           number: dni
+        },
+        address: {
+            zip_code: address.postal_code,
+            street_name: address.address_line1,
+            city: address.city,
         }
       },
       additional_info: {
@@ -189,15 +193,35 @@ export const createPixPayment = async (req, res, next) => {
             description: item.description,
             category_id: item.category,
             quantity: item.quantity,
-            unit_price: Number(item.price)
-        }))
+            unit_price: item.price
+        })),
+        payer: {
+            first_name: firstName,
+            last_name: lastName,
+            phone: {
+                area_code: "549",
+                number: phone
+            },
+            address: {
+                zip_code: address.postal_code,
+                street_name: address.address_line1,
+            }
+        },
+        shipments: {
+            receiver_address: {
+                zip_code: address.postal_code,
+                state_name: address.state,
+                city_name: address.city,
+                street_name: address.address_line1,
+            }
+        }
       },
       external_reference: orderId.toString(),
       notification_url: `${process.env.BACKEND_URL}/api/payment/notification`,
       date_of_expiration: expirationDate,
     };
     
-    logger.debug('Enviando el siguiente payload a Mercado Pago para pago por Transferencia:', JSON.stringify(paymentData, null, 2));
+    logger.debug('Enviando el siguiente payload a Mercado Pago para pago PIX/Transfer:', JSON.stringify(paymentData, null, 2));
 
     const mpPayment = await payment.create({ body: paymentData });
     
@@ -216,7 +240,7 @@ export const createPixPayment = async (req, res, next) => {
     await sendBankTransferInstructionsEmail(email, orderDataForEmail);
 
     await dbClient.query('COMMIT');
-    logger.info(`Orden de pago por Transferencia #${orderId} (MP ID: ${mpPayment.id}) creada para usuario ID: ${userId}`);
+    logger.info(`Orden de pago PIX/Transfer #${orderId} (MP ID: ${mpPayment.id}) creada para usuario ID: ${userId}`);
     
     res.status(201).json({
       status: 'pending_payment',
@@ -226,7 +250,7 @@ export const createPixPayment = async (req, res, next) => {
 
   } catch (error) {
     if (dbClient) await dbClient.query('ROLLBACK');
-    const errorMessage = `Error completo creando pago por Transferencia para la orden #${orderId}:`;
+    const errorMessage = `Error completo creando pago PIX/Transfer para la orden #${orderId}:`;
     logger.error(errorMessage, error);
     const detailedError = new AppError(
       error.message || 'Error al procesar el pago.',
@@ -292,6 +316,7 @@ export const processPayment = async (req, res, next) => {
 
         const payment = new Payment(mpClient);
         
+        // --- MEJORA FINAL: Aseguramos que `first_name` y `last_name` estén en el objeto `payer` principal ---
         const payment_data = {
             transaction_amount: Number(transaction_amount),
             token,
@@ -300,9 +325,9 @@ export const processPayment = async (req, res, next) => {
             payment_method_id,
             issuer_id,
             payer: {
-              ...payer,
-              first_name: payer.first_name,
-              last_name: payer.last_name,
+              ...payer, // Mantenemos toda la información que ya envía el brick
+              first_name: payer.first_name, // Aseguramos explícitamente el nombre
+              last_name: payer.last_name,   // Aseguramos explícitamente el apellido
             },
             external_reference: orderId.toString(),
             notification_url: `${process.env.BACKEND_URL}/api/payment/notification`,
@@ -313,7 +338,7 @@ export const processPayment = async (req, res, next) => {
                     description: item.description,
                     category_id: item.category,
                     quantity: item.quantity,
-                    unit_price: Number(item.price)
+                    unit_price: item.price
                 })),
                 payer: {
                     first_name: payer.first_name,
