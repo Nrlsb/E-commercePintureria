@@ -26,7 +26,8 @@ import utilsRoutes from './routes/utils.routes.js';
 import analyticsRoutes from './routes/analytics.routes.js';
 import wishlistRoutes from './routes/wishlist.routes.js';
 import userRoutes from './routes/user.routes.js';
-import chatbotRoutes from './routes/chatbot.routes.js'; // Importar nuevas rutas del chatbot
+import chatbotRoutes from './routes/chatbot.routes.js';
+import webhookRoutes from './routes/webhook.routes.js'; // <-- AÑADIDO
 import errorHandler from './middlewares/errorHandler.js';
 import { handlePaymentNotification } from './controllers/payment.controller.js';
 
@@ -126,6 +127,8 @@ app.use('/api/utils', utilsRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/wishlist', wishlistRoutes);
 app.use('/api/user', userRoutes);
+app.use('/api/chatbot', chatbotRoutes);
+app.use('/api/webhooks', webhookRoutes); // <-- AÑADIDO
 
 startCancelPendingOrdersJob();
 

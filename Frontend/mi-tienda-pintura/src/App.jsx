@@ -17,7 +17,7 @@ import Spinner from './components/Spinner.jsx';
 import AdminRoute from './components/AdminRoute.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
 import QuickViewModal from './components/QuickViewModal.jsx';
-import Chatbot from './components/Chatbot.jsx'; // Importar el nuevo componente Chatbot
+import Chatbot from './components/Chatbot.jsx';
 
 const ScrollToTop = () => {
   const { pathname } = useLocation();
@@ -30,7 +30,6 @@ const ScrollToTop = () => {
 // Lazy Loading de Páginas
 const AuthCallbackPage = lazy(() => import('./pages/AuthCallbackPage.jsx'));
 const HomePage = lazy(() => import('./pages/HomePage.jsx'));
-// ... (resto de las importaciones lazy)
 const ProductDetailPage = lazy(() => import('./pages/ProductDetailPage.jsx'));
 const CartPage = lazy(() => import('./pages/CartPage.jsx'));
 const CheckoutPage = lazy(() => import('./pages/CheckoutPage.jsx'));
@@ -54,6 +53,7 @@ const BulkGenerateAIDescriptionsPage = lazy(() => import('./pages/BulkGenerateAI
 const WishlistPage = lazy(() => import('./pages/WishlistPage.jsx'));
 const ProfilePage = lazy(() => import('./pages/ProfilePage.jsx'));
 const AdminCouponsPage = lazy(() => import('./pages/AdminCouponsPage.jsx'));
+const AdminWebhookEventsPage = lazy(() => import('./pages/AdminWebhookEventsPage.jsx')); // <-- AÑADIDO
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage.jsx'));
 const ServerErrorPage = lazy(() => import('./pages/ServerErrorPage.jsx'));
 
@@ -132,6 +132,7 @@ export default function App() {
               <Route path="/admin/product/bulk-create-ai" element={<BulkCreateAIPage />} />
               <Route path="/admin/product/bulk-associate-ai" element={<BulkAssociateAIPage />} />
               <Route path="/admin/product/bulk-generate-descriptions" element={<BulkGenerateAIDescriptionsPage />} />
+              <Route path="/admin/webhooks" element={<AdminWebhookEventsPage />} /> {/* <-- AÑADIDO */}
             </Route>
 
             <Route path="/error/500" element={<ServerErrorPage />} />
@@ -141,7 +142,6 @@ export default function App() {
       </motion.main>
       <Footer />
       
-      {/* --- AÑADIR EL COMPONENTE CHATBOT AQUÍ --- */}
       <Chatbot />
       
       <AnimatePresence>
