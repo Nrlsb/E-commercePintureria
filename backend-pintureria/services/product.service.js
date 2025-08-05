@@ -2,7 +2,7 @@
 import db from '../db.js';
 import redisClient from '../redisClient.js';
 import logger from '../logger.js';
-import AppError from '../utils/AppError.js'; // Importar AppError (aunque no se use directamente para lanzar, es bueno tenerlo)
+import AppError from '../utils/AppError.js';
 
 const CACHE_EXPIRATION = 3600; // 1 hora en segundos
 
@@ -20,7 +20,6 @@ const parseImageUrl = (imageUrl) => {
   return { small: imageUrl, medium: imageUrl, large: imageUrl };
 };
 
-// --- NUEVO: Función para limpiar la caché de marcas ---
 const BRANDS_CACHE_KEY = 'product_brands';
 
 export const clearBrandsCache = async () => {
@@ -34,24 +33,21 @@ export const clearBrandsCache = async () => {
   }
 };
 
-// --- NUEVO: Servicio para obtener marcas de productos con caché y logging de caché ---
 export const fetchProductBrands = async () => {
   try {
     if (redisClient.isReady) {
       const cachedData = await redisClient.get(BRANDS_CACHE_KEY);
       if (cachedData) {
-        logger.debug(`Cache HIT: Marcas de productos`); // Log de cache hit
+        logger.debug(`Cache HIT: Marcas de productos`);
         return JSON.parse(cachedData);
       }
     }
   } catch (err) {
     logger.error('Error al leer la caché de marcas de Redis:', err);
-    // No lanzar error aquí, solo loggear, para que la app pueda seguir funcionando sin caché
   }
 
-  logger.debug(`Cache MISS: Marcas de productos. Consultando base de datos.`); // Log de cache miss
+  logger.debug(`Cache MISS: Marcas de productos. Consultando base de datos.`);
   try {
-    // Query is static, no user input involved, so it's safe.
     const result = await db.query('SELECT DISTINCT brand FROM products WHERE is_active = true ORDER BY brand ASC');
     const brands = result.rows.map(row => row.brand);
 
@@ -61,12 +57,11 @@ export const fetchProductBrands = async () => {
     return brands;
   } catch (err) {
     logger.error('Error al obtener marcas de la base de datos:', err);
-    throw err; // Propagar el error
+    throw err;
   }
 };
 
 
-// --- Función para limpiar la caché de productos (ya existente) ---
 const clearProductsCache = async () => {
   try {
     if (redisClient.isReady) {
@@ -81,28 +76,30 @@ const clearProductsCache = async () => {
   }
 };
 
-// --- NUEVO: Servicio para obtener sugerencias de búsqueda (ya existente) ---
+// --- MODIFICADO: Servicio para obtener sugerencias de búsqueda con Fuzzy Search ---
 export const fetchProductSuggestions = async (query) => {
   if (!query || query.trim().length < 2) {
     return { products: [], categories: [], brands: [] };
   }
 
-  const searchTerm = `%${query.trim()}%`;
+  // Ya no se necesitan los comodines '%' para ILIKE
+  const searchTerm = query.trim();
 
   try {
-    // Using parameterized queries for all search suggestions
+    // Se usa el operador '%' de pg_trgm para buscar por similitud.
+    // Se ordena por la función similarity() para mostrar los resultados más relevantes primero.
     const productsQuery = db.query(
-      'SELECT id, name, image_url as "imageUrl" FROM products WHERE name ILIKE $1 AND is_active = true LIMIT 5',
+      'SELECT id, name, image_url as "imageUrl" FROM products WHERE name % $1 AND is_active = true ORDER BY similarity(name, $1) DESC LIMIT 5',
       [searchTerm]
     );
 
     const categoriesQuery = db.query(
-      'SELECT DISTINCT category FROM products WHERE category ILIKE $1 AND is_active = true LIMIT 3',
+      'SELECT DISTINCT category FROM products WHERE category % $1 AND is_active = true ORDER BY similarity(category, $1) DESC LIMIT 3',
       [searchTerm]
     );
 
     const brandsQuery = db.query(
-      'SELECT DISTINCT brand FROM products WHERE brand ILIKE $1 AND is_active = true LIMIT 3',
+      'SELECT DISTINCT brand FROM products WHERE brand % $1 AND is_active = true ORDER BY similarity(brand, $1) DESC LIMIT 3',
       [searchTerm]
     );
 
@@ -112,7 +109,6 @@ export const fetchProductSuggestions = async (query) => {
       brandsQuery,
     ]);
 
-    // Parseamos las imágenes de los productos sugeridos
     const products = productsResult.rows.map(p => ({
       ...p,
       imageUrl: parseImageUrl(p.imageUrl)?.small || 'https://placehold.co/40x40'
@@ -124,11 +120,12 @@ export const fetchProductSuggestions = async (query) => {
     return { products, categories, brands };
   } catch (error) {
     logger.error('Error fetching search suggestions:', error);
-    throw error; // Propagar el error
+    throw error;
   }
 };
 
 
+// --- MODIFICADO: Servicio para obtener productos con Fuzzy Search ---
 export const getActiveProducts = async (filters) => {
   const cacheKey = `products:${JSON.stringify(filters)}`;
 
@@ -136,7 +133,7 @@ export const getActiveProducts = async (filters) => {
     if (redisClient.isReady) {
       const cachedData = await redisClient.get(cacheKey);
       if (cachedData) {
-        logger.debug(`Cache HIT: Lista de productos para filtros ${JSON.stringify(filters)}`); // Log de cache hit
+        logger.debug(`Cache HIT: Lista de productos para filtros ${JSON.stringify(filters)}`);
         const parsedCache = JSON.parse(cachedData);
         parsedCache.products = parsedCache.products.map(p => ({
           ...p,
@@ -147,29 +144,53 @@ export const getActiveProducts = async (filters) => {
     }
   } catch (err) {
     logger.error('Error al leer de la caché de Redis:', err);
-    // No lanzar error aquí, solo loggear, para que la app pueda seguir funcionando sin caché
   }
 
-  logger.debug(`Cache MISS: Lista de productos para filtros ${JSON.stringify(filters)}. Consultando base de datos.`); // Log de cache miss
+  logger.debug(`Cache MISS: Lista de productos para filtros ${JSON.stringify(filters)}. Consultando base de datos.`);
   const { category, sortBy, brands, minPrice, maxPrice, page = 1, limit = 12, searchQuery } = filters;
+  
   const queryParams = [];
+  let selectClauses = [
+      'p.id', 'p.name', 'p.brand', 'p.category', 'p.price',
+      'p.old_price AS "oldPrice"', 'p.image_url AS "imageUrl"',
+      'p.description', 'p.stock',
+      'COALESCE(AVG(r.rating), 0) as "averageRating"', 
+      'COUNT(r.id) as "reviewCount"'
+  ];
   let whereClauses = ['p.is_active = true'];
   let paramIndex = 1;
+  let orderByClause = ' ORDER BY p.id ASC'; // Orden por defecto
 
-  // Using parameterized queries for all dynamic parts of the WHERE clause
+  // INICIO DE CAMBIOS PARA FUZZY SEARCH
   if (searchQuery) {
-    whereClauses.push(`(p.name ILIKE $${paramIndex} OR p.brand ILIKE $${paramIndex})`);
-    queryParams.push(`%${searchQuery}%`);
+    // 1. Añadimos el cálculo de similitud a la selección para poder ordenar por relevancia.
+    selectClauses.push(`GREATEST(similarity(p.name, $${paramIndex}), similarity(p.brand, $${paramIndex})) AS relevance`);
+    
+    // 2. Usamos el operador '%' de pg_trgm en lugar de ILIKE para una búsqueda por similitud.
+    // También se puede añadir un umbral de similitud si se desea: `WHERE similarity(p.name, $1) > 0.2`
+    whereClauses.push(`(p.name % $${paramIndex} OR p.brand % $${paramIndex})`);
+    queryParams.push(searchQuery); // Ya no se necesitan los comodines '%'
     paramIndex++;
+
+    // 3. El ordenamiento principal ahora es por relevancia. Los otros filtros se ignoran al buscar.
+    orderByClause = ' ORDER BY relevance DESC';
+  } else {
+    // Mantenemos la lógica de ordenamiento original si no hay una búsqueda.
+    switch (sortBy) {
+      case 'price_asc': orderByClause = ' ORDER BY p.price ASC'; break;
+      case 'price_desc': orderByClause = ' ORDER BY p.price DESC'; break;
+      case 'rating_desc': orderByClause = ' ORDER BY "averageRating" DESC'; break;
+    }
   }
+  // FIN DE CAMBIOS PARA FUZZY SEARCH
+
   if (category) {
     whereClauses.push(`p.category = $${paramIndex++}`);
     queryParams.push(category);
   }
-  if (brands) {
-    const brandList = brands.split(',');
+  if (brands && brands.length > 0) {
     whereClauses.push(`p.brand = ANY($${paramIndex++})`);
-    queryParams.push(brandList);
+    queryParams.push(brands.split(','));
   }
   if (minPrice) {
     whereClauses.push(`p.price >= $${paramIndex++}`);
@@ -182,7 +203,6 @@ export const getActiveProducts = async (filters) => {
 
   const whereString = `WHERE ${whereClauses.join(' AND ')}`;
   
-  // Using parameterized query for count
   const countQuery = `SELECT COUNT(*) FROM products p ${whereString}`;
   try {
     const totalResult = await db.query(countQuery, queryParams);
@@ -190,27 +210,15 @@ export const getActiveProducts = async (filters) => {
     const totalPages = Math.ceil(totalProducts / limit);
 
     let baseQuery = `
-      SELECT 
-        p.id, p.name, p.brand, p.category, p.price,
-        p.old_price AS "oldPrice", p.image_url AS "imageUrl",
-        p.description, p.stock,
-        COALESCE(AVG(r.rating), 0) as "averageRating", 
-        COUNT(r.id) as "reviewCount"
+      SELECT ${selectClauses.join(', ')}
       FROM products p
       LEFT JOIN reviews r ON p.id = r.product_id
       ${whereString}
       GROUP BY p.id
+      ${orderByClause}
     `;
-    let orderByClause = ' ORDER BY p.id ASC';
-    switch (sortBy) {
-      case 'price_asc': orderByClause = ' ORDER BY p.price ASC'; break;
-      case 'price_desc': orderByClause = ' ORDER BY p.price DESC'; break;
-      case 'rating_desc': orderByClause = ' ORDER BY "averageRating" DESC'; break;
-    }
-    baseQuery += orderByClause;
     
     const offset = (page - 1) * limit;
-    // Using parameterized query for LIMIT and OFFSET
     baseQuery += ` LIMIT $${paramIndex++} OFFSET $${paramIndex++}`;
     queryParams.push(limit, offset);
 
@@ -239,7 +247,7 @@ export const getActiveProducts = async (filters) => {
     return responseData;
   } catch (err) {
     logger.error('Error al obtener productos de la base de datos:', err);
-    throw err; // Propagar el error
+    throw err;
   }
 };
 
@@ -250,7 +258,7 @@ export const getActiveProductById = async (productId) => {
     if (redisClient.isReady) {
       const cachedData = await redisClient.get(cacheKey);
       if (cachedData) {
-        logger.debug(`Cache HIT: Producto ${productId}`); // Log de cache hit
+        logger.debug(`Cache HIT: Producto ${productId}`);
         const parsedProduct = JSON.parse(cachedData);
         parsedProduct.imageUrl = parseImageUrl(parsedProduct.imageUrl);
         return parsedProduct;
@@ -258,10 +266,9 @@ export const getActiveProductById = async (productId) => {
     }
   } catch (err) {
     logger.error('Error al leer de la caché de Redis:', err);
-    // No lanzar error aquí, solo loggear, para que la app pueda seguir funcionando sin caché
   }
 
-  logger.debug(`Cache MISS: Producto ${productId}. Consultando base de datos.`); // Log de cache miss
+  logger.debug(`Cache MISS: Producto ${productId}. Consultando base de datos.`);
   const query = `
     SELECT 
       p.id, p.name, p.brand, p.category, p.price,
@@ -274,7 +281,6 @@ export const getActiveProductById = async (productId) => {
     WHERE p.id = $1 AND p.is_active = true
     GROUP BY p.id;
   `;
-  // Using parameterized query to prevent SQL Injection
   try {
     const result = await db.query(query, [productId]);
     
@@ -298,6 +304,6 @@ export const getActiveProductById = async (productId) => {
     return product;
   } catch (err) {
     logger.error('Error al obtener el producto por ID de la base de datos:', err);
-    throw err; // Propagar el error
+    throw err;
   }
 };
