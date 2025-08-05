@@ -76,32 +76,33 @@ const clearProductsCache = async () => {
   }
 };
 
-// --- MODIFICADO: Servicio para obtener sugerencias de búsqueda con Fuzzy Search ---
+// --- CORREGIDO: Servicio para obtener sugerencias de búsqueda con Fuzzy Search ---
 export const fetchProductSuggestions = async (query) => {
   if (!query || query.trim().length < 2) {
     return { products: [], categories: [], brands: [] };
   }
 
-  // Ya no se necesitan los comodines '%' para ILIKE
   const searchTerm = query.trim();
 
   try {
-    // Se usa el operador '%' de pg_trgm para buscar por similitud.
-    // Se ordena por la función similarity() para mostrar los resultados más relevantes primero.
+    // La consulta de productos no usa DISTINCT, por lo que no necesita cambios.
     const productsQuery = db.query(
       'SELECT id, name, image_url as "imageUrl" FROM products WHERE name % $1 AND is_active = true ORDER BY similarity(name, $1) DESC LIMIT 5',
       [searchTerm]
     );
 
+    // INICIO DE LA CORRECCIÓN
+    // Se añade `similarity(...)` a la cláusula SELECT para que pueda ser usada en ORDER BY con DISTINCT.
     const categoriesQuery = db.query(
-      'SELECT DISTINCT category FROM products WHERE category % $1 AND is_active = true ORDER BY similarity(category, $1) DESC LIMIT 3',
+      'SELECT DISTINCT category, similarity(category, $1) as score FROM products WHERE category % $1 AND is_active = true ORDER BY score DESC LIMIT 3',
       [searchTerm]
     );
 
     const brandsQuery = db.query(
-      'SELECT DISTINCT brand FROM products WHERE brand % $1 AND is_active = true ORDER BY similarity(brand, $1) DESC LIMIT 3',
+      'SELECT DISTINCT brand, similarity(brand, $1) as score FROM products WHERE brand % $1 AND is_active = true ORDER BY score DESC LIMIT 3',
       [searchTerm]
     );
+    // FIN DE LA CORRECCIÓN
 
     const [productsResult, categoriesResult, brandsResult] = await Promise.all([
       productsQuery,
@@ -161,28 +162,19 @@ export const getActiveProducts = async (filters) => {
   let paramIndex = 1;
   let orderByClause = ' ORDER BY p.id ASC'; // Orden por defecto
 
-  // INICIO DE CAMBIOS PARA FUZZY SEARCH
   if (searchQuery) {
-    // 1. Añadimos el cálculo de similitud a la selección para poder ordenar por relevancia.
     selectClauses.push(`GREATEST(similarity(p.name, $${paramIndex}), similarity(p.brand, $${paramIndex})) AS relevance`);
-    
-    // 2. Usamos el operador '%' de pg_trgm en lugar de ILIKE para una búsqueda por similitud.
-    // También se puede añadir un umbral de similitud si se desea: `WHERE similarity(p.name, $1) > 0.2`
     whereClauses.push(`(p.name % $${paramIndex} OR p.brand % $${paramIndex})`);
-    queryParams.push(searchQuery); // Ya no se necesitan los comodines '%'
+    queryParams.push(searchQuery);
     paramIndex++;
-
-    // 3. El ordenamiento principal ahora es por relevancia. Los otros filtros se ignoran al buscar.
     orderByClause = ' ORDER BY relevance DESC';
   } else {
-    // Mantenemos la lógica de ordenamiento original si no hay una búsqueda.
     switch (sortBy) {
       case 'price_asc': orderByClause = ' ORDER BY p.price ASC'; break;
       case 'price_desc': orderByClause = ' ORDER BY p.price DESC'; break;
       case 'rating_desc': orderByClause = ' ORDER BY "averageRating" DESC'; break;
     }
   }
-  // FIN DE CAMBIOS PARA FUZZY SEARCH
 
   if (category) {
     whereClauses.push(`p.category = $${paramIndex++}`);
