@@ -1,157 +1,111 @@
-// Frontend/mi-tienda-pintura/src/App.jsx
-import React, { Suspense, lazy, useEffect } from 'react';
-import { Routes, Route, useLocation } from 'react-router-dom';
-import { initMercadoPago } from '@mercadopago/sdk-react';
-import { AnimatePresence, motion } from 'framer-motion';
+import React, { lazy, Suspense } from 'react';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 
-import { useProductStore } from './stores/useProductStore';
-import { useNotificationStore } from './stores/useNotificationStore';
-import { initializeCsrf } from './api/api';
+// Componentes y Stores
+import Header from './components/Header';
+import Footer from './components/Footer';
+import Notification from './components/Notification';
+import ProtectedRoute from './components/ProtectedRoute';
+import AdminRoute from './components/AdminRoute';
+import Spinner from './components/Spinner'; // Usaremos este spinner como fallback
+import Chatbot from './components/Chatbot';
+import { useAuthStore } from './stores/useAuthStore';
 
-// Componentes principales
-import Header from './components/Header.jsx';
-import Navbar from './components/Navbar.jsx';
-import Footer from './components/Footer.jsx';
-import Notification from './components/Notification.jsx';
-import Spinner from './components/Spinner.jsx';
-import AdminRoute from './components/AdminRoute.jsx';
-import ProtectedRoute from './components/ProtectedRoute.jsx';
-import QuickViewModal from './components/QuickViewModal.jsx';
-import Chatbot from './components/Chatbot.jsx';
-
-const ScrollToTop = () => {
-  const { pathname } = useLocation();
-  useEffect(() => {
-    window.scrollTo(0, 0);
-  }, [pathname]);
-  return null;
-};
-
-// Lazy Loading de Páginas
-const AuthCallbackPage = lazy(() => import('./pages/AuthCallbackPage.jsx'));
-const HomePage = lazy(() => import('./pages/HomePage.jsx'));
-const ProductDetailPage = lazy(() => import('./pages/ProductDetailPage.jsx'));
-const CartPage = lazy(() => import('./pages/CartPage.jsx'));
-const CheckoutPage = lazy(() => import('./pages/CheckoutPage.jsx'));
-const OrderSuccessPage = lazy(() => import('./pages/OrderSuccessPage.jsx'));
-const OrderPendingPage = lazy(() => import('./pages/OrderPendingPage.jsx'));
-const SearchResultsPage = lazy(() => import('./pages/SearchResultsPage.jsx'));
-const CategoryPage = lazy(() => import('./pages/CategoryPage.jsx'));
-const LoginPage = lazy(() => import('./pages/LoginPage.jsx'));
-const RegisterPage = lazy(() => import('./pages/RegisterPage.jsx'));
-const AdminDashboardPage = lazy(() => import('./pages/AdminDashboardPage.jsx'));
-const AdminProductsPage = lazy(() => import('./pages/AdminProductsPage.jsx'));
-const ProductFormPage = lazy(() => import('./pages/ProductFormPage.jsx'));
-const OrderHistoryPage = lazy(() => import('./pages/OrderHistoryPage.jsx'));
-const AdminOrdersPage = lazy(() => import('./pages/AdminOrdersPage.jsx'));
-const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage.jsx'));
-const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage.jsx'));
-const BulkUploadPage = lazy(() => import('./pages/BulkUploadPage.jsx'));
-const BulkCreateAIPage = lazy(() => import('./pages/BulkCreateAIPage.jsx'));
-const BulkAssociateAIPage = lazy(() => import('./pages/BulkAssociateAIPage.jsx'));
-const BulkGenerateAIDescriptionsPage = lazy(() => import('./pages/BulkGenerateAIDescriptionsPage.jsx'));
-const WishlistPage = lazy(() => import('./pages/WishlistPage.jsx'));
-const ProfilePage = lazy(() => import('./pages/ProfilePage.jsx'));
-const AdminCouponsPage = lazy(() => import('./pages/AdminCouponsPage.jsx'));
-const AdminWebhookEventsPage = lazy(() => import('./pages/AdminWebhookEventsPage.jsx')); // <-- AÑADIDO
-const NotFoundPage = lazy(() => import('./pages/NotFoundPage.jsx'));
-const ServerErrorPage = lazy(() => import('./pages/ServerErrorPage.jsx'));
+// --- Carga Adaptativa (Lazy Loading) de Páginas ---
+// Cada página se importará dinámicamente solo cuando sea necesaria.
+const HomePage = lazy(() => import('./pages/HomePage'));
+const ProductDetailPage = lazy(() => import('./pages/ProductDetailPage'));
+const CartPage = lazy(() => import('./pages/CartPage'));
+const CategoryPage = lazy(() => import('./pages/CategoryPage'));
+const LoginPage = lazy(() => import('./pages/LoginPage'));
+const RegisterPage = lazy(() => import('./pages/RegisterPage'));
+const ProfilePage = lazy(() => import('./pages/ProfilePage'));
+const CheckoutPage = lazy(() => import('./pages/CheckoutPage'));
+const OrderSuccessPage = lazy(() => import('./pages/OrderSuccessPage'));
+const OrderHistoryPage = lazy(() => import('./pages/OrderHistoryPage'));
+const WishlistPage = lazy(() => import('./pages/WishlistPage'));
+const SearchResultsPage = lazy(() => import('./pages/SearchResultsPage'));
+const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
+const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage'));
+const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage'));
+const AuthCallbackPage = lazy(() => import('./pages/AuthCallbackPage'));
+const ServerErrorPage = lazy(() => import('./pages/ServerErrorPage'));
+const OrderPendingPage = lazy(() => import('./pages/OrderPendingPage'));
 
 
-const MERCADOPAGO_PUBLIC_KEY = import.meta.env.VITE_MERCADOPAGO_PUBLIC_KEY;
+// Páginas de Administración
+const AdminDashboardPage = lazy(() => import('./pages/AdminDashboardPage'));
+const AdminProductsPage = lazy(() => import('./pages/AdminProductsPage'));
+const ProductFormPage = lazy(() => import('./pages/ProductFormPage'));
+const AdminOrdersPage = lazy(() => import('./pages/AdminOrdersPage'));
+const AdminCouponsPage = lazy(() => import('./pages/AdminCouponsPage'));
+const AdminWebhookEventsPage = lazy(() => import('./pages/AdminWebhookEventsPage'));
+const BulkUploadPage = lazy(() => import('./pages/BulkUploadPage'));
+const BulkCreateAIPage = lazy(() => import('./pages/BulkCreateAIPage'));
+const BulkAssociateAIPage = lazy(() => import('./pages/BulkAssociateAIPage'));
+const BulkGenerateAIDescriptionsPage = lazy(() => import('./pages/BulkGenerateAIDescriptionsPage'));
 
-if (MERCADOPAGO_PUBLIC_KEY) {
-  initMercadoPago(MERCADOPAGO_PUBLIC_KEY, { locale: 'es-AR' });
-} else {
-  console.error("Error: La Public Key de Mercado Pago no está configurada.");
-}
 
-export default function App() {
-  const { fetchAvailableBrands, quickViewProduct, closeQuickView } = useProductStore(state => ({
-      fetchAvailableBrands: state.fetchAvailableBrands,
-      quickViewProduct: state.quickViewProduct,
-      closeQuickView: state.closeQuickView,
-  }));
-  const { message: notificationMessage, show: showNotification, type: notificationType } = useNotificationStore();
-  const location = useLocation();
-
-  useEffect(() => {
-    initializeCsrf();
-    fetchAvailableBrands();
-  }, [fetchAvailableBrands]);
+function App() {
+  const { user } = useAuthStore();
 
   return (
-    <div className="bg-gray-50 min-h-screen font-sans flex flex-col relative">
-      <Header />
-      <Navbar />
-      <ScrollToTop />
-      <motion.main
-        key={location.pathname}
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -20 }}
-        transition={{ duration: 0.3 }}
-        className="flex-grow container mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col"
-      >
-        <Suspense fallback={
-            <div className="flex-grow flex items-center justify-center">
-              <Spinner className="w-12 h-12 text-[#0F3460]" />
+    <Router>
+      <div className="flex flex-col min-h-screen bg-gray-50">
+        <Header />
+        <Notification />
+        <main className="flex-grow">
+          {/* Suspense provee una UI de fallback mientras los componentes lazy se cargan */}
+          <Suspense fallback={
+            <div className="flex justify-center items-center h-screen">
+              <Spinner />
             </div>
           }>
-          <Routes>
-            <Route path="/" element={<HomePage />} />
-            <Route path="/product/:productId" element={<ProductDetailPage />} />
-            <Route path="/cart" element={<CartPage />} />
-            <Route path="/success" element={<OrderSuccessPage />} />
-            <Route path="/search" element={<SearchResultsPage />} />
-            <Route path="/category/:categoryName" element={<CategoryPage />} />
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/register" element={<RegisterPage />} />
-            
-            <Route path="/auth/callback" element={<AuthCallbackPage />} />
+            <Routes>
+              {/* Rutas Públicas */}
+              <Route path="/" element={<HomePage />} />
+              <Route path="/product/:id" element={<ProductDetailPage />} />
+              <Route path="/cart" element={<CartPage />} />
+              <Route path="/category/:categoryName" element={<CategoryPage />} />
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/register" element={<RegisterPage />} />
+              <Route path="/search" element={<SearchResultsPage />} />
+              <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+              <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
+              <Route path="/auth/callback" element={<AuthCallbackPage />} />
+              <Route path="/order/success" element={<OrderSuccessPage />} />
+              <Route path="/order/pending" element={<OrderPendingPage />} />
+              <Route path="/server-error" element={<ServerErrorPage />} />
 
-            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-            <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
+              {/* Rutas Protegidas para Usuarios Autenticados */}
+              <Route path="/profile" element={<ProtectedRoute element={ProfilePage} />} />
+              <Route path="/checkout" element={<ProtectedRoute element={CheckoutPage} />} />
+              <Route path="/orders" element={<ProtectedRoute element={OrderHistoryPage} />} />
+              <Route path="/wishlist" element={<ProtectedRoute element={WishlistPage} />} />
 
-            <Route element={<ProtectedRoute />}>
-              <Route path="/checkout" element={<CheckoutPage />} />
-              <Route path="/my-orders" element={<OrderHistoryPage />} />
-              <Route path="/order-pending/:orderId" element={<OrderPendingPage />} />
-              <Route path="/wishlist" element={<WishlistPage />} />
-              <Route path="/profile" element={<ProfilePage />} />
-            </Route>
+              {/* Rutas Protegidas para Administradores */}
+              <Route path="/admin/dashboard" element={<AdminRoute element={AdminDashboardPage} />} />
+              <Route path="/admin/products" element={<AdminRoute element={AdminProductsPage} />} />
+              <Route path="/admin/product/new" element={<AdminRoute element={ProductFormPage} />} />
+              <Route path="/admin/product/edit/:id" element={<AdminRoute element={ProductFormPage} />} />
+              <Route path="/admin/orders" element={<AdminRoute element={AdminOrdersPage} />} />
+              <Route path="/admin/coupons" element={<AdminRoute element={AdminCouponsPage} />} />
+              <Route path="/admin/webhooks" element={<AdminRoute element={AdminWebhookEventsPage} />} />
+              <Route path="/admin/bulk-upload" element={<AdminRoute element={BulkUploadPage} />} />
+              <Route path="/admin/bulk-create-ai" element={<AdminRoute element={BulkCreateAIPage} />} />
+              <Route path="/admin/bulk-associate-ai" element={<AdminRoute element={BulkAssociateAIPage} />} />
+              <Route path="/admin/bulk-generate-ai-descriptions" element={<AdminRoute element={BulkGenerateAIDescriptionsPage} />} />
 
-            <Route element={<AdminRoute />}>
-              <Route path="/admin" element={<AdminDashboardPage />} />
-              <Route path="/admin/products" element={<AdminProductsPage />} />
-              <Route path="/admin/orders" element={<AdminOrdersPage />} />
-              <Route path="/admin/coupons" element={<AdminCouponsPage />} />
-              <Route path="/admin/product/new" element={<ProductFormPage />} />
-              <Route path="/admin/product/edit/:productId" element={<ProductFormPage />} />
-              <Route path="/admin/product/bulk-upload" element={<BulkUploadPage />} />
-              <Route path="/admin/product/bulk-create-ai" element={<BulkCreateAIPage />} />
-              <Route path="/admin/product/bulk-associate-ai" element={<BulkAssociateAIPage />} />
-              <Route path="/admin/product/bulk-generate-descriptions" element={<BulkGenerateAIDescriptionsPage />} />
-              <Route path="/admin/webhooks" element={<AdminWebhookEventsPage />} /> {/* <-- AÑADIDO */}
-            </Route>
-
-            <Route path="/error/500" element={<ServerErrorPage />} />
-            <Route path="*" element={<NotFoundPage />} />
-          </Routes>
-        </Suspense>
-      </motion.main>
-      <Footer />
-      
-      <Chatbot />
-      
-      <AnimatePresence>
-        {quickViewProduct && (
-          <QuickViewModal product={quickViewProduct} onClose={closeQuickView} />
-        )}
-        {showNotification && (
-          <Notification message={notificationMessage} type={notificationType} />
-        )}
-      </AnimatePresence>
-    </div>
+              {/* Ruta para página no encontrada */}
+              <Route path="*" element={<NotFoundPage />} />
+            </Routes>
+          </Suspense>
+        </main>
+        {user && <Chatbot />}
+        <Footer />
+      </div>
+    </Router>
   );
 }
+
+export default App;
