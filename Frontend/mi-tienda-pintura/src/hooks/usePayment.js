@@ -27,10 +27,6 @@ export const usePayment = () => {
     setIsProcessing(true);
     setError('');
     try {
-      // --- INICIO DE LA CORRECCIÓN ---
-      // Simplificamos el cuerpo de la solicitud. El formData que viene del brick de MP
-      // ya contiene el token, installments, issuer_id, payment_method_id y el payer.
-      // Solo necesitamos añadir la información de nuestro carrito y envío.
       const response = await fetchWithCsrf(`${API_URL}/api/orders/process-payment`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
@@ -41,13 +37,18 @@ export const usePayment = () => {
           postalCode,
         }),
       });
-      // --- FIN DE LA CORRECCIÓN ---
 
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || 'El pago fue rechazado.');
       
       clearCart();
+      // --- INICIO DE LA CORRECCIÓN ---
+      // Se modifica la navegación para incluir el ID de la orden en la URL.
+      // Esto asegura que se redirija correctamente a la página de éxito
+      // y permite, opcionalmente, mostrar detalles específicos de la compra.
       navigate(`/success?order_id=${data.orderId}`);
+      // --- FIN DE LA CORRECCIÓN ---
+      
     } catch (err) {
       setError(err.message);
       showNotification(err.message, 'error');
