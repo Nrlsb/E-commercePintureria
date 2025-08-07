@@ -6,8 +6,8 @@ import { useCartStore } from '../stores/useCartStore';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useNotificationStore } from '../stores/useNotificationStore';
 import Spinner from '../components/Spinner';
-import ConfirmationModal from '../components/ConfirmationModal'; // Importar el modal
-import AnimatedNumber from '../components/AnimatedNumber'; // Importar el nuevo componente
+import ConfirmationModal from '../components/ConfirmationModal';
+import AnimatedNumber from '../components/AnimatedNumber';
 
 const CartPage = () => {
   const { cart, updateQuantity, removeItem, shippingCost, postalCode, calculateShipping, appliedCoupon, discountAmount, applyCoupon, removeCoupon, clearCart } = useCartStore();
@@ -18,10 +18,8 @@ const CartPage = () => {
   const [couponCode, setCouponCode] = useState('');
   const [loadingShipping, setLoadingShipping] = useState(false);
   
-  // --- NUEVOS ESTADOS ---
   const [stockErrorId, setStockErrorId] = useState(null);
   const [isClearCartModalOpen, setIsClearCartModalOpen] = useState(false);
-  // --- FIN NUEVOS ESTADOS ---
 
   const cartSubtotal = cart.reduce((total, item) => total + (item.price * item.quantity), 0);
   const cartTotal = (cartSubtotal - discountAmount) + shippingCost;
@@ -42,18 +40,16 @@ const CartPage = () => {
     }
   };
 
-  // --- NUEVO: Manejador de cantidad con feedback de stock ---
   const handleQuantityChange = (item, amount) => {
     const newQuantity = item.quantity + amount;
     if (newQuantity > item.stock) {
       showNotification(`No puedes añadir más. Stock máximo: ${item.stock}`, 'error');
       setStockErrorId(item.id);
-      setTimeout(() => setStockErrorId(null), 500); // Resetea el estado para futuras animaciones
+      setTimeout(() => setStockErrorId(null), 500);
     } else {
       updateQuantity(item.id, newQuantity);
     }
   };
-  // --- FIN NUEVO MANEJADOR ---
 
   const handleClearCartConfirm = () => {
     clearCart();
@@ -84,7 +80,6 @@ const CartPage = () => {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      {/* --- NUEVO: Modal de confirmación para vaciar carrito --- */}
       <ConfirmationModal
         isOpen={isClearCartModalOpen}
         onClose={() => setIsClearCartModalOpen(false)}
@@ -95,18 +90,15 @@ const CartPage = () => {
         iconPath="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"
         iconColor="text-red-500"
       />
-      {/* --- FIN MODAL --- */}
 
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-3xl font-bold text-gray-800">Mi Carrito</h1>
-        {/* --- NUEVO: Botón para vaciar carrito --- */}
         <button 
           onClick={() => setIsClearCartModalOpen(true)} 
           className="text-sm text-gray-500 hover:text-red-600 hover:underline"
         >
           Vaciar Carrito
         </button>
-        {/* --- FIN BOTÓN --- */}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -130,7 +122,6 @@ const CartPage = () => {
                     </div>
                   </div>
                   <div className="flex items-center space-x-4">
-                    {/* --- NUEVO: Contenedor animado para feedback de stock --- */}
                     <motion.div 
                       animate={{ x: stockErrorId === item.id ? [-5, 5, -5, 5, 0] : 0 }}
                       transition={{ duration: 0.3 }}
@@ -140,7 +131,6 @@ const CartPage = () => {
                       <span className="px-4 py-1 text-lg">{item.quantity}</span>
                       <button onClick={() => handleQuantityChange(item, 1)} className="px-3 py-1 text-lg font-bold hover:bg-gray-100 rounded-r-md transition-colors">+</button>
                     </motion.div>
-                    {/* --- FIN CONTENEDOR ANIMADO --- */}
                     <p className="font-bold text-lg w-28 text-right">$<AnimatedNumber value={item.price * item.quantity} /></p>
                     <button onClick={() => removeItem(item.id)} className="text-gray-400 hover:text-red-500 transition-colors">
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">

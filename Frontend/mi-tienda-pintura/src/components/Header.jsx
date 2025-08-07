@@ -1,6 +1,7 @@
 // Frontend/mi-tienda-pintura/src/components/Header.jsx
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion'; // Importar AnimatePresence
 import Icon from './Icon.jsx';
 import { ICONS } from '../data/icons.js';
 import { useAuthStore } from '../stores/useAuthStore';
@@ -35,16 +36,12 @@ const UserMenuDesktop = () => {
     navigate('/');
   };
 
-  // --- INICIO DE LA MODIFICACIÓN ---
-  // Se muestra el nombre y apellido del usuario si están disponibles.
   const displayName = (user.firstName && user.lastName) ? `${user.firstName} ${user.lastName}` : user.email.split('@')[0];
-  // --- FIN DE LA MODIFICACIÓN ---
 
   return (
     <div className="relative" ref={menuRef}>
       <button onClick={() => setIsOpen(!isOpen)} className="flex items-center text-gray-300 hover:text-white transition-colors">
         <Icon path={ICONS.user} />
-        {/* Se asegura que el nombre de usuario solo se muestre en pantallas medianas y grandes */}
         <span className="hidden md:block ml-2">Hola, {displayName}</span>
         <Icon path={ICONS.chevronDown} className="hidden md:block w-4 h-4 ml-1" />
       </button>
@@ -149,10 +146,7 @@ const Header = () => {
   const cartItemCount = cart.reduce((total, item) => total + item.quantity, 0);
   const cartSubtotal = cart.reduce((total, item) => total + item.price * item.quantity, 0);
 
-  // --- INICIO DE LA MODIFICACIÓN ---
-  // Se obtiene el nombre y apellido para el menú móvil.
   const mobileDisplayName = (user && user.firstName && user.lastName) ? `${user.firstName} ${user.lastName}` : (user ? user.email.split('@')[0] : '');
-  // --- FIN DE LA MODIFICACIÓN ---
 
   const handleMobileLinkClick = () => setIsMenuOpen(false);
   const handleMobileLogout = () => {
@@ -266,11 +260,20 @@ const Header = () => {
               <Link to="/cart" className="flex items-center text-gray-300 hover:text-white transition-colors relative">
                 <Icon path={ICONS.shoppingCart} />
                 <span className="ml-2">Carrito</span>
-                {cartItemCount > 0 && (
-                  <span className="absolute -top-2 -right-3 bg-[#E9D502] text-[#0F3460] text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
-                    {cartItemCount}
-                  </span>
-                )}
+                <AnimatePresence>
+                  {cartItemCount > 0 && (
+                    <motion.span
+                      key={cartItemCount}
+                      initial={{ scale: 0, y: 10 }}
+                      animate={{ scale: 1, y: 0 }}
+                      exit={{ scale: 0 }}
+                      transition={{ type: "spring", stiffness: 500, damping: 20 }}
+                      className="absolute -top-2 -right-3 bg-[#E9D502] text-[#0F3460] text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center"
+                    >
+                      {cartItemCount}
+                    </motion.span>
+                  )}
+                </AnimatePresence>
               </Link>
 
               {isMiniCartOpen && cartItemCount > 0 && (
@@ -311,11 +314,20 @@ const Header = () => {
           <div className="md:hidden flex items-center space-x-4">
              <Link to="/cart" className="text-white relative">
               <Icon path={ICONS.shoppingCart} className="w-6 h-6" />
-              {cartItemCount > 0 && (
-                <span className="absolute -top-2 -right-2 bg-[#E9D502] text-[#0F3460] text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
-                  {cartItemCount}
-                </span>
-              )}
+              <AnimatePresence>
+                  {cartItemCount > 0 && (
+                    <motion.span
+                      key={cartItemCount}
+                      initial={{ scale: 0, y: 10 }}
+                      animate={{ scale: 1, y: 0 }}
+                      exit={{ scale: 0 }}
+                      transition={{ type: "spring", stiffness: 500, damping: 20 }}
+                      className="absolute -top-2 -right-2 bg-[#E9D502] text-[#0F3460] text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center"
+                    >
+                      {cartItemCount}
+                    </motion.span>
+                  )}
+                </AnimatePresence>
             </Link>
             <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="text-white focus:outline-none">
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16m-7 6h7"></path></svg>

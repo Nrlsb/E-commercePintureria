@@ -2,7 +2,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 
-// Objeto para centralizar los estilos de cada tipo de notificación
 const notificationStyles = {
   success: {
     bg: 'bg-green-500',
@@ -11,7 +10,7 @@ const notificationStyles = {
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
       </svg>
     ),
-    ariaLive: 'polite', // Para mensajes no críticos que no requieren interrupción inmediata
+    ariaLive: 'polite',
   },
   error: {
     bg: 'bg-red-500',
@@ -20,29 +19,22 @@ const notificationStyles = {
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
       </svg>
     ),
-    ariaLive: 'assertive', // Para errores importantes que requieren atención inmediata
+    ariaLive: 'assertive',
   },
 };
 
-// Definir variantes para la animación
 const notificationVariants = {
   hidden: {
     opacity: 0,
-    x: "100%",
-    transition: {
-      type: "spring",
-      stiffness: 400,
-      damping: 30
-    }
+    y: 50,
+    scale: 0.8,
+    transition: { type: "spring", stiffness: 400, damping: 25 }
   },
   visible: {
     opacity: 1,
-    x: 0,
-    transition: {
-      type: "spring",
-      stiffness: 400,
-      damping: 30
-    }
+    y: 0,
+    scale: 1,
+    transition: { type: "spring", stiffness: 400, damping: 25 }
   }
 };
 
@@ -55,14 +47,12 @@ const Notification = ({ message, type = 'success' }) => {
       initial="hidden"
       animate="visible"
       exit="hidden"
-      className={`fixed bottom-5 right-5 ${styles.bg} text-white py-3 px-6 rounded-lg shadow-xl`}
-      role="status" // Indica que este es un mensaje de estado
-      aria-live={styles.ariaLive} // Controla cómo los lectores de pantalla anuncian el contenido
+      className={`fixed bottom-5 right-5 ${styles.bg} text-white py-3 px-6 rounded-lg shadow-xl flex items-center`}
+      role="status"
+      aria-live={styles.ariaLive}
     >
-      <div className="flex items-center">
-        {styles.icon}
-        <span className="font-medium">{message}</span>
-      </div>
+      {styles.icon}
+      <span className="font-medium">{message}</span>
     </motion.div>
   );
 };
