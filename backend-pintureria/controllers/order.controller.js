@@ -60,10 +60,6 @@ export const confirmTransferPayment = async (req, res, next) => {
   }
 };
 
-/**
- * --- NUEVO: Actualiza el estado de una orden (ej. a 'shipped' o 'delivered'). ---
- * Solo para administradores.
- */
 export const updateOrderStatus = async (req, res, next) => {
   const { orderId } = req.params;
   const { status, trackingNumber } = req.body;
@@ -271,7 +267,8 @@ export const processPayment = async (req, res, next) => {
     logger.debug('Iniciando processPayment. Body recibido:', JSON.stringify(req.body, null, 2));
 
     const { token, issuer_id, payment_method_id, transaction_amount, installments, payer, cart, shippingCost, postalCode } = req.body;
-    const { userId } = req.user;
+    const { userId, firstName, lastName, email } = req.user;
+
     const dbClient = await db.connect();
     let orderId;
 
@@ -316,7 +313,6 @@ export const processPayment = async (req, res, next) => {
 
         const payment = new Payment(mpClient);
         
-        // --- MEJORA FINAL: Aseguramos que `first_name` y `last_name` estén en el objeto `payer` principal ---
         const payment_data = {
             transaction_amount: Number(transaction_amount),
             token,
@@ -325,25 +321,22 @@ export const processPayment = async (req, res, next) => {
             payment_method_id,
             issuer_id,
             payer: {
-              ...payer, // Mantenemos toda la información que ya envía el brick
-              first_name: payer.first_name, // Aseguramos explícitamente el nombre
-              last_name: payer.last_name,   // Aseguramos explícitamente el apellido
+              email: payer.email || email,
+              identification: payer.identification,
+              first_name: firstName,
+              last_name: lastName,
             },
             external_reference: orderId.toString(),
             notification_url: `${process.env.BACKEND_URL}/api/payment/notification`,
             additional_info: {
                 items: cart.map(item => ({
-                    id: item.id.toString(),
+                    id: String(item.id),
                     title: item.name,
-                    description: item.description,
+                    description: item.description || item.name,
                     category_id: item.category,
-                    quantity: item.quantity,
-                    unit_price: item.price
+                    quantity: Number(item.quantity),
+                    unit_price: Number(item.price)
                 })),
-                payer: {
-                    first_name: payer.first_name,
-                    last_name: payer.last_name,
-                },
                 shipments: {
                     receiver_address: {
                         zip_code: address.postal_code,
