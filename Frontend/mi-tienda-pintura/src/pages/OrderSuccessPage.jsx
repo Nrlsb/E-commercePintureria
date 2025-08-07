@@ -1,17 +1,20 @@
 // src/pages/OrderSuccessPage.jsx
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { useCartStore } from '../stores/useCartStore';
 import Icon from '../components/Icon';
 
 const OrderSuccessPage = () => {
   const [searchParams] = useSearchParams();
   const orderId = searchParams.get('order_id');
+  const clearCart = useCartStore(state => state.clearCart);
 
-  // --- INICIO DE LA CORRECCIÓN ---
-  // Se elimina el useEffect que llamaba a clearCart().
-  // La limpieza del carrito ahora se maneja exclusivamente en el hook usePayment
-  // justo después de que el pago es confirmado, evitando la redirección no deseada.
-  // --- FIN DE LA CORRECCIÓN ---
+  // --- CORRECCIÓN ---
+  // Se añade un useEffect que se ejecuta una sola vez cuando el componente se monta.
+  // Su única responsabilidad es limpiar el carrito de compras.
+  useEffect(() => {
+    clearCart();
+  }, [clearCart]);
 
   return (
     <div className="flex-grow flex flex-col items-center justify-center text-center p-8 bg-gray-50">

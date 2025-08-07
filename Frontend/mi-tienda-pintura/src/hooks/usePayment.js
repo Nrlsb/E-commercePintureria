@@ -13,12 +13,12 @@ export const usePayment = () => {
   const [error, setError] = useState('');
   const navigate = useNavigate();
 
-  const { cart, shippingCost, postalCode, total, clearCart } = useCartStore(state => ({
+  // Se elimina `clearCart` de la desestructuración porque ya no se usará aquí.
+  const { cart, shippingCost, postalCode, total } = useCartStore(state => ({
     cart: state.cart,
     shippingCost: state.shippingCost,
     postalCode: state.postalCode,
     total: (state.cart.reduce((acc, item) => acc + item.price * item.quantity, 0) - state.discountAmount) + state.shippingCost,
-    clearCart: state.clearCart,
   }));
   const { user, token } = useAuthStore();
   const showNotification = useNotificationStore(state => state.showNotification);
@@ -41,13 +41,11 @@ export const usePayment = () => {
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || 'El pago fue rechazado.');
       
-      clearCart();
-      // --- INICIO DE LA CORRECCIÓN ---
-      // Se modifica la navegación para incluir el ID de la orden en la URL.
-      // Esto asegura que se redirija correctamente a la página de éxito
-      // y permite, opcionalmente, mostrar detalles específicos de la compra.
+      // --- CORRECCIÓN ---
+      // La llamada a clearCart() se ha eliminado de aquí para evitar la redirección no deseada.
+      // Ahora se llamará desde la página de éxito.
+      
       navigate(`/success?order_id=${data.orderId}`);
-      // --- FIN DE LA CORRECCIÓN ---
       
     } catch (err) {
       setError(err.message);
