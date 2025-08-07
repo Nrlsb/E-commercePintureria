@@ -9,7 +9,7 @@ import Spinner from '../components/Spinner.jsx';
 import { Link, useNavigate } from 'react-router-dom';
 import { fetchWithCsrf } from '../api/api';
 import Icon from '../components/Icon';
-import CheckoutStepper from '../components/CheckoutStepper'; // Importar el nuevo componente
+import CheckoutStepper from '../components/CheckoutStepper';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 const MIN_TRANSACTION_AMOUNT = 100;
@@ -211,15 +211,20 @@ const CheckoutPage = () => {
     }));
     const { user, token } = useAuthStore();
     const navigate = useNavigate();
+    const { isProcessing } = usePayment(); // Obtenemos el estado de procesamiento
 
     const subtotal = cart.reduce((total, item) => total + item.price * item.quantity, 0);
     const total = (subtotal - discountAmount) + (selectedShippingMethod?.cost || 0);
 
+    // --- INICIO DE LA CORRECCIÓN ---
+    // Modificamos el useEffect para que solo redirija si el carrito está vacío
+    // Y si el pago NO se está procesando.
     useEffect(() => {
-        if (cart.length === 0) {
+        if (cart.length === 0 && !isProcessing) {
             navigate('/cart');
         }
-    }, [cart, navigate]);
+    }, [cart, navigate, isProcessing]);
+    // --- FIN DE LA CORRECCIÓN ---
     
     const handleShippingSelect = (method) => {
         setSelectedShippingMethod(method);
