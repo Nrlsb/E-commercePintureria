@@ -1,20 +1,44 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     
-    <!-- 1. Google Fonts: Poppins -->
-    <!-- Se añaden los enlaces para importar la tipografía Poppins desde Google. -->
+    <!-- 1. Importar las fuentes de Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700;800&display=swap" rel="stylesheet">
     
-    <!-- 2. Tailwind CSS CDN -->
-    <!-- Mantenemos el CDN de Tailwind como solicitaste. -->
+    <!-- 2. Cargar el script de Tailwind CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- 3. Configurar Tailwind para que use las nuevas fuentes -->
+    <script type="text/tailwindcss">
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Inter', 'sans-serif'],
+              heading: ['Poppins', 'sans-serif']
+            }
+          }
+        }
+      }
+    </script>
     
+    <style type="text/tailwindcss">
+      /* 4. Aplicar la fuente de encabezados a las etiquetas h1, h2, etc. */
+      @layer base {
+        h1, h2, h3, h4, h5, h6 {
+          @apply font-heading;
+        }
+        body {
+          @apply font-sans;
+        }
+      }
+    </style>
+
     <title>Pinturerías Mercurio</title>
   </head>
   <body>
