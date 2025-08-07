@@ -1,20 +1,15 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/*
+  Este archivo define estilos globales que se aplican a toda la aplicación.
+*/
 
 /*
-  Aplicando las nuevas fuentes a los elementos base utilizando la directiva @layer de Tailwind.
-  Esto asegura que nuestros estilos base se integren correctamente con los de Tailwind.
+  1. Aplicamos la fuente Poppins a todo el cuerpo de la aplicación.
+     Si Poppins no carga, usará la fuente sans-serif por defecto del sistema.
+  2. Añadimos un color de fondo base sutil para toda la página.
+  3. Establecemos un color de texto por defecto más oscuro para mejorar la legibilidad.
 */
-@layer base {
-  body {
-    /* La fuente 'Inter' se aplicará por defecto al body gracias a la configuración de tailwind.config.js */
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-  }
-
-  h1, h2, h3, h4, h5, h6 {
-    /* Aplicamos la fuente 'Poppins' a todos los encabezados */
-    @apply font-heading;
-  }
+body {
+  font-family: 'Poppins', sans-serif;
+  background-color: #F9FAFB; /* Gris casi blanco de nuestra paleta */
+  color: #111827; /* Gris oscuro de nuestra paleta */
 }
