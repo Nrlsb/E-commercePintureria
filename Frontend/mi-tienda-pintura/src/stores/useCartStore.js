@@ -15,10 +15,7 @@ export const useCartStore = create(
       appliedCoupon: null,
       discountAmount: 0,
 
-      // --- NUEVA ACCIÓN ---
-      // Permite establecer manualmente el costo de envío, útil para el checkout multi-paso.
       setShippingCost: (cost) => set({ shippingCost: cost }),
-      // --- FIN NUEVA ACCIÓN ---
 
       addToCart: (product, quantity = 1) => {
         const { cart, postalCode } = get();
@@ -32,7 +29,10 @@ export const useCartStore = create(
           return;
         }
 
-        const previousCart = [...cart];
+        // --- INICIO DE ACTUALIZACIÓN OPTIMISTA ---
+        const previousCart = [...cart]; // 1. Guardar estado previo
+        
+        // 2. Actualizar UI inmediatamente
         let updatedCart;
         const existingProduct = cart.find(item => item.id === product.id);
         if (existingProduct) {
@@ -47,11 +47,13 @@ export const useCartStore = create(
         get().recalculateDiscount();
         showNotification('¡Añadido al carrito!');
 
+        // 3. Realizar operación asíncrona (si es necesario)
         if (postalCode) {
           (async () => {
             try {
               await get().calculateShipping(postalCode, updatedCart);
             } catch (error) {
+              // 4. Revertir en caso de error
               console.error("Fallo en la actualización optimista (addToCart):", error);
               set({ cart: previousCart });
               get().recalculateDiscount();
@@ -59,6 +61,7 @@ export const useCartStore = create(
             }
           })();
         }
+        // --- FIN DE ACTUALIZACIÓN OPTIMISTA ---
       },
 
       updateQuantity: (productId, newQuantity) => {
@@ -71,7 +74,10 @@ export const useCartStore = create(
             return;
         }
 
-        const previousCart = [...cart];
+        // --- INICIO DE ACTUALIZACIÓN OPTIMISTA ---
+        const previousCart = [...cart]; // 1. Guardar estado previo
+        
+        // 2. Actualizar UI inmediatamente
         let updatedCart;
         if (newQuantity <= 0) {
           updatedCart = cart.filter(item => item.id !== productId);
@@ -84,11 +90,13 @@ export const useCartStore = create(
         set({ cart: updatedCart });
         get().recalculateDiscount();
 
+        // 3. Realizar operación asíncrona
         if (postalCode) {
           (async () => {
             try {
               await get().calculateShipping(postalCode, updatedCart);
             } catch (error) {
+              // 4. Revertir en caso de error
               console.error("Fallo en la actualización optimista (updateQuantity):", error);
               set({ cart: previousCart });
               get().recalculateDiscount();
@@ -96,15 +104,20 @@ export const useCartStore = create(
             }
           })();
         }
+        // --- FIN DE ACTUALIZACIÓN OPTIMISTA ---
       },
 
       removeItem: (productId) => {
         const { postalCode, cart } = get();
-        const previousCart = [...cart];
+        // --- INICIO DE ACTUALIZACIÓN OPTIMISTA ---
+        const previousCart = [...cart]; // 1. Guardar estado previo
+        
+        // 2. Actualizar UI inmediatamente
         const updatedCart = cart.filter(item => item.id !== productId);
         set({ cart: updatedCart });
         get().recalculateDiscount();
         
+        // 3. Realizar operación asíncrona
         if (postalCode) {
           (async () => {
             try {
@@ -114,6 +127,7 @@ export const useCartStore = create(
                 set({ shippingCost: 0, postalCode: '' });
               }
             } catch (error) {
+              // 4. Revertir en caso de error
               console.error("Fallo en la actualización optimista (removeItem):", error);
               set({ cart: previousCart });
               get().recalculateDiscount();
@@ -121,6 +135,7 @@ export const useCartStore = create(
             }
           })();
         }
+        // --- FIN DE ACTUALIZACIÓN OPTIMISTA ---
       },
 
       clearCart: () => set({ cart: [], shippingCost: 0, postalCode: '', appliedCoupon: null, discountAmount: 0 }),
