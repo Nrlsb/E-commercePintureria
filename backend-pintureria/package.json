@@ -7,7 +7,8 @@
   "scripts": {
     "start": "node server.js",
     "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest",
-    "build": "npm install && npm install --platform=linux --arch=x64 sharp"
+    "build": "npm install && npm install --platform=linux --arch=x64 sharp",
+    "load-test": "k6 run tests/k6-test.js"
   },
   "keywords": [
     "ecommerce",
