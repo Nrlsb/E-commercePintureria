@@ -1,15 +1,10 @@
 /*
-  Este archivo define estilos globales que se aplican a toda la aplicación.
-*/
-
-/*
-  1. Aplicamos la fuente Poppins a todo el cuerpo de la aplicación.
-     Si Poppins no carga, usará la fuente sans-serif por defecto del sistema.
-  2. Añadimos un color de fondo base sutil para toda la página.
-  3. Establecemos un color de texto por defecto más oscuro para mejorar la legibilidad.
+  Tus estilos base actuales son correctos.
+  Solo añadiremos "scroll-behavior: smooth" para una navegación más fluida.
 */
 body {
   font-family: 'Poppins', sans-serif;
-  background-color: #F9FAFB; /* Gris casi blanco de nuestra paleta */
-  color: #111827; /* Gris oscuro de nuestra paleta */
+  background-color: #F9FAFB;
+  color: #111827;
+  scroll-behavior: smooth; /* <-- Añadir esta línea */
 }

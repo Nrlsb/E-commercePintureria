@@ -6,8 +6,9 @@ import { useNotificationStore } from '../stores/useNotificationStore';
 import Spinner from '../components/Spinner';
 import ConfirmationModal from '../components/ConfirmationModal';
 import Icon from '../components/Icon';
-import { StatusBadge } from './AdminOrdersPage'; // Reutilizamos el badge de la página de admin
+import { StatusBadge } from './AdminOrdersPage';
 import { fetchWithCsrf } from '../api/api';
+import { motion } from 'framer-motion'; // 1. Importar motion
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
@@ -24,7 +25,6 @@ const OrderHistoryPage = () => {
   const [isCancelling, setIsCancelling] = useState(false);
 
   const fetchOrders = useCallback(async () => {
-    // No es necesario establecer loading a true aquí si ya se hizo en el useEffect inicial
     try {
       const response = await fetchWithCsrf(`${API_URL}/api/orders`, {
         headers: { 'Authorization': `Bearer ${token}` },
@@ -68,7 +68,7 @@ const OrderHistoryPage = () => {
         }
 
         showNotification('Orden cancelada con éxito.', 'success');
-        fetchOrders(); // Recarga las órdenes para mostrar el estado actualizado
+        fetchOrders();
     } catch (err) {
         showNotification(err.message, 'error');
     } finally {
@@ -96,7 +96,7 @@ const OrderHistoryPage = () => {
   };
 
   if (loading) {
-    return <div className="text-center p-10"><Spinner className="w-12 h-12 text-[#0F3460] mx-auto" /></div>;
+    return <div className="text-center p-10"><Spinner className="w-12 h-12 text-primary mx-auto" /></div>;
   }
 
   if (error) {
@@ -117,30 +117,37 @@ const OrderHistoryPage = () => {
         iconColor="text-red-500"
       />
 
-      <h1 className="text-3xl font-bold text-gray-800 mb-8">Mi Historial de Compras</h1>
+      <h1 className="text-3xl font-bold text-neutral-900 mb-8">Mi Historial de Compras</h1>
       {orders.length === 0 ? (
         <div className="text-center p-10 bg-white rounded-lg shadow-md">
-            <h2 className="text-2xl font-semibold text-gray-700 mb-4">Aún no has realizado ninguna compra.</h2>
-            <Link to="/" className="bg-[#0F3460] text-white font-bold py-3 px-6 rounded-lg hover:bg-[#1a4a8a]">
+            <h2 className="text-2xl font-semibold text-neutral-800 mb-4">Aún no has realizado ninguna compra.</h2>
+            <Link to="/" className="bg-primary text-white font-bold py-3 px-6 rounded-lg hover:bg-primary-light transition-colors">
                 Explorar productos
             </Link>
         </div>
       ) : (
         <div className="space-y-8">
           {orders.map((order) => (
-            <div key={order.id} className="bg-white p-6 rounded-lg shadow-md transition-shadow hover:shadow-lg">
-              <div className="flex flex-col sm:flex-row justify-between items-start border-b pb-4 mb-4 gap-4">
+            <motion.div 
+              key={order.id} 
+              className="bg-white p-6 rounded-lg shadow-md transition-shadow hover:shadow-xl"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3 }}
+              whileHover={{ y: -5 }}
+            >
+              <div className="flex flex-col sm:flex-row justify-between items-start border-b border-neutral-200 pb-4 mb-4 gap-4">
                 <div>
-                  <h2 className="font-bold text-lg text-gray-800">Orden #{order.id}</h2>
-                  <p className="text-sm text-gray-500">
+                  <h2 className="font-bold text-lg text-neutral-800">Orden #{order.id}</h2>
+                  <p className="text-sm text-neutral-500">
                     Fecha: {new Date(order.created_at).toLocaleString('es-AR', { dateStyle: 'long', timeStyle: 'short' })}
                   </p>
                 </div>
                 <div className="flex items-center gap-4">
                     <StatusBadge status={order.status} />
                     <div className="text-right">
-                        <p className="text-sm text-gray-500">Total</p>
-                        <p className="font-bold text-xl text-[#0F3460]">${new Intl.NumberFormat('es-AR').format(order.total_amount)}</p>
+                        <p className="text-sm text-neutral-500">Total</p>
+                        <p className="font-bold text-xl text-primary">${new Intl.NumberFormat('es-AR').format(order.total_amount)}</p>
                     </div>
                 </div>
               </div>
@@ -150,13 +157,13 @@ const OrderHistoryPage = () => {
                     <img src={getCartItemImageUrl(item)} alt={item.name} className="w-16 h-16 rounded-md mr-4" />
                     <div className="flex-grow">
                       <p className="font-semibold">{item.name}</p>
-                      <p className="text-sm text-gray-600">Cantidad: {item.quantity} &times; ${new Intl.NumberFormat('es-AR').format(item.price)} c/u</p>
+                      <p className="text-sm text-neutral-500">Cantidad: {item.quantity} &times; ${new Intl.NumberFormat('es-AR').format(item.price)} c/u</p>
                     </div>
                     <p className="font-medium">${new Intl.NumberFormat('es-AR').format(item.price * item.quantity)}</p>
                   </div>
                 ))}
               </div>
-              <div className="border-t pt-4 mt-4 flex justify-end">
+              <div className="border-t border-neutral-200 pt-4 mt-4 flex justify-end">
                 {isCancellable(order) && (
                     <button 
                         onClick={() => handleCancelClick(order)}
@@ -167,7 +174,7 @@ const OrderHistoryPage = () => {
                     </button>
                 )}
               </div>
-            </div>
+            </motion.div>
           ))}
         </div>
       )}
