@@ -8,7 +8,8 @@ import {
   createPixPayment,
   confirmTransferPayment,
   getOrderById,
-  updateOrderStatus, // Importar el nuevo controlador
+  updateOrderStatus,
+  cancelOrderByUser, // <-- AÑADIDO
 } from '../controllers/order.controller.js';
 import { authenticateToken, isAdmin } from '../middlewares/auth.middleware.js';
 import { orderQueryParamsRules, validate } from '../middlewares/validators.js';
@@ -19,8 +20,6 @@ const router = Router();
 router.get('/admin', [authenticateToken, isAdmin, orderQueryParamsRules(), validate], getAllOrders);
 router.post('/:orderId/cancel', [authenticateToken, isAdmin], cancelOrder);
 router.post('/:orderId/confirm-payment', [authenticateToken, isAdmin], confirmTransferPayment);
-
-// --- NUEVO: Ruta para que el admin actualice el estado de una orden ---
 router.post('/admin/:orderId/status', [authenticateToken, isAdmin], updateOrderStatus);
 
 
@@ -29,5 +28,9 @@ router.get('/', authenticateToken, getOrderHistory);
 router.get('/:orderId', authenticateToken, getOrderById);
 router.post('/process-payment', authenticateToken, processPayment);
 router.post('/pix-payment', authenticateToken, createPixPayment);
+
+// --- NUEVA RUTA PARA CANCELACIÓN POR PARTE DEL USUARIO ---
+router.post('/:orderId/user-cancel', authenticateToken, cancelOrderByUser);
+
 
 export default router;

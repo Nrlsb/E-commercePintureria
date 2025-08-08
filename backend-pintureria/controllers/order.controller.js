@@ -1,7 +1,7 @@
 // backend-pintureria/controllers/order.controller.js
 import db from '../db.js';
 import mercadopago from 'mercadopago';
-import { sendOrderConfirmationEmail, sendBankTransferInstructionsEmail, sendOrderStatusUpdateEmail } from '../emailService.js';
+import { sendOrderConfirmationEmail, sendBankTransferInstructionsEmail, sendOrderStatusUpdateEmail, sendOrderCancelledEmail } from '../emailService.js';
 import logger from '../logger.js';
 import AppError from '../utils/AppError.js';
 
@@ -560,3 +560,75 @@ export const cancelOrder = async (req, res, next) => {
         if (dbClient) dbClient.release();
     }
 };
+
+// --- NUEVA FUNCIÓN PARA CANCELACIÓN POR PARTE DEL USUARIO ---
+export const cancelOrderByUser = async (req, res, next) => {
+    const { orderId } = req.params;
+    const { userId } = req.user;
+    const dbClient = await db.connect();
+    try {
+      await dbClient.query('BEGIN');
+  
+      // 1. Obtener la orden y verificar la propiedad y las condiciones
+      const orderResult = await dbClient.query(
+        "SELECT * FROM orders WHERE id = $1 AND user_id = $2",
+        [orderId, userId]
+      );
+  
+      if (orderResult.rows.length === 0) {
+        throw new AppError('Orden no encontrada o no tienes permiso para cancelarla.', 404);
+      }
+      const order = orderResult.rows[0];
+  
+      // 2. Verificar si la orden es cancelable (estado y tiempo)
+      const isCancellableStatus = ['approved', 'shipped'].includes(order.status);
+      if (!isCancellableStatus) {
+        throw new AppError(`No se puede cancelar una orden con estado '${order.status}'.`, 400);
+      }
+  
+      const orderDate = new Date(order.created_at);
+      const now = new Date();
+      const hoursDiff = (now - orderDate) / (1000 * 60 * 60);
+  
+      if (hoursDiff > 24) {
+        throw new AppError('Solo se pueden cancelar órdenes dentro de las primeras 24 horas.', 400);
+      }
+      
+      // 3. Procesar reembolso si es necesario
+      if (order.mercadopago_transaction_id) {
+          logger.info(`Usuario ${userId} iniciando reembolso para la orden #${orderId} con transaction_id: ${order.mercadopago_transaction_id}`);
+          const refundClient = new PaymentRefund(mpClient);
+          await refundClient.create({ payment_id: order.mercadopago_transaction_id });
+          logger.info(`Reembolso de Mercado Pago procesado para la orden #${orderId}.`);
+      }
+      
+      // 4. Actualizar estado de la orden a 'cancelled'
+      const updatedOrderResult = await dbClient.query(
+          "UPDATE orders SET status = 'cancelled' WHERE id = $1 RETURNING *",
+          [orderId]
+      );
+      
+      // 5. Reponer stock
+      const orderItemsResult = await dbClient.query('SELECT product_id, quantity FROM order_items WHERE order_id = $1', [orderId]);
+      for (const item of orderItemsResult.rows) {
+          await dbClient.query('UPDATE products SET stock = stock + $1 WHERE id = $2', [item.quantity, item.product_id]);
+      }
+  
+      // 6. Enviar email de confirmación de cancelación
+      const orderDetailsForEmail = await getOrderDetailsForEmail(orderId, dbClient);
+      if (orderDetailsForEmail) {
+          await sendOrderCancelledEmail(orderDetailsForEmail.email, orderDetailsForEmail);
+      }
+  
+      await dbClient.query('COMMIT');
+      logger.info(`Orden #${orderId} cancelada exitosamente por el usuario ${userId}.`);
+      res.status(200).json({ message: 'Orden cancelada con éxito. Se ha procesado tu reembolso.', order: updatedOrderResult.rows[0] });
+  
+    } catch (error) {
+      if (dbClient) await dbClient.query('ROLLBACK');
+      logger.error(`Error al cancelar la orden #${orderId} por el usuario ${userId}:`, error);
+      next(error);
+    } finally {
+      if (dbClient) dbClient.release();
+    }
+  };
