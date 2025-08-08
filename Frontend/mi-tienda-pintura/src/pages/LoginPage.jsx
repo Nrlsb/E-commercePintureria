@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/useAuthStore';
 import Spinner from '../components/Spinner.jsx';
-import { fetchWithCsrf } from '../api/api'; // Importar fetchWithCsrf
+import { fetchWithCsrf } from '../api/api';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
@@ -54,23 +54,23 @@ const LoginPage = () => {
     <div className="container mx-auto px-4 py-8">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-start">
         <div className="bg-white p-8 rounded-lg shadow-md">
-          <h1 className="text-2xl font-bold text-gray-800 mb-6 border-b pb-4">Iniciar sesión</h1>
+          <h1 className="text-2xl font-bold text-neutral-800 mb-6 border-b pb-4">Iniciar sesión</h1>
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
-              <label htmlFor="email" className="block mb-1 font-medium text-gray-600">Su E-Mail: <span className="text-red-500">*</span></label>
-              <input id="email" name="email" type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#0F3460]" required />
+              <label htmlFor="email" className="block mb-1 font-medium text-neutral-500">Su E-Mail: <span className="text-red-500">*</span></label>
+              <input id="email" name="email" type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full p-2 border border-neutral-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary" required />
             </div>
             <div>
-              <label htmlFor="password" className="block mb-1 font-medium text-gray-600">Su Clave: <span className="text-red-500">*</span></label>
-              <input id="password" name="password" type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#0F3460]" required />
+              <label htmlFor="password" className="block mb-1 font-medium text-neutral-500">Su Clave: <span className="text-red-500">*</span></label>
+              <input id="password" name="password" type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full p-2 border border-neutral-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary" required />
             </div>
             
             <div className="flex items-center justify-between text-sm">
                 <label htmlFor="remember" className="flex items-center cursor-pointer">
-                    <input id="remember" type="checkbox" className="h-4 w-4 text-[#0F3460] focus:ring-[#0F3460] border-gray-300 rounded" />
-                    <span className="ml-2 text-gray-600">Mantener iniciada</span>
+                    <input id="remember" type="checkbox" className="h-4 w-4 text-primary focus:ring-primary border-neutral-300 rounded" />
+                    <span className="ml-2 text-neutral-500">Mantener iniciada</span>
                 </label>
-                <Link to="/forgot-password" className="font-medium text-[#0F3460] hover:underline">
+                <Link to="/forgot-password" className="font-medium text-primary hover:underline">
                   Olvidé mi contraseña
                 </Link>
             </div>
@@ -81,7 +81,7 @@ const LoginPage = () => {
                 <button 
                   type="submit" 
                   disabled={loading}
-                  className="w-32 flex justify-center items-center px-8 py-3 bg-[#0F3460] text-white font-semibold rounded-lg hover:bg-[#1a4a8a] transition-colors disabled:bg-gray-400 disabled:cursor-wait"
+                  className="w-32 flex justify-center items-center px-8 py-3 bg-primary text-white font-semibold rounded-lg hover:bg-primary-light transition-colors disabled:bg-neutral-400 disabled:cursor-wait"
                 >
                   {loading ? <Spinner /> : 'Ingresar'}
                 </button>
@@ -91,16 +91,16 @@ const LoginPage = () => {
           <div className="mt-6">
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-300"></div>
+                <div className="w-full border-t border-neutral-300"></div>
               </div>
               <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white text-gray-500">O continúa con</span>
+                <span className="px-2 bg-white text-neutral-500">O continúa con</span>
               </div>
             </div>
             <div className="mt-6">
               <a 
                 href={`${API_URL}/api/auth/google`}
-                className="w-full inline-flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-500 hover:bg-gray-50"
+                className="w-full inline-flex justify-center py-2 px-4 border border-neutral-300 rounded-md shadow-sm bg-white text-sm font-medium text-neutral-500 hover:bg-neutral-100"
               >
                 <GoogleIcon />
                 Iniciar sesión con Google
@@ -110,9 +110,9 @@ const LoginPage = () => {
 
         </div>
         <div className="bg-white p-8 rounded-lg shadow-md">
-            <h2 className="text-2xl font-bold text-gray-800 mb-4">Registrarse</h2>
-            <p className="text-gray-600 mb-6">Creando una cuenta usted puede comprar productos y tener una lista de deseos.</p>
-            <Link to="/register" className="inline-block w-full text-center px-8 py-3 bg-gray-200 text-gray-800 font-semibold rounded-lg hover:bg-gray-300 transition-colors">
+            <h2 className="text-2xl font-bold text-neutral-800 mb-4">Registrarse</h2>
+            <p className="text-neutral-500 mb-6">Creando una cuenta usted puede comprar productos y tener una lista de deseos.</p>
+            <Link to="/register" className="inline-block w-full text-center px-8 py-3 bg-neutral-200 text-neutral-800 font-semibold rounded-lg hover:bg-neutral-300 transition-colors">
                 Registrarme
             </Link>
         </div>
