@@ -1,5 +1,5 @@
 // backend-pintureria/controllers/shipping.controller.js
-import { getShippingCost } from '../services/shippingService.js';
+import { getShippingCost, getTrackingInfo } from '../services/shippingService.js';
 import logger from '../logger.js';
 
 export const calculateShipping = async (req, res, next) => {
@@ -16,6 +16,19 @@ export const calculateShipping = async (req, res, next) => {
   try {
     const shippingCost = await getShippingCost({ postalCode, items });
     res.json({ postalCode, cost: shippingCost });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * --- NUEVO: Controlador para obtener el estado de un envío. ---
+ */
+export const trackShipment = async (req, res, next) => {
+  const { trackingNumber } = req.params;
+  try {
+    const trackingInfo = await getTrackingInfo(trackingNumber);
+    res.json(trackingInfo);
   } catch (error) {
     next(error);
   }

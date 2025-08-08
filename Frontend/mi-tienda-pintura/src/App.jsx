@@ -53,7 +53,8 @@ const BulkGenerateAIDescriptionsPage = lazy(() => import('./pages/BulkGenerateAI
 const WishlistPage = lazy(() => import('./pages/WishlistPage.jsx'));
 const ProfilePage = lazy(() => import('./pages/ProfilePage.jsx'));
 const AdminCouponsPage = lazy(() => import('./pages/AdminCouponsPage.jsx'));
-const AdminWebhookEventsPage = lazy(() => import('./pages/AdminWebhookEventsPage.jsx')); // <-- AÑADIDO
+const AdminWebhookEventsPage = lazy(() => import('./pages/AdminWebhookEventsPage.jsx'));
+const TrackingPage = lazy(() => import('./pages/TrackingPage.jsx')); // NUEVA RUTA
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage.jsx'));
 const ServerErrorPage = lazy(() => import('./pages/ServerErrorPage.jsx'));
 
@@ -119,6 +120,7 @@ export default function App() {
               <Route path="/order-pending/:orderId" element={<OrderPendingPage />} />
               <Route path="/wishlist" element={<WishlistPage />} />
               <Route path="/profile" element={<ProfilePage />} />
+              <Route path="/track/:trackingNumber" element={<TrackingPage />} /> {/* NUEVA RUTA */}
             </Route>
 
             <Route element={<AdminRoute />}>
@@ -132,7 +134,7 @@ export default function App() {
               <Route path="/admin/product/bulk-create-ai" element={<BulkCreateAIPage />} />
               <Route path="/admin/product/bulk-associate-ai" element={<BulkAssociateAIPage />} />
               <Route path="/admin/product/bulk-generate-descriptions" element={<BulkGenerateAIDescriptionsPage />} />
-              <Route path="/admin/webhooks" element={<AdminWebhookEventsPage />} /> {/* <-- AÑADIDO */}
+              <Route path="/admin/webhooks" element={<AdminWebhookEventsPage />} />
             </Route>
 
             <Route path="/error/500" element={<ServerErrorPage />} />

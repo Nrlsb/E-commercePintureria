@@ -4,8 +4,6 @@ import logger from '../logger.js';
 import config from '../config/index.js';
 import AppError from '../utils/AppError.js';
 
-// --- Lógica de cálculo de paquete (mejorada) ---
-
 /**
  * Calcula el peso y volumen total de los items del carrito.
  * NOTA: Para mayor precisión, se recomienda añadir peso y dimensiones a cada producto en la DB.
@@ -70,4 +68,62 @@ export const getShippingCost = async ({ postalCode, items }) => {
   await new Promise(resolve => setTimeout(resolve, 400)); // Simular latencia de red
   
   return Math.ceil(shippingCost / 10) * 10; // Redondear al múltiplo de 10 más cercano
+};
+
+
+/**
+ * --- NUEVA FUNCIÓN: Obtiene la información de seguimiento de un envío. ---
+ * Simula una llamada a la API de Correo Argentino.
+ * @param {string} trackingNumber - El número de seguimiento del envío.
+ * @returns {Promise<object>} - La información de seguimiento.
+ */
+export const getTrackingInfo = async (trackingNumber) => {
+  // En un escenario real, aquí llamarías a la API de Correo Argentino.
+  // const apiUrl = `https://api.correoargentino.com.ar/v1/track/${trackingNumber}`;
+  // const response = await fetch(apiUrl, { headers: { 'Authorization': `Bearer ${config.shipping.correoArgentinoApiKey}` } });
+  // const data = await response.json();
+  // return data;
+
+  // --- SIMULACIÓN PARA LA DEMOSTRACIÓN ---
+  logger.info(`Simulando obtención de seguimiento para el número: ${trackingNumber}`);
+  await new Promise(resolve => setTimeout(resolve, 800)); // Simular latencia de red
+
+  // Simular diferentes estados basados en el número de seguimiento
+  const lastDigit = parseInt(trackingNumber.slice(-1), 10);
+  let history;
+  let status;
+
+  if (lastDigit >= 0 && lastDigit <= 3) {
+    status = 'En proceso de clasificación';
+    history = [
+      { date: '2023-10-26T10:00:00Z', status: 'Pre-imposición', location: 'Planta Logística' },
+      { date: '2023-10-27T08:30:00Z', status: 'Llegada al centro de procesamiento', location: 'CTP Buenos Aires' },
+    ];
+  } else if (lastDigit > 3 && lastDigit <= 6) {
+    status = 'En camino al domicilio';
+    history = [
+        { date: '2023-10-26T10:00:00Z', status: 'Pre-imposición', location: 'Planta Logística' },
+        { date: '2023-10-27T08:30:00Z', status: 'Llegada al centro de procesamiento', location: 'CTP Buenos Aires' },
+        { date: '2023-10-28T09:00:00Z', status: 'En camino al domicilio', location: 'Sucursal de destino' },
+    ];
+  } else {
+    status = 'Entregado';
+    history = [
+        { date: '2023-10-26T10:00:00Z', status: 'Pre-imposición', location: 'Planta Logística' },
+        { date: '2023-10-27T08:30:00Z', status: 'Llegada al centro de procesamiento', location: 'CTP Buenos Aires' },
+        { date: '2023-10-28T09:00:00Z', status: 'En camino al domicilio', location: 'Sucursal de destino' },
+        { date: '2023-10-28T14:00:00Z', status: 'Entregado', location: 'Domicilio del cliente' },
+    ];
+  }
+
+  if (trackingNumber === 'ERROR123') {
+      throw new AppError('El número de seguimiento no fue encontrado.', 404);
+  }
+
+  return {
+    trackingNumber,
+    service: 'Paquetería e-Commerce',
+    status,
+    history,
+  };
 };
