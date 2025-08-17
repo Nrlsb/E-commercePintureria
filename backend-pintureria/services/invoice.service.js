@@ -58,19 +58,26 @@ export const generateInvoicePDF = (order) => {
       doc.font('Helvetica');
       let currentY = tableTop + 25;
       order.items.forEach(item => {
+        // CORRECCIÓN: Asegurarse de que los valores numéricos sean números
+        const unitPrice = parseFloat(item.price);
+        const totalItemPrice = unitPrice * item.quantity;
+
         doc.text(String(item.product_id).padStart(6, '0'), 50, currentY);
         doc.text(item.name, 110, currentY, { width: 180 });
         doc.text(item.quantity, 300, currentY, { width: 60, align: 'right' });
-        doc.text(item.price.toFixed(2), 370, currentY, { width: 70, align: 'right' });
-        doc.text((item.price * item.quantity).toFixed(2), 450, currentY, { width: 90, align: 'right' });
+        doc.text(unitPrice.toFixed(2), 370, currentY, { width: 70, align: 'right' });
+        doc.text(totalItemPrice.toFixed(2), 450, currentY, { width: 90, align: 'right' });
         currentY += 20;
       });
       doc.moveTo(50, currentY).lineTo(550, currentY).stroke();
 
       // --- Totales ---
-      const subtotal = order.total_amount - order.shipping_cost; // Asumiendo que el total incluye el envío
-      const iva = order.total_amount * 0.21;
-      const gravado = order.total_amount - iva;
+      // CORRECCIÓN: Convertir todos los valores monetarios a números antes de usarlos
+      const totalAmount = parseFloat(order.total_amount);
+      const shippingCost = parseFloat(order.shipping_cost) || 0;
+      const subtotal = totalAmount - shippingCost;
+      const iva = totalAmount * 0.21;
+      const gravado = totalAmount - iva;
 
       currentY += 20;
       doc.font('Helvetica-Bold').text('SUBTOTAL', 400, currentY, { align: 'left' });
@@ -83,7 +90,7 @@ export const generateInvoicePDF = (order) => {
       doc.font('Helvetica').text(iva.toFixed(2), 0, currentY, { align: 'right' });
       currentY += 25;
       doc.font('Helvetica-Bold').fontSize(12).text('TOTAL', 400, currentY, { align: 'left' });
-      doc.font('Helvetica-Bold').text(`$ ${order.total_amount.toFixed(2)}`, 0, currentY, { align: 'right' });
+      doc.font('Helvetica-Bold').text(`$ ${totalAmount.toFixed(2)}`, 0, currentY, { align: 'right' });
 
       // --- Pie de Página ---
       doc.fontSize(8).text('Documento no válido como factura', 50, 750, { align: 'center', width: 500 });
