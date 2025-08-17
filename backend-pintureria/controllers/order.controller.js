@@ -1,7 +1,7 @@
 // backend-pintureria/controllers/order.controller.js
 import db from '../db.js';
 import mercadopago from 'mercadopago';
-import { sendOrderConfirmationEmail, sendBankTransferInstructionsEmail, sendOrderStatusUpdateEmail, sendOrderCancelledEmail } from '../emailService.js';
+import { sendOrderConfirmationEmail, sendBankTransferInstructionsEmail, sendOrderStatusUpdateEmail, sendOrderCancelledEmail, sendNewOrderNotificationToAdmin } from '../emailService.js';
 import logger from '../logger.js';
 import AppError from '../utils/AppError.js';
 import { generateInvoicePDF } from '../services/invoice.service.js';
@@ -31,7 +31,6 @@ const getOrderDetailsForEmail = async (orderId, dbClient) => {
   return orderResult.rows[0];
 };
 
-// --- NUEVA RUTA PARA DESCARGAR FACTURA ---
 export const downloadInvoice = async (req, res, next) => {
     const { orderId } = req.params;
     const { userId, role } = req.user;
@@ -43,7 +42,6 @@ export const downloadInvoice = async (req, res, next) => {
             throw new AppError('Orden no encontrada.', 404);
         }
 
-        // Verificar permisos: el usuario debe ser el dueño de la orden o un admin
         if (role !== 'admin' && orderDetails.user_id !== userId) {
             throw new AppError('No tienes permiso para ver esta factura.', 403);
         }
@@ -80,12 +78,16 @@ export const confirmTransferPayment = async (req, res, next) => {
 
     const orderForEmail = await getOrderDetailsForEmail(order.id, dbClient);
 
-    await sendOrderConfirmationEmail(orderForEmail.email, orderForEmail);
+    // Enviar correos en paralelo
+    await Promise.all([
+        sendOrderConfirmationEmail(orderForEmail.email, orderForEmail),
+        sendNewOrderNotificationToAdmin(orderForEmail)
+    ]);
     
     await dbClient.query('COMMIT');
 
     logger.info(`Pago por transferencia confirmado para la orden #${orderId}`);
-    res.status(200).json({ message: 'Pago confirmado y email enviado con éxito.', order });
+    res.status(200).json({ message: 'Pago confirmado y emails enviados con éxito.', order });
   } catch (error) {
     await dbClient.query('ROLLBACK');
     next(error);
@@ -94,6 +96,135 @@ export const confirmTransferPayment = async (req, res, next) => {
   }
 };
 
+export const processPayment = async (req, res, next) => {
+    logger.debug('Iniciando processPayment. Body recibido:', JSON.stringify(req.body, null, 2));
+
+    const { token, issuer_id, payment_method_id, transaction_amount, installments, payer, cart, shippingCost, postalCode } = req.body;
+    const { userId, firstName, lastName, email } = req.user;
+
+    const dbClient = await db.connect();
+    let orderId;
+
+    try {
+        if (!token) {
+          throw new AppError('Card Token not Found', 400);
+        }
+
+        const addressResult = await dbClient.query(
+            'SELECT address_line1, city, state, postal_code FROM user_addresses WHERE user_id = $1 AND is_default = true LIMIT 1',
+            [userId]
+        );
+        const address = addressResult.rows[0];
+        if (!address) {
+            throw new AppError('Debe registrar una dirección de envío predeterminada en "Mi Perfil".', 400);
+        }
+
+        await dbClient.query('BEGIN');
+
+        for (const item of cart) {
+            const stockResult = await dbClient.query('SELECT stock FROM products WHERE id = $1 FOR UPDATE', [item.id]);
+            if (stockResult.rows.length === 0) {
+                throw new AppError(`Producto "${item.name}" no encontrado.`, 404);
+            }
+            if (item.quantity > stockResult.rows[0].stock) {
+                throw new AppError(`Stock insuficiente para "${item.name}".`, 400);
+            }
+        }
+
+        const orderResult = await dbClient.query(
+            'INSERT INTO orders (user_id, total_amount, status, shipping_cost, postal_code) VALUES ($1, $2, $3, $4, $5) RETURNING id',
+            [userId, transaction_amount, 'pending', shippingCost, postalCode]
+        );
+        orderId = orderResult.rows[0].id;
+
+        for (const item of cart) {
+            await dbClient.query(
+                'INSERT INTO order_items (order_id, product_id, quantity, price) VALUES ($1, $2, $3, $4)',
+                [orderId, item.id, item.quantity, item.price]
+            );
+        }
+
+        const payment = new Payment(mpClient);
+        
+        const payment_data = {
+            transaction_amount: Number(transaction_amount),
+            token,
+            description: `Compra en Pinturerías Mercurio - Orden #${orderId}`,
+            installments,
+            payment_method_id,
+            issuer_id,
+            payer: {
+              email: payer.email || email,
+              identification: payer.identification,
+              first_name: firstName,
+              last_name: lastName,
+            },
+            external_reference: orderId.toString(),
+            notification_url: `${process.env.BACKEND_URL}/api/payment/notification`,
+            additional_info: {
+                items: cart.map(item => ({
+                    id: String(item.id),
+                    title: item.name,
+                    description: item.description || item.name,
+                    category_id: item.category,
+                    quantity: Number(item.quantity),
+                    unit_price: Number(item.price)
+                })),
+                shipments: {
+                    receiver_address: {
+                        zip_code: address.postal_code,
+                        state_name: address.state,
+                        city_name: address.city,
+                        street_name: address.address_line1,
+                    }
+                }
+            }
+        };
+
+        const paymentResult = await payment.create({ body: payment_data });
+
+        if (paymentResult.status === 'approved') {
+            for (const item of cart) {
+                await dbClient.query('UPDATE products SET stock = stock - $1 WHERE id = $2', [item.quantity, item.id]);
+            }
+            await dbClient.query("UPDATE orders SET status = 'approved', mercadopago_transaction_id = $1 WHERE id = $2", [paymentResult.id, orderId]);
+            
+            const orderDetailsForEmail = await getOrderDetailsForEmail(orderId, dbClient);
+            if (orderDetailsForEmail) {
+                try {
+                    // Enviar correos en paralelo
+                    await Promise.all([
+                        sendOrderConfirmationEmail(orderDetailsForEmail.email, orderDetailsForEmail),
+                        sendNewOrderNotificationToAdmin(orderDetailsForEmail)
+                    ]);
+                    logger.info(`Emails de confirmación y admin enviados para la orden #${orderId}`);
+                } catch (emailError) {
+                    logger.error(`Error al enviar emails para la orden #${orderId}:`, emailError);
+                }
+            } else {
+                logger.warn(`No se encontraron detalles para la orden #${orderId} para enviar emails.`);
+            }
+
+            await dbClient.query('COMMIT');
+            logger.info(`Pago aprobado por Mercado Pago para la orden #${orderId}`);
+            res.status(201).json({ status: 'approved', orderId: orderId, paymentId: paymentResult.id });
+        } else {
+            await dbClient.query('ROLLBACK');
+            logger.warn(`Pago rechazado por Mercado Pago. Orden #${orderId} revertida. Motivo: ${paymentResult.status_detail}`);
+            throw new AppError(paymentResult.status_detail || 'El pago no pudo ser procesado.', 400);
+        }
+
+    } catch (error) {
+        if (dbClient) await dbClient.query('ROLLBACK');
+        logger.error(`Error completo procesando el pago para la orden #${orderId}:`, error);
+        next(error);
+    } finally {
+        if (dbClient) dbClient.release();
+    }
+};
+
+// ... (el resto de las funciones como getOrderById, getOrderHistory, etc., permanecen igual)
+// ...
 export const updateOrderStatus = async (req, res, next) => {
   const { orderId } = req.params;
   const { status, trackingNumber } = req.body;
@@ -294,130 +425,6 @@ export const createPixPayment = async (req, res, next) => {
   } finally {
     if (dbClient) dbClient.release();
   }
-};
-
-
-export const processPayment = async (req, res, next) => {
-    logger.debug('Iniciando processPayment. Body recibido:', JSON.stringify(req.body, null, 2));
-
-    const { token, issuer_id, payment_method_id, transaction_amount, installments, payer, cart, shippingCost, postalCode } = req.body;
-    const { userId, firstName, lastName, email } = req.user;
-
-    const dbClient = await db.connect();
-    let orderId;
-
-    try {
-        if (!token) {
-          throw new AppError('Card Token not Found', 400);
-        }
-
-        const addressResult = await dbClient.query(
-            'SELECT address_line1, city, state, postal_code FROM user_addresses WHERE user_id = $1 AND is_default = true LIMIT 1',
-            [userId]
-        );
-        const address = addressResult.rows[0];
-        if (!address) {
-            throw new AppError('Debe registrar una dirección de envío predeterminada en "Mi Perfil".', 400);
-        }
-
-        await dbClient.query('BEGIN');
-
-        for (const item of cart) {
-            const stockResult = await dbClient.query('SELECT stock FROM products WHERE id = $1 FOR UPDATE', [item.id]);
-            if (stockResult.rows.length === 0) {
-                throw new AppError(`Producto "${item.name}" no encontrado.`, 404);
-            }
-            if (item.quantity > stockResult.rows[0].stock) {
-                throw new AppError(`Stock insuficiente para "${item.name}".`, 400);
-            }
-        }
-
-        const orderResult = await dbClient.query(
-            'INSERT INTO orders (user_id, total_amount, status, shipping_cost, postal_code) VALUES ($1, $2, $3, $4, $5) RETURNING id',
-            [userId, transaction_amount, 'pending', shippingCost, postalCode]
-        );
-        orderId = orderResult.rows[0].id;
-
-        for (const item of cart) {
-            await dbClient.query(
-                'INSERT INTO order_items (order_id, product_id, quantity, price) VALUES ($1, $2, $3, $4)',
-                [orderId, item.id, item.quantity, item.price]
-            );
-        }
-
-        const payment = new Payment(mpClient);
-        
-        const payment_data = {
-            transaction_amount: Number(transaction_amount),
-            token,
-            description: `Compra en Pinturerías Mercurio - Orden #${orderId}`,
-            installments,
-            payment_method_id,
-            issuer_id,
-            payer: {
-              email: payer.email || email,
-              identification: payer.identification,
-              first_name: firstName,
-              last_name: lastName,
-            },
-            external_reference: orderId.toString(),
-            notification_url: `${process.env.BACKEND_URL}/api/payment/notification`,
-            additional_info: {
-                items: cart.map(item => ({
-                    id: String(item.id),
-                    title: item.name,
-                    description: item.description || item.name,
-                    category_id: item.category,
-                    quantity: Number(item.quantity),
-                    unit_price: Number(item.price)
-                })),
-                shipments: {
-                    receiver_address: {
-                        zip_code: address.postal_code,
-                        state_name: address.state,
-                        city_name: address.city,
-                        street_name: address.address_line1,
-                    }
-                }
-            }
-        };
-
-        const paymentResult = await payment.create({ body: payment_data });
-
-        if (paymentResult.status === 'approved') {
-            for (const item of cart) {
-                await dbClient.query('UPDATE products SET stock = stock - $1 WHERE id = $2', [item.quantity, item.id]);
-            }
-            await dbClient.query("UPDATE orders SET status = 'approved', mercadopago_transaction_id = $1 WHERE id = $2", [paymentResult.id, orderId]);
-            
-            const orderDetailsForEmail = await getOrderDetailsForEmail(orderId, dbClient);
-            if (orderDetailsForEmail) {
-                try {
-                    await sendOrderConfirmationEmail(orderDetailsForEmail.email, orderDetailsForEmail);
-                    logger.info(`Email de confirmación enviado exitosamente para la orden #${orderId}`);
-                } catch (emailError) {
-                    logger.error(`Error al enviar email de confirmación para la orden #${orderId}:`, emailError);
-                }
-            } else {
-                logger.warn(`No se encontraron detalles para la orden #${orderId} para enviar el email de confirmación.`);
-            }
-
-            await dbClient.query('COMMIT');
-            logger.info(`Pago aprobado por Mercado Pago para la orden #${orderId}`);
-            res.status(201).json({ status: 'approved', orderId: orderId, paymentId: paymentResult.id });
-        } else {
-            await dbClient.query('ROLLBACK');
-            logger.warn(`Pago rechazado por Mercado Pago. Orden #${orderId} revertida. Motivo: ${paymentResult.status_detail}`);
-            throw new AppError(paymentResult.status_detail || 'El pago no pudo ser procesado.', 400);
-        }
-
-    } catch (error) {
-        if (dbClient) await dbClient.query('ROLLBACK');
-        logger.error(`Error completo procesando el pago para la orden #${orderId}:`, error);
-        next(error);
-    } finally {
-        if (dbClient) dbClient.release();
-    }
 };
 
 export const getOrderById = async (req, res, next) => {

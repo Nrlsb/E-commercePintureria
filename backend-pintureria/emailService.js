@@ -2,6 +2,7 @@
 import nodemailer from 'nodemailer';
 import logger from './logger.js';
 import { generateInvoicePDF } from './services/invoice.service.js';
+import config from './config/index.js'; // Importar config
 
 const transporter = nodemailer.createTransport({
   host: process.env.EMAIL_HOST,
@@ -22,10 +23,77 @@ const generateItemsHtml = (items) => items.map(item => `
   </tr>
 `).join('');
 
+/**
+ * Envía una notificación de nueva orden al administrador.
+ * @param {object} order - El objeto de la orden con todos los detalles.
+ */
+export const sendNewOrderNotificationToAdmin = async (order) => {
+  const adminEmail = config.email.admin;
+  if (!adminEmail) {
+    logger.warn('ADMIN_EMAIL no está configurado. No se enviará la notificación de nueva orden al administrador.');
+    return;
+  }
+
+  const itemsHtml = order.items.map(item => `
+    <tr>
+      <td style="padding: 10px; border-bottom: 1px solid #ddd;">${String(item.product_id).padStart(6, '0')}</td>
+      <td style="padding: 10px; border-bottom: 1px solid #ddd;">${item.name}</td>
+      <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: center;">${item.quantity}</td>
+      <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: right;">$${formatCurrency(parseFloat(item.price))}</td>
+    </tr>
+  `).join('');
+
+  const emailHtml = `
+    <div style="font-family: Arial, sans-serif; color: #333;">
+      <h1 style="color: #0F3460;">Nueva Orden Recibida: #${order.id}</h1>
+      <p>Se ha recibido una nueva orden y está lista para ser preparada.</p>
+      
+      <h2 style="color: #0F3460;">Detalles del Cliente</h2>
+      <p><strong>Nombre:</strong> ${order.first_name} ${order.last_name}</p>
+      <p><strong>Email:</strong> ${order.email}</p>
+      <p><strong>Dirección de Envío:</strong> ${order.shipping_address || 'No especificada'}</p>
+      
+      <h2 style="color: #0F3460;">Items del Pedido</h2>
+      <table style="width: 100%; border-collapse: collapse;">
+        <thead>
+          <tr>
+            <th style="padding: 10px; border-bottom: 2px solid #0F3460; text-align: left;">SKU</th>
+            <th style="padding: 10px; border-bottom: 2px solid #0F3460; text-align: left;">Producto</th>
+            <th style="padding: 10px; border-bottom: 2px solid #0F3460; text-align: center;">Cantidad</th>
+            <th style="padding: 10px; border-bottom: 2px solid #0F3460; text-align: right;">Precio Unit.</th>
+          </tr>
+        </thead>
+        <tbody>${itemsHtml}</tbody>
+      </table>
+      
+      <p style="text-align: right; font-size: 1.2em; font-weight: bold; margin-top: 20px;">Total: $${formatCurrency(parseFloat(order.total_amount))}</p>
+      
+      <p style="margin-top: 30px; text-align: center;">
+        <a href="${config.frontendUrl}/admin/orders" style="background-color: #0F3460; color: white; padding: 12px 20px; text-decoration: none; border-radius: 5px; font-weight: bold;">
+          Ver Orden en el Panel de Admin
+        </a>
+      </p>
+    </div>
+  `;
+
+  const mailOptions = {
+    from: `"Pinturerías Mercurio" <no-reply@nrlsb.com>`,
+    to: adminEmail,
+    subject: `Nueva Orden #${order.id} - ${order.first_name} ${order.last_name}`,
+    html: emailHtml,
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    logger.info(`Email de nueva orden #${order.id} enviado al administrador ${adminEmail}`);
+  } catch (error) {
+    logger.error(`Error al enviar email de nueva orden al administrador para la orden ${order.id}:`, error);
+  }
+};
+
+
 export const sendOrderConfirmationEmail = async (userEmail, order) => {
   const itemsHtml = generateItemsHtml(order.items);
-  
-  // Generar el PDF de la factura
   const invoicePdf = await generateInvoicePDF(order);
 
   const emailHtml = `
@@ -75,7 +143,7 @@ export const sendOrderConfirmationEmail = async (userEmail, order) => {
   }
 };
 
-// ... (el resto del archivo emailService.js permanece igual)
+// ... (el resto del archivo permanece igual)
 export const sendBankTransferInstructionsEmail = async (userEmail, order) => {
   const itemsHtml = generateItemsHtml(order.items);
   const { paymentData } = order; // Datos de pago de MP

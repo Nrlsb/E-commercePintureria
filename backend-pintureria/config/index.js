@@ -45,6 +45,7 @@ const config = {
     port: process.env.EMAIL_PORT,
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,
+    admin: process.env.ADMIN_EMAIL, // Correo del administrador para notificaciones
   },
 
   frontendUrl: process.env.VITE_FRONTEND_URL || 'http://localhost:5173',
@@ -52,7 +53,6 @@ const config = {
   
   shipping: {
     originPostalCode: process.env.SHIPPING_API_ORIGIN_POSTAL_CODE || '3080',
-    // --- CORRECCIÓN: Credenciales de Correo Argentino actualizadas ---
     correoArgentinoAgreement: process.env.CORREO_ARGENTINO_AGREEMENT,
     correoArgentinoApiKey: process.env.CORREO_ARGENTINO_API_KEY,
   }
