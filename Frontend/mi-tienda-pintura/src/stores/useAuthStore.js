@@ -2,7 +2,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { useWishlistStore } from './useWishlistStore';
-import { fetchWithCsrf } from '../api/api'; // Importar fetchWithCsrf
+import { fetchWithCsrf } from '../api/api';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
@@ -21,11 +21,13 @@ export const useAuthStore = create(
     (set) => ({
       token: null,
       user: null,
+      isSessionExpired: false, // Estado para controlar la visibilidad del modal
 
       login: (newToken) => {
         set({
           token: newToken,
           user: parseJwt(newToken),
+          isSessionExpired: false, // Resetea el estado al iniciar sesión
         });
         useWishlistStore.getState().fetchWishlist(newToken);
       },
@@ -34,10 +36,24 @@ export const useAuthStore = create(
         set({
           token: null,
           user: null,
+          isSessionExpired: false, // Resetea el estado al cerrar sesión
         });
         useWishlistStore.getState().clearWishlist();
       },
       
+      /**
+       * Maneja la expiración de la sesión.
+       * Limpia los datos del usuario y activa el modal de sesión expirada.
+       */
+      handleSessionExpired: () => {
+        set({
+            token: null,
+            user: null,
+            isSessionExpired: true
+        });
+        useWishlistStore.getState().clearWishlist();
+      },
+
       refreshToken: async () => {
         const currentToken = useAuthStore.getState().token;
         if (!currentToken) return;

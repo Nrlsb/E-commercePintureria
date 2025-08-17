@@ -1,4 +1,5 @@
 // src/api/api.js
+import { useAuthStore } from '../stores/useAuthStore';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
@@ -28,22 +29,37 @@ export const fetchWithCsrf = async (url, options = {}) => {
   options.credentials = 'include';
   options.headers = headers;
 
-  const response = await fetch(url, options);
+  let response = await fetch(url, options);
 
-  if (response.status === 403) {
-    console.warn('Token CSRF inválido. Refrescando y reintentando...');
-    await getCsrfToken();
-    if (csrfToken) {
-      headers.set('X-CSRF-Token', csrfToken);
-      options.headers = headers;
-      return fetch(url, options);
+  // --- INICIO DE LA LÓGICA DE EXPIRACIÓN DE SESIÓN ---
+  // Si el token JWT expira, el backend devolverá 401 (No autorizado) o 403 (Prohibido).
+  if (response.status === 401 || response.status === 403) {
+    // Primero, verificamos si es un error de CSRF, que se maneja de forma diferente.
+    const responseBody = await response.clone().json().catch(() => ({}));
+    const isCsrfError = responseBody.message?.includes('CSRF');
+    
+    if (isCsrfError) {
+      console.warn('Token CSRF inválido. Refrescando y reintentando...');
+      await getCsrfToken();
+      if (csrfToken) {
+        headers.set('X-CSRF-Token', csrfToken);
+        options.headers = headers;
+        response = await fetch(url, options); // Reintentamos la petición una vez.
+      }
+    } else {
+      // Si no es un error de CSRF, es probable que la sesión haya expirado.
+      const { handleSessionExpired, user } = useAuthStore.getState();
+      // Solo activamos el modal si había un usuario logueado.
+      if (user) {
+        handleSessionExpired();
+      }
     }
   }
+  // --- FIN DE LA LÓGICA DE EXPIRACIÓN DE SESIÓN ---
 
   return response;
 };
 
-// --- CAMBIO: Se crea una función de inicialización para ser llamada una sola vez ---
 let isInitialized = false;
 export const initializeCsrf = () => {
     if (!isInitialized) {
