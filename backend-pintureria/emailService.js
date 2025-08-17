@@ -1,6 +1,7 @@
 // backend-pintureria/emailService.js
 import nodemailer from 'nodemailer';
 import logger from './logger.js';
+import { generateInvoicePDF } from './services/invoice.service.js';
 
 const transporter = nodemailer.createTransport({
   host: process.env.EMAIL_HOST,
@@ -23,10 +24,15 @@ const generateItemsHtml = (items) => items.map(item => `
 
 export const sendOrderConfirmationEmail = async (userEmail, order) => {
   const itemsHtml = generateItemsHtml(order.items);
+  
+  // Generar el PDF de la factura
+  const invoicePdf = await generateInvoicePDF(order);
+
   const emailHtml = `
     <div style="font-family: Arial, sans-serif; color: #333;">
       <h1 style="color: #0F3460;">¡Gracias por tu compra!</h1>
       <p>Hola, hemos recibido tu pago para el pedido #${order.id} y ya lo estamos preparando.</p>
+      <p>Adjuntamos la factura de tu compra en formato PDF.</p>
       <h2 style="color: #0F3460;">Resumen del Pedido</h2>
       <table style="width: 100%; border-collapse: collapse;">
         <thead>
@@ -50,19 +56,26 @@ export const sendOrderConfirmationEmail = async (userEmail, order) => {
   const mailOptions = {
     from: `"Pinturerías Mercurio" <no-reply@nrlsb.com>`,
     to: userEmail,
-    subject: `Confirmación de tu pedido #${order.id}`,
+    subject: `Confirmación y Factura de tu pedido #${order.id}`,
     html: emailHtml,
+    attachments: [
+        {
+            filename: `factura-${order.id}.pdf`,
+            content: invoicePdf,
+            contentType: 'application/pdf'
+        }
+    ]
   };
 
   try {
     await transporter.sendMail(mailOptions);
-    logger.info(`Email de confirmación enviado a ${userEmail} para la orden ${order.id}`);
+    logger.info(`Email de confirmación y factura enviado a ${userEmail} para la orden ${order.id}`);
   } catch (error) {
     logger.error(`Error al enviar email para la orden ${order.id}:`, error);
   }
 };
 
-// --- CAMBIO: El email ahora incluye los datos de pago de Mercado Pago ---
+// ... (el resto del archivo emailService.js permanece igual)
 export const sendBankTransferInstructionsEmail = async (userEmail, order) => {
   const itemsHtml = generateItemsHtml(order.items);
   const { paymentData } = order; // Datos de pago de MP
@@ -189,12 +202,6 @@ export const sendPasswordResetEmail = async (userEmail, token) => {
   }
 };
 
-/**
- * --- NUEVO: Envía un email genérico de actualización de estado de la orden. ---
- * @param {string} userEmail - El email del destinatario.
- * @param {object} order - El objeto de la orden.
- * @param {string} newStatus - El nuevo estado de la orden (ej. 'shipped', 'delivered').
- */
 export const sendOrderStatusUpdateEmail = async (userEmail, order, newStatus) => {
   const statusMap = {
     shipped: {

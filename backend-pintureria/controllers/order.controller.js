@@ -4,6 +4,7 @@ import mercadopago from 'mercadopago';
 import { sendOrderConfirmationEmail, sendBankTransferInstructionsEmail, sendOrderStatusUpdateEmail, sendOrderCancelledEmail } from '../emailService.js';
 import logger from '../logger.js';
 import AppError from '../utils/AppError.js';
+import { generateInvoicePDF } from '../services/invoice.service.js';
 
 const { MercadoPagoConfig, Payment, PaymentRefund } = mercadopago;
 const mpClient = new MercadoPagoConfig({ accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN });
@@ -12,9 +13,13 @@ const MIN_TRANSACTION_AMOUNT = 100;
 // Helper function to get order details for email, using parameterized query
 const getOrderDetailsForEmail = async (orderId, dbClient) => {
   const orderQuery = `
-    SELECT o.id, o.total_amount, o.tracking_number, u.email,
+    SELECT o.id, o.total_amount, o.tracking_number, o.created_at,
+           u.email, u.first_name, u.last_name, u.dni as user_dni,
+           (SELECT CONCAT(address_line1, ', ', city, ', ', state, ' ', postal_code) 
+            FROM user_addresses 
+            WHERE user_id = u.id AND is_default = true LIMIT 1) as shipping_address,
     COALESCE((SELECT json_agg(items) FROM (
-      SELECT oi.quantity, oi.price, p.name, p.image_url as "imageUrl"
+      SELECT oi.quantity, oi.price, p.name, p.image_url as "imageUrl", p.id as product_id
       FROM order_items oi JOIN products p ON oi.product_id = p.id
       WHERE oi.order_id = o.id
     ) AS items), '[]'::json) AS items
@@ -25,6 +30,35 @@ const getOrderDetailsForEmail = async (orderId, dbClient) => {
   const orderResult = await dbClient.query(orderQuery, [orderId]);
   return orderResult.rows[0];
 };
+
+// --- NUEVA RUTA PARA DESCARGAR FACTURA ---
+export const downloadInvoice = async (req, res, next) => {
+    const { orderId } = req.params;
+    const { userId, role } = req.user;
+
+    try {
+        const orderDetails = await getOrderDetailsForEmail(orderId, db);
+
+        if (!orderDetails) {
+            throw new AppError('Orden no encontrada.', 404);
+        }
+
+        // Verificar permisos: el usuario debe ser el dueño de la orden o un admin
+        if (role !== 'admin' && orderDetails.user_id !== userId) {
+            throw new AppError('No tienes permiso para ver esta factura.', 403);
+        }
+
+        const pdfBuffer = await generateInvoicePDF(orderDetails);
+
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename=factura-${orderId}.pdf`);
+        res.send(pdfBuffer);
+
+    } catch (error) {
+        next(error);
+    }
+};
+
 
 export const confirmTransferPayment = async (req, res, next) => {
   const { orderId } = req.params;
@@ -561,7 +595,6 @@ export const cancelOrder = async (req, res, next) => {
     }
 };
 
-// --- NUEVA FUNCIÓN PARA CANCELACIÓN POR PARTE DEL USUARIO ---
 export const cancelOrderByUser = async (req, res, next) => {
     const { orderId } = req.params;
     const { userId } = req.user;
@@ -569,7 +602,6 @@ export const cancelOrderByUser = async (req, res, next) => {
     try {
       await dbClient.query('BEGIN');
   
-      // 1. Obtener la orden y verificar la propiedad y las condiciones
       const orderResult = await dbClient.query(
         "SELECT * FROM orders WHERE id = $1 AND user_id = $2",
         [orderId, userId]
@@ -580,7 +612,6 @@ export const cancelOrderByUser = async (req, res, next) => {
       }
       const order = orderResult.rows[0];
   
-      // 2. Verificar si la orden es cancelable (estado y tiempo)
       const isCancellableStatus = ['approved', 'shipped'].includes(order.status);
       if (!isCancellableStatus) {
         throw new AppError(`No se puede cancelar una orden con estado '${order.status}'.`, 400);
@@ -594,7 +625,6 @@ export const cancelOrderByUser = async (req, res, next) => {
         throw new AppError('Solo se pueden cancelar órdenes dentro de las primeras 24 horas.', 400);
       }
       
-      // 3. Procesar reembolso si es necesario
       if (order.mercadopago_transaction_id) {
           logger.info(`Usuario ${userId} iniciando reembolso para la orden #${orderId} con transaction_id: ${order.mercadopago_transaction_id}`);
           const refundClient = new PaymentRefund(mpClient);
@@ -602,19 +632,16 @@ export const cancelOrderByUser = async (req, res, next) => {
           logger.info(`Reembolso de Mercado Pago procesado para la orden #${orderId}.`);
       }
       
-      // 4. Actualizar estado de la orden a 'cancelled'
       const updatedOrderResult = await dbClient.query(
           "UPDATE orders SET status = 'cancelled' WHERE id = $1 RETURNING *",
           [orderId]
       );
       
-      // 5. Reponer stock
       const orderItemsResult = await dbClient.query('SELECT product_id, quantity FROM order_items WHERE order_id = $1', [orderId]);
       for (const item of orderItemsResult.rows) {
           await dbClient.query('UPDATE products SET stock = stock + $1 WHERE id = $2', [item.quantity, item.product_id]);
       }
   
-      // 6. Enviar email de confirmación de cancelación
       const orderDetailsForEmail = await getOrderDetailsForEmail(orderId, dbClient);
       if (orderDetailsForEmail) {
           await sendOrderCancelledEmail(orderDetailsForEmail.email, orderDetailsForEmail);

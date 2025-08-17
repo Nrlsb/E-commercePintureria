@@ -9,7 +9,8 @@ import {
   confirmTransferPayment,
   getOrderById,
   updateOrderStatus,
-  cancelOrderByUser, // <-- AÑADIDO
+  cancelOrderByUser,
+  downloadInvoice, // <-- AÑADIDO
 } from '../controllers/order.controller.js';
 import { authenticateToken, isAdmin } from '../middlewares/auth.middleware.js';
 import { orderQueryParamsRules, validate } from '../middlewares/validators.js';
@@ -31,6 +32,9 @@ router.post('/pix-payment', authenticateToken, createPixPayment);
 
 // --- NUEVA RUTA PARA CANCELACIÓN POR PARTE DEL USUARIO ---
 router.post('/:orderId/user-cancel', authenticateToken, cancelOrderByUser);
+
+// --- NUEVA RUTA PARA DESCARGAR FACTURA ---
+router.get('/:orderId/invoice', authenticateToken, downloadInvoice);
 
 
 export default router;

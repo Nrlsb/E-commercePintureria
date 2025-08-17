@@ -24,7 +24,6 @@ const OrderHistoryPage = () => {
   const [isCancelling, setIsCancelling] = useState(false);
 
   const fetchOrders = useCallback(async () => {
-    // No es necesario establecer loading a true aquí si ya se hizo en el useEffect inicial
     try {
       const response = await fetchWithCsrf(`${API_URL}/api/orders`, {
         headers: { 'Authorization': `Bearer ${token}` },
@@ -157,6 +156,17 @@ const OrderHistoryPage = () => {
                 ))}
               </div>
               <div className="border-t pt-4 mt-4 flex justify-end items-center gap-4">
+                {['approved', 'shipped', 'delivered'].includes(order.status) && (
+                    <a
+                        href={`${API_URL}/api/orders/${order.id}/invoice`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 transition-colors flex items-center space-x-2 text-sm"
+                    >
+                        <Icon path="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" className="w-4 h-4" />
+                        <span>Descargar Factura</span>
+                    </a>
+                )}
                 {order.tracking_number && ['shipped', 'delivered'].includes(order.status) && (
                     <Link
                         to={`/track/${order.tracking_number}`}
