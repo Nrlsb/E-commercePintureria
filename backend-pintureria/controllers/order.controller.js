@@ -13,7 +13,7 @@ const MIN_TRANSACTION_AMOUNT = 100;
 // Helper function to get order details for email, using parameterized query
 const getOrderDetailsForEmail = async (orderId, dbClient) => {
   const orderQuery = `
-    SELECT o.id, o.total_amount, o.tracking_number, o.created_at,
+    SELECT o.id, o.total_amount, o.tracking_number, o.created_at, o.user_id,
            u.email, u.first_name, u.last_name, u.dni as user_dni,
            (SELECT CONCAT(address_line1, ', ', city, ', ', state, ' ', postal_code) 
             FROM user_addresses 
@@ -223,8 +223,6 @@ export const processPayment = async (req, res, next) => {
     }
 };
 
-// ... (el resto de las funciones como getOrderById, getOrderHistory, etc., permanecen igual)
-// ...
 export const updateOrderStatus = async (req, res, next) => {
   const { orderId } = req.params;
   const { status, trackingNumber } = req.body;
