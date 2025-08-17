@@ -6,7 +6,7 @@ import { useNotificationStore } from '../stores/useNotificationStore';
 import Spinner from '../components/Spinner';
 import ConfirmationModal from '../components/ConfirmationModal';
 import Icon from '../components/Icon';
-import { StatusBadge } from './AdminOrdersPage'; // Reutilizamos el badge de la página de admin
+import { StatusBadge } from './AdminOrdersPage';
 import { fetchWithCsrf } from '../api/api';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
@@ -22,6 +22,7 @@ const OrderHistoryPage = () => {
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
   const [orderToCancel, setOrderToCancel] = useState(null);
   const [isCancelling, setIsCancelling] = useState(false);
+  const [downloadingInvoiceId, setDownloadingInvoiceId] = useState(null);
 
   const fetchOrders = useCallback(async () => {
     try {
@@ -45,6 +46,36 @@ const OrderHistoryPage = () => {
       fetchOrders();
     }
   }, [token, fetchOrders]);
+
+  const handleDownloadInvoice = async (orderId) => {
+    setDownloadingInvoiceId(orderId);
+    try {
+      const response = await fetchWithCsrf(`${API_URL}/api/orders/${orderId}/invoice`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('No se pudo descargar la factura.');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `factura-${orderId}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+
+    } catch (err) {
+      showNotification(err.message, 'error');
+    } finally {
+      setDownloadingInvoiceId(null);
+    }
+  };
   
   const handleCancelClick = (order) => {
     setOrderToCancel(order);
@@ -67,7 +98,7 @@ const OrderHistoryPage = () => {
         }
 
         showNotification('Orden cancelada con éxito.', 'success');
-        fetchOrders(); // Recarga las órdenes para mostrar el estado actualizado
+        fetchOrders();
     } catch (err) {
         showNotification(err.message, 'error');
     } finally {
@@ -157,15 +188,18 @@ const OrderHistoryPage = () => {
               </div>
               <div className="border-t pt-4 mt-4 flex justify-end items-center gap-4">
                 {['approved', 'shipped', 'delivered'].includes(order.status) && (
-                    <a
-                        href={`${API_URL}/api/orders/${order.id}/invoice`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 transition-colors flex items-center space-x-2 text-sm"
+                    <button
+                        onClick={() => handleDownloadInvoice(order.id)}
+                        disabled={downloadingInvoiceId === order.id}
+                        className="bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 transition-colors flex items-center space-x-2 text-sm disabled:bg-gray-400"
                     >
-                        <Icon path="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" className="w-4 h-4" />
-                        <span>Descargar Factura</span>
-                    </a>
+                        {downloadingInvoiceId === order.id ? (
+                            <Spinner className="w-4 h-4" />
+                        ) : (
+                            <Icon path="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" className="w-4 h-4" />
+                        )}
+                        <span>{downloadingInvoiceId === order.id ? 'Descargando...' : 'Descargar Factura'}</span>
+                    </button>
                 )}
                 {order.tracking_number && ['shipped', 'delivered'].includes(order.status) && (
                     <Link
