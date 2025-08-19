@@ -4,13 +4,13 @@ import { useParams, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import ProductCard from '../components/ProductCard.jsx';
 import StarRating from '../components/StarRating.jsx';
-// Importamos Spinner para el fallback de Suspense
 import Spinner from '../components/Spinner.jsx'; 
 
 import { useProductStore } from '../stores/useProductStore.js';
 import { useCartStore } from '../stores/useCartStore.js';
 import { useAuthStore } from '../stores/useAuthStore.js';
 import { useNotificationStore } from '../stores/useNotificationStore.js';
+import { useChatbotStore } from '../stores/useChatbotStore.js'; // <-- NUEVO
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
@@ -25,6 +25,7 @@ const ProductDetailPage = () => {
   const { addToCart } = useCartStore();
   const { user, token } = useAuthStore();
   const showNotification = useNotificationStore(state => state.showNotification);
+  const { setContext, clearContext } = useChatbotStore(); // <-- NUEVO
 
   const [product, setProduct] = useState(null);
   const [reviews, setReviews] = useState([]);
@@ -41,9 +42,10 @@ const ProductDetailPage = () => {
       const productData = await productResponse.json();
       setProduct(productData);
 
-      // Solo cargamos las reseñas si la pestaña de reseñas está activa
-      // o si necesitamos el conteo inicial para la pestaña (aunque el conteo puede venir del producto)
-      // Para simplificar, las cargamos siempre con el producto para asegurar el reviewCount
+      // --- NUEVO: Establecer contexto del chatbot ---
+      setContext({ type: 'product', data: productData });
+      // --- FIN ---
+
       const reviewsResponse = await fetch(`${API_URL}/api/products/${productId}/reviews`);
       if (!reviewsResponse.ok) throw new Error('Error al cargar las reseñas');
       const reviewsData = await reviewsResponse.json();
@@ -54,15 +56,22 @@ const ProductDetailPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [productId]);
+  }, [productId, setContext]);
 
   useEffect(() => {
     fetchProductAndReviews();
     setQuantity(1);
     setActiveTab('description');
     window.scrollTo(0, 0);
-  }, [productId, fetchProductAndReviews]);
 
+    // --- NUEVO: Limpiar contexto al salir de la página ---
+    return () => {
+      clearContext();
+    };
+    // --- FIN ---
+  }, [productId, fetchProductAndReviews, clearContext]);
+
+  // ... (resto del componente sin cambios)
   // Actualizar el título de la página y la meta descripción para SEO
   useEffect(() => {
     if (product) {
@@ -75,8 +84,6 @@ const ProductDetailPage = () => {
         document.head.appendChild(metaDescriptionTag);
       }
 
-      // Asegura que product.description sea una cadena antes de usar substring
-      // Se utiliza el operador || '' para garantizar que product.description sea una cadena vacía si es null/undefined.
       const productDescription = product.description || ''; 
       const baseDescription = `Comprar ${product.name} de la marca ${product.brand} en Pinturerías Mercurio.`;
       let metaDescriptionContent = productDescription
@@ -93,7 +100,6 @@ const ProductDetailPage = () => {
     }
   }, [product]);
 
-  // Generar datos estructurados (Schema.org) para el producto
   const getProductSchema = (product) => {
     if (!product) return null;
 
@@ -146,9 +152,6 @@ const ProductDetailPage = () => {
   };
 
   const handleDeleteReview = async (reviewId) => {
-    // Usamos un modal de confirmación en lugar de window.confirm
-    // Para esta demostración, mantendremos window.confirm por simplicidad,
-    // pero en una aplicación real se usaría un componente de modal.
     if (window.confirm('¿Estás seguro de que quieres eliminar esta reseña?')) {
       try {
         const response = await fetch(`${API_URL}/api/reviews/${reviewId}`, {
@@ -188,7 +191,6 @@ const ProductDetailPage = () => {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      {/* Script para datos estructurados (Schema.org) */}
       {product && (
         <script 
           type="application/ld+json" 
@@ -214,7 +216,6 @@ const ProductDetailPage = () => {
           <img 
             src={src}
             srcSet={srcSet}
-            // Se ajusta `sizes` para una mejor responsividad en diferentes viewports
             sizes="(max-width: 640px) 100vw, (max-width: 768px) 50vw, 400px" 
             alt={`Imagen de ${product.name}`} 
             className="max-w-full h-auto max-h-[500px] object-contain"
@@ -285,8 +286,6 @@ const ProductDetailPage = () => {
         </div>
         <div className="py-6">
           {activeTab === 'description' && (
-            // El contenido de 'product.description' se escapa automáticamente por React al ser renderizado en JSX.
-            // Además, en el backend, el middleware de validación aplica .escape() para sanitizar este campo.
             <p className="text-gray-700 leading-relaxed">{product.description || 'No hay descripción disponible para este producto.'}</p>
           )}
           {activeTab === 'details' && (
@@ -300,7 +299,6 @@ const ProductDetailPage = () => {
             </div>
           )}
           {activeTab === 'reviews' && (
-            // Usamos Suspense para mostrar un fallback mientras los componentes de reseña se cargan
             <Suspense fallback={
                 <div className="flex justify-center items-center p-8">
                     <Spinner className="w-8 h-8 text-[#0F3460]" />

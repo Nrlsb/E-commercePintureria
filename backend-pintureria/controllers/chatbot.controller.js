@@ -22,7 +22,7 @@ const getProductsStoreContext = async () => {
 };
 
 export const handleChatMessage = async (req, res, next) => {
-    const { message, history } = req.body;
+    const { message, history, context } = req.body; // <-- CONTEXTO AÑADIDO
     const apiKey = config.geminiApiKey;
 
     if (!message) {
@@ -35,15 +35,34 @@ export const handleChatMessage = async (req, res, next) => {
     try {
         const productContext = await getProductsStoreContext();
         
-        // Creamos un prompt detallado para guiar a la IA
-        const systemPrompt = `Eres "Mercurio Asistente", un chatbot de atención al cliente para "Pinturerías Mercurio". Tu tono es amable, servicial y profesional. 
+        // --- PROMPT MEJORADO CON CONTEXTO ---
+        let systemPrompt = `Eres "Mercurio Asistente", un chatbot de atención al cliente para "Pinturerías Mercurio". Tu tono es amable, servicial y profesional. 
         Tu objetivo es ayudar a los usuarios con preguntas sobre productos, disponibilidad, precios y recomendaciones.
+        Si el usuario pregunta sobre un proyecto (ej. "pintar mi living"), haz preguntas para entender mejor sus necesidades (dimensiones, tipo de superficie, acabado deseado) antes de recomendar productos.
         Utiliza la siguiente lista de productos como tu base de conocimiento. No inventes productos que no estén en esta lista.
         Si no sabes la respuesta, amablemente indica que no tienes esa información y sugiere contactar a soporte.
-        
-        Contexto de Productos Disponibles:
+        `;
+
+        // Añadir contexto de página si existe
+        if (context && context.type === 'product' && context.data) {
+            const { name, brand, category, price, stock, description } = context.data;
+            systemPrompt += `\n\n--- CONTEXTO ACTUAL ---
+            El usuario está viendo actualmente el siguiente producto. Prioriza tus respuestas basándote en él si la pregunta es relevante.
+            - Producto: ${name}
+            - Marca: ${brand}
+            - Categoría: ${category}
+            - Precio: $${price}
+            - Stock: ${stock}
+            - Descripción: ${description}
+            --- FIN DEL CONTEXTO ---
+            `;
+        }
+
+        systemPrompt += `
+        Contexto de Productos Disponibles en la tienda:
         ${productContext}
         `;
+        // --- FIN DEL PROMPT MEJORADO ---
 
         // Construimos el historial para la API, incluyendo el prompt del sistema
         const apiHistory = [

@@ -3,6 +3,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Icon from './Icon';
 import Spinner from './Spinner';
+import { useChatbotStore } from '../stores/useChatbotStore'; // <-- NUEVO
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
@@ -14,6 +15,7 @@ const Chatbot = () => {
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const messagesEndRef = useRef(null);
+    const { context } = useChatbotStore(); // <-- NUEVO
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -32,10 +34,11 @@ const Chatbot = () => {
         try {
             const history = messages.map(msg => ({ role: msg.role, text: msg.text }));
             
+            // --- MODIFICADO: Añadir contexto al body ---
             const response = await fetch(`${API_URL}/api/chatbot/chat`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message: input, history }),
+                body: JSON.stringify({ message: input, history, context }), // <-- CONTEXTO AÑADIDO
             });
 
             if (!response.ok) {
@@ -81,6 +84,14 @@ const Chatbot = () => {
                                 <Icon path="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" className="w-6 h-6" />
                             </button>
                         </div>
+
+                        {/* --- NUEVO: Indicador de contexto --- */}
+                        {context && context.type === 'product' && (
+                            <div className="p-2 bg-blue-50 border-b text-center text-xs text-blue-800">
+                                Preguntando sobre: <span className="font-semibold">{context.data.name}</span>
+                            </div>
+                        )}
+                        {/* --- FIN --- */}
 
                         {/* Messages */}
                         <div className="flex-1 p-4 overflow-y-auto bg-gray-50">
