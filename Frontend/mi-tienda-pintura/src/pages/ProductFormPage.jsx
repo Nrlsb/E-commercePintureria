@@ -89,7 +89,7 @@ const ProductFormPage = () => {
   const [product, setProduct] = useState({
     name: '', brand: '', category: '', price: '', old_price: '',
     image_urls: {}, description: '', stock: 0,
-    seo_title: '', seo_meta_description: '' // <-- NUEVOS CAMPOS
+    seo_title: '', seo_meta_description: ''
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -98,7 +98,7 @@ const ProductFormPage = () => {
   
   const [isGeneratingDesc, setIsGeneratingDesc] = useState(false);
   const [descriptionTone, setDescriptionTone] = useState('persuasivo');
-  const [isGeneratingSEO, setIsGeneratingSEO] = useState(false); // <-- NUEVO ESTADO
+  const [isGeneratingSEO, setIsGeneratingSEO] = useState(false);
 
   const isEditing = Boolean(productId);
 
@@ -113,8 +113,8 @@ const ProductFormPage = () => {
                 price: data.price || '', old_price: data.oldPrice || '', 
                 image_urls: data.imageUrl || {},
                 description: data.description || '', stock: data.stock || 0,
-                seo_title: data.seo_title || '', // <-- NUEVO
-                seo_meta_description: data.seo_meta_description || '' // <-- NUEVO
+                seo_title: data.seo_title || '',
+                seo_meta_description: data.seo_meta_description || ''
             })
         })
         .catch(err => {
@@ -202,7 +202,6 @@ const ProductFormPage = () => {
     }
   };
 
-  // --- NUEVA FUNCIÓN PARA GENERAR SEO ---
   const handleGenerateSEO = async () => {
     if (!product.name || !product.category || !product.description) {
         showNotification('El nombre, la categoría y la descripción son necesarios para generar el contenido SEO.', 'error');
@@ -349,7 +348,6 @@ const ProductFormPage = () => {
                 <textarea name="description" value={product.description} onChange={handleChange} className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0F3460]" rows="6" required></textarea>
             </div>
 
-            {/* --- NUEVA SECCIÓN DE SEO --- */}
             <div className="space-y-4 border-t pt-6">
                 <div className="flex justify-between items-center">
                     <h3 className="text-lg font-semibold text-gray-700">Optimización para Buscadores (SEO)</h3>
@@ -382,7 +380,6 @@ const ProductFormPage = () => {
                     ></textarea>
                 </div>
             </div>
-            {/* --- FIN DE LA SECCIÓN DE SEO --- */}
             
             {error && <p className="text-red-500 text-sm text-center col-span-2">{error}</p>}
             
