@@ -2,6 +2,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { useNotificationStore } from './useNotificationStore';
+import { useAuthStore } from './useAuthStore';
 import { fetchWithCsrf } from '../api/api';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
@@ -14,6 +15,8 @@ export const useCartStore = create(
       postalCode: '',
       appliedCoupon: null,
       discountAmount: 0,
+      recommendations: [],
+      recommendationsLoading: false,
 
       setShippingCost: (cost) => set({ shippingCost: cost }),
 
@@ -29,10 +32,8 @@ export const useCartStore = create(
           return;
         }
 
-        // --- INICIO DE ACTUALIZACIÓN OPTIMISTA ---
-        const previousCart = [...cart]; // 1. Guardar estado previo
+        const previousCart = [...cart];
         
-        // 2. Actualizar UI inmediatamente
         let updatedCart;
         const existingProduct = cart.find(item => item.id === product.id);
         if (existingProduct) {
@@ -47,13 +48,11 @@ export const useCartStore = create(
         get().recalculateDiscount();
         showNotification('¡Añadido al carrito!');
 
-        // 3. Realizar operación asíncrona (si es necesario)
         if (postalCode) {
           (async () => {
             try {
               await get().calculateShipping(postalCode, updatedCart);
             } catch (error) {
-              // 4. Revertir en caso de error
               console.error("Fallo en la actualización optimista (addToCart):", error);
               set({ cart: previousCart });
               get().recalculateDiscount();
@@ -61,7 +60,6 @@ export const useCartStore = create(
             }
           })();
         }
-        // --- FIN DE ACTUALIZACIÓN OPTIMISTA ---
       },
 
       updateQuantity: (productId, newQuantity) => {
@@ -74,10 +72,8 @@ export const useCartStore = create(
             return;
         }
 
-        // --- INICIO DE ACTUALIZACIÓN OPTIMISTA ---
-        const previousCart = [...cart]; // 1. Guardar estado previo
+        const previousCart = [...cart];
         
-        // 2. Actualizar UI inmediatamente
         let updatedCart;
         if (newQuantity <= 0) {
           updatedCart = cart.filter(item => item.id !== productId);
@@ -90,13 +86,11 @@ export const useCartStore = create(
         set({ cart: updatedCart });
         get().recalculateDiscount();
 
-        // 3. Realizar operación asíncrona
         if (postalCode) {
           (async () => {
             try {
               await get().calculateShipping(postalCode, updatedCart);
             } catch (error) {
-              // 4. Revertir en caso de error
               console.error("Fallo en la actualización optimista (updateQuantity):", error);
               set({ cart: previousCart });
               get().recalculateDiscount();
@@ -104,20 +98,16 @@ export const useCartStore = create(
             }
           })();
         }
-        // --- FIN DE ACTUALIZACIÓN OPTIMISTA ---
       },
 
       removeItem: (productId) => {
         const { postalCode, cart } = get();
-        // --- INICIO DE ACTUALIZACIÓN OPTIMISTA ---
-        const previousCart = [...cart]; // 1. Guardar estado previo
+        const previousCart = [...cart];
         
-        // 2. Actualizar UI inmediatamente
         const updatedCart = cart.filter(item => item.id !== productId);
         set({ cart: updatedCart });
         get().recalculateDiscount();
         
-        // 3. Realizar operación asíncrona
         if (postalCode) {
           (async () => {
             try {
@@ -127,7 +117,6 @@ export const useCartStore = create(
                 set({ shippingCost: 0, postalCode: '' });
               }
             } catch (error) {
-              // 4. Revertir en caso de error
               console.error("Fallo en la actualización optimista (removeItem):", error);
               set({ cart: previousCart });
               get().recalculateDiscount();
@@ -135,7 +124,6 @@ export const useCartStore = create(
             }
           })();
         }
-        // --- FIN DE ACTUALIZACIÓN OPTIMISTA ---
       },
 
       clearCart: () => set({ cart: [], shippingCost: 0, postalCode: '', appliedCoupon: null, discountAmount: 0 }),
@@ -221,6 +209,39 @@ export const useCartStore = create(
           discount = appliedCoupon.discountValue;
         }
         set({ discountAmount: Math.min(discount, subtotal) });
+      },
+
+      // --- NUEVA FUNCIÓN PARA OBTENER RECOMENDACIONES ---
+      fetchRecommendations: async () => {
+        const { cart } = get();
+        const token = useAuthStore.getState().token;
+        if (cart.length === 0 || !token) {
+          set({ recommendations: [], recommendationsLoading: false });
+          return;
+        }
+
+        set({ recommendationsLoading: true });
+        try {
+          const response = await fetchWithCsrf(`${API_URL}/api/products/recommendations`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ cartItems: cart }),
+          });
+
+          if (!response.ok) {
+            throw new Error('No se pudieron cargar las recomendaciones.');
+          }
+          const data = await response.json();
+          set({ recommendations: data });
+        } catch (error) {
+          console.error("Error fetching recommendations:", error);
+          set({ recommendations: [] }); // Limpiar en caso de error
+        } finally {
+          set({ recommendationsLoading: false });
+        }
       },
     }),
     {

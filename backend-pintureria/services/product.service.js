@@ -305,3 +305,32 @@ export const getActiveProductById = async (productId) => {
     throw err;
   }
 };
+
+// --- NUEVA FUNCIÓN PARA OBTENER PRODUCTOS POR IDs ---
+export const getProductsByIds = async (productIds) => {
+  if (!productIds || productIds.length === 0) {
+    return [];
+  }
+  try {
+    const query = `
+      SELECT 
+        p.id, p.name, p.brand, p.category, p.price,
+        p.old_price AS "oldPrice", p.image_url AS "imageUrl",
+        p.description, p.stock,
+        COALESCE(AVG(r.rating), 0) as "averageRating", 
+        COUNT(r.id) as "reviewCount"
+      FROM products p
+      LEFT JOIN reviews r ON p.id = r.product_id
+      WHERE p.id = ANY($1::int[]) AND p.is_active = true
+      GROUP BY p.id;
+    `;
+    const result = await db.query(query, [productIds]);
+    return result.rows.map(p => ({
+      ...p,
+      imageUrl: parseImageUrl(p.imageUrl)
+    }));
+  } catch (err) {
+    logger.error('Error fetching products by IDs:', err);
+    throw err;
+  }
+};

@@ -1,5 +1,5 @@
 // src/pages/CartPage.jsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useCartStore } from '../stores/useCartStore';
@@ -8,6 +8,46 @@ import { useNotificationStore } from '../stores/useNotificationStore';
 import Spinner from '../components/Spinner';
 import ConfirmationModal from '../components/ConfirmationModal';
 import AnimatedNumber from '../components/AnimatedNumber';
+import ProductCard from '../components/ProductCard';
+import ProductCardSkeleton from '../components/ProductCardSkeleton';
+
+// --- NUEVO COMPONENTE PARA RECOMENDACIONES ---
+const RecommendedProducts = () => {
+  const { recommendations, recommendationsLoading, fetchRecommendations, cart } = useCartStore(state => ({
+    recommendations: state.recommendations,
+    recommendationsLoading: state.recommendationsLoading,
+    fetchRecommendations: state.fetchRecommendations,
+    cart: state.cart
+  }));
+
+  useEffect(() => {
+    // Solo busca recomendaciones si hay algo en el carrito
+    if (cart.length > 0) {
+      fetchRecommendations();
+    }
+  }, [cart, fetchRecommendations]); // Se ejecuta cuando el carrito cambia
+
+  // No renderizar nada si no está cargando y no hay recomendaciones
+  if (!recommendationsLoading && recommendations.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="lg:col-span-3 mt-12">
+      <h2 className="text-2xl font-bold text-gray-800 mb-6">Productos que podrías necesitar</h2>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        {recommendationsLoading ? (
+          [...Array(4)].map((_, index) => <ProductCardSkeleton key={index} />)
+        ) : (
+          recommendations.map(product => (
+            <ProductCard key={product.id} product={product} />
+          ))
+        )}
+      </div>
+    </div>
+  );
+};
+
 
 const CartPage = () => {
   const { cart, updateQuantity, removeItem, shippingCost, postalCode, calculateShipping, appliedCoupon, discountAmount, applyCoupon, removeCoupon, clearCart } = useCartStore();
@@ -207,6 +247,9 @@ const CartPage = () => {
                 </Link>
             </div>
         </div>
+        
+        {/* --- NUEVA SECCIÓN DE RECOMENDACIONES --- */}
+        <RecommendedProducts />
       </div>
     </div>
   );

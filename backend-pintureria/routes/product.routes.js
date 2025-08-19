@@ -10,7 +10,8 @@ import {
   getProductReviews,
   createProductReview,
   getProductSuggestions,
-  deleteReview // Importar el controlador de eliminación de reseñas
+  deleteReview, // Importar el controlador de eliminación de reseñas
+  getComplementaryProducts // <-- NUEVO
 } from '../controllers/product.controller.js';
 import { authenticateToken, isAdmin } from '../middlewares/auth.middleware.js';
 // Importamos las reglas de validación y el manejador
@@ -29,6 +30,9 @@ router.get('/brands', getProductBrands);
 router.get('/:productId', getProductById);
 // Obtener reseñas de un producto.
 router.get('/:productId/reviews', getProductReviews);
+
+// --- NUEVA RUTA DE RECOMENDACIONES (requiere autenticación) ---
+router.post('/recommendations', authenticateToken, getComplementaryProducts);
 
 // --- Rutas Protegidas para Usuarios Autenticados ---
 // Crear una reseña de producto: Requiere autenticación.

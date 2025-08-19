@@ -4,6 +4,8 @@ import logger from '../logger.js';
 import * as productService from '../services/product.service.js';
 import redisClient from '../redisClient.js';
 import AppError from '../utils/AppError.js'; // Importar AppError
+import fetch from 'node-fetch';
+import config from '../config/index.js';
 
 // --- Función para limpiar la caché de productos ---
 const clearProductsCache = async () => {
@@ -232,4 +234,96 @@ export const getProductSuggestions = async (req, res, next) => {
   } catch (err) {
     next(err); // Pasa cualquier error al errorHandler
   }
+};
+
+// --- NUEVO: Controlador para obtener recomendaciones de productos ---
+export const getComplementaryProducts = async (req, res, next) => {
+    const { cartItems } = req.body;
+    const apiKey = config.geminiApiKey;
+
+    if (!cartItems || !Array.isArray(cartItems) || cartItems.length === 0) {
+        return res.json([]); // Devuelve un array vacío si el carrito está vacío
+    }
+    if (!apiKey) {
+        return next(new AppError('La clave de API de Gemini no está configurada.', 500));
+    }
+
+    try {
+        // 1. Obtener todos los productos para dar contexto a la IA
+        const allProductsResult = await db.query(
+            `SELECT id, name, category, brand, description FROM products WHERE is_active = true`
+        );
+        const allProducts = allProductsResult.rows;
+
+        // 2. Formatear los productos del carrito y el catálogo para el prompt
+        const cartProductNames = cartItems.map(item => `- ${item.name} (Categoría: ${item.category})`).join('\n');
+        const allProductsContext = allProducts.map(p => `{"id": ${p.id}, "name": "${p.name}", "category": "${p.category}"}`).join(',\n');
+        const cartProductIds = new Set(cartItems.map(item => item.id));
+
+        // 3. Crear el prompt para la IA
+        const prompt = `
+            Eres un asistente experto en una pinturería. Un cliente tiene los siguientes productos en su carrito de compras:
+            --- Carrito del Cliente ---
+            ${cartProductNames}
+            ---
+
+            Basado en estos productos, recomienda 4 productos complementarios de la siguiente lista de productos disponibles en la tienda.
+            No recomiendes productos que ya están en el carrito.
+            Prioriza productos de la categoría "Accesorios" si es relevante (pinceles, rodillos, cintas, etc.).
+            Devuelve tu respuesta únicamente como un objeto JSON válido que contenga una sola clave llamada "recommendations", cuyo valor sea un array de los IDs de los productos recomendados. Por ejemplo: {"recommendations": [12, 45, 102, 8]}.
+
+            --- Catálogo de Productos Disponibles (JSON) ---
+            [
+            ${allProductsContext}
+            ]
+            ---
+        `;
+
+        // 4. Llamar a la API de Gemini
+        const payload = {
+            contents: [{ role: "user", parts: [{ text: prompt }] }],
+            generationConfig: { responseMimeType: "application/json" }
+        };
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+        
+        const apiResponse = await fetch(apiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (!apiResponse.ok) {
+            const errorBody = await apiResponse.text();
+            logger.error("Error from Gemini API for recommendations:", errorBody);
+            throw new AppError('No se pudieron obtener recomendaciones de la IA.', apiResponse.status);
+        }
+
+        const result = await apiResponse.json();
+        const responseText = result.candidates?.[0]?.content?.parts?.[0]?.text;
+        
+        if (!responseText) {
+            return res.json([]);
+        }
+
+        const recommendedIds = JSON.parse(responseText).recommendations;
+
+        if (!recommendedIds || recommendedIds.length === 0) {
+            return res.json([]);
+        }
+
+        // Filtrar IDs que ya están en el carrito
+        const finalIds = recommendedIds.filter(id => !cartProductIds.has(id));
+
+        if (finalIds.length === 0) {
+            return res.json([]);
+        }
+
+        // 5. Obtener los detalles completos de los productos recomendados
+        const recommendedProductsResult = await productService.getProductsByIds(finalIds);
+        
+        res.json(recommendedProductsResult);
+
+    } catch (err) {
+        next(err);
+    }
 };
