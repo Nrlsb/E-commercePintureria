@@ -17,6 +17,7 @@ const ICONS = {
     box: "M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16zM12 12.78l-7-4V10l7 4.22V18l-7-4v-1.54l7 4zM13 18v-4.22l7-4V10l-7 4zM12 2.22L18.09 6 12 9.78 5.91 6 12 2.22z",
     products: "M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zM4 18V6h5v12H4zm7 0V6h9v12h-9z",
     webhook: "M12.35 16.35c.2.2.51.2.71 0l4.24-4.24c.2-.2.2-.51 0-.71l-4.24-4.24c-.2-.2-.51-.2-.71 0s-.2.51 0 .71L15.29 11H7c-.28 0-.5.22-.5.5s.22.5.5.5h8.29l-2.94 2.94c-.2.2-.2.51 0 .71z",
+    reports: "M8 5H6v14h12V5h-2v2h-2V5h-2v2h-2V5H8zM6 3h12v2H6V3zm10 16H8v-2h8v2zm-4-4H8v-2h4v2z"
 };
 
 const StatCard = ({ title, value, icon, color, format = (v) => v }) => (
@@ -114,7 +115,10 @@ const AdminDashboardPage = () => {
                 <Icon path="M21.41 11.58l-9-9C12.05 2.22 11.55 2 11 2H4c-1.1 0-2 .9-2 2v7c0 .55.22 1.05.59 1.42l9 9c.36.36.86.58 1.41.58.55 0 1.05-.22 1.41-.59l7-7c.37-.36.59-.86.59-1.41s-.23-1.06-.59-1.42zM13 20.01L4 11V4h7v-.01l9 9-7 7.01zM6.5 8C5.67 8 5 7.33 5 6.5S5.67 5 6.5 5 8 5.67 8 6.5 7.33 8 6.5 8z" className="w-5 h-5" />
                 <span>Gestionar Cupones</span>
             </Link>
-            {/* --- NUEVO BOTÓN --- */}
+            <Link to="/admin/reports" className="bg-cyan-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-cyan-600 transition-colors flex items-center justify-center space-x-2">
+                <Icon path={ICONS.reports} className="w-5 h-5" />
+                <span>Reportes</span>
+            </Link>
             <Link to="/admin/webhooks" className="bg-gray-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-600 transition-colors flex items-center justify-center space-x-2">
                 <Icon path={ICONS.webhook} className="w-5 h-5" />
                 <span>Eventos Webhook</span>

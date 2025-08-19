@@ -19,7 +19,7 @@ import AdminRoute from './components/AdminRoute.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
 import QuickViewModal from './components/QuickViewModal.jsx';
 import Chatbot from './components/Chatbot.jsx';
-import SessionExpiredModal from './components/SessionExpiredModal.jsx'; // Importar el nuevo modal
+import SessionExpiredModal from './components/SessionExpiredModal.jsx';
 
 const ScrollToTop = () => {
   const { pathname } = useLocation();
@@ -56,6 +56,7 @@ const WishlistPage = lazy(() => import('./pages/WishlistPage.jsx'));
 const ProfilePage = lazy(() => import('./pages/ProfilePage.jsx'));
 const AdminCouponsPage = lazy(() => import('./pages/AdminCouponsPage.jsx'));
 const AdminWebhookEventsPage = lazy(() => import('./pages/AdminWebhookEventsPage.jsx'));
+const AdminReportsPage = lazy(() => import('./pages/AdminReportsPage.jsx')); // <-- AÑADIDO
 const TrackingPage = lazy(() => import('./pages/TrackingPage.jsx'));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage.jsx'));
 const ServerErrorPage = lazy(() => import('./pages/ServerErrorPage.jsx'));
@@ -138,6 +139,7 @@ export default function App() {
               <Route path="/admin/product/bulk-associate-ai" element={<BulkAssociateAIPage />} />
               <Route path="/admin/product/bulk-generate-descriptions" element={<BulkGenerateAIDescriptionsPage />} />
               <Route path="/admin/webhooks" element={<AdminWebhookEventsPage />} />
+              <Route path="/admin/reports" element={<AdminReportsPage />} /> {/* <-- AÑADIDO */}
             </Route>
 
             <Route path="/error/500" element={<ServerErrorPage />} />
@@ -156,7 +158,6 @@ export default function App() {
         {showNotification && (
           <Notification message={notificationMessage} type={notificationType} />
         )}
-        {/* Renderiza el modal de sesión expirada si el estado es true */}
         {isSessionExpired && <SessionExpiredModal />}
       </AnimatePresence>
     </div>
