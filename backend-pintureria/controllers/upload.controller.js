@@ -125,6 +125,67 @@ export const generateAIDescription = async (req, res, next) => {
     }
 };
 
+// --- NUEVO: Controlador para generar Meta Tags de SEO ---
+export const generateSEOMetaTags = async (req, res, next) => {
+    const { productName, category, description } = req.body;
+    const apiKey = config.geminiApiKey;
+
+    if (!productName || !category || !description) {
+        return next(new AppError('El nombre, la categoría y la descripción son requeridos.', 400));
+    }
+    if (!apiKey) {
+        return next(new AppError('La clave de API de Gemini no está configurada.', 500));
+    }
+
+    try {
+        const prompt = `
+            Actúa como un especialista en SEO para un e-commerce de pinturas llamado "Pinturerías Mercurio".
+            Basado en la siguiente información de un producto, genera un título SEO y una meta descripción optimizados.
+
+            - Nombre del Producto: ${productName}
+            - Categoría: ${category}
+            - Descripción: ${description.substring(0, 500)}...
+
+            Reglas:
+            1.  El título SEO debe ser atractivo, incluir la palabra clave principal ("${productName}") y no exceder los 60 caracteres.
+            2.  La meta descripción debe ser persuasiva, invitar al clic, incluir palabras clave relevantes y no exceder los 160 caracteres.
+            3.  Tu respuesta debe ser únicamente un objeto JSON válido con las claves "seoTitle" y "seoMetaDescription".
+        `;
+
+        const payload = {
+            contents: [{ role: "user", parts: [{ text: prompt }] }],
+            generationConfig: { responseMimeType: "application/json" }
+        };
+
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+        const apiResponse = await fetch(apiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (!apiResponse.ok) {
+            const errorBody = await apiResponse.text();
+            logger.error("Error from Gemini API for SEO:", errorBody);
+            throw new AppError('No se pudo generar el contenido SEO desde la IA.', apiResponse.status);
+        }
+
+        const result = await apiResponse.json();
+        const seoDataText = result.candidates?.[0]?.content?.parts?.[0]?.text;
+
+        if (!seoDataText) {
+            throw new AppError('La respuesta de la IA para SEO no tuvo el formato esperado.', 500);
+        }
+
+        const seoData = JSON.parse(seoDataText);
+        res.status(200).json(seoData);
+
+    } catch (err) {
+        next(err);
+    }
+};
+
+
 // --- NUEVA FUNCIÓN PARA GENERACIÓN MASIVA DE DESCRIPCIONES ---
 export const bulkGenerateAIDescriptions = async (req, res, next) => {
     const { productIds, tone } = req.body;

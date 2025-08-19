@@ -89,16 +89,16 @@ const ProductFormPage = () => {
   const [product, setProduct] = useState({
     name: '', brand: '', category: '', price: '', old_price: '',
     image_urls: {}, description: '', stock: 0,
+    seo_title: '', seo_meta_description: '' // <-- NUEVOS CAMPOS
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [uploadedImageFile, setUploadedImageFile] = useState(null);
   
-  // --- INICIO DE CAMBIOS ---
   const [isGeneratingDesc, setIsGeneratingDesc] = useState(false);
   const [descriptionTone, setDescriptionTone] = useState('persuasivo');
-  // --- FIN DE CAMBIOS ---
+  const [isGeneratingSEO, setIsGeneratingSEO] = useState(false); // <-- NUEVO ESTADO
 
   const isEditing = Boolean(productId);
 
@@ -113,6 +113,8 @@ const ProductFormPage = () => {
                 price: data.price || '', old_price: data.oldPrice || '', 
                 image_urls: data.imageUrl || {},
                 description: data.description || '', stock: data.stock || 0,
+                seo_title: data.seo_title || '', // <-- NUEVO
+                seo_meta_description: data.seo_meta_description || '' // <-- NUEVO
             })
         })
         .catch(err => {
@@ -173,7 +175,6 @@ const ProductFormPage = () => {
     }
   };
 
-  // --- INICIO DE CAMBIOS ---
   const handleGenerateDescription = async () => {
     if (!product.name || !product.brand) {
         showNotification('El nombre y la marca del producto son necesarios para generar una descripción.', 'error');
@@ -200,7 +201,42 @@ const ProductFormPage = () => {
         setIsGeneratingDesc(false);
     }
   };
-  // --- FIN DE CAMBIOS ---
+
+  // --- NUEVA FUNCIÓN PARA GENERAR SEO ---
+  const handleGenerateSEO = async () => {
+    if (!product.name || !product.category || !product.description) {
+        showNotification('El nombre, la categoría y la descripción son necesarios para generar el contenido SEO.', 'error');
+        return;
+    }
+    setIsGeneratingSEO(true);
+    try {
+        const response = await fetchWithCsrf(`${API_URL}/api/uploads/generate-seo-tags`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ 
+                productName: product.name, 
+                category: product.category, 
+                description: product.description 
+            })
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message || 'No se pudo generar el contenido SEO.');
+
+        setProduct(prev => ({ 
+            ...prev, 
+            seo_title: data.seoTitle,
+            seo_meta_description: data.seoMetaDescription
+        }));
+        showNotification('Contenido SEO generado con éxito.', 'success');
+    } catch (err) {
+        showNotification(err.message, 'error');
+    } finally {
+        setIsGeneratingSEO(false);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -285,7 +321,6 @@ const ProductFormPage = () => {
                 )}
             </button>
 
-            {/* --- INICIO DE CAMBIOS --- */}
             <div>
                 <div className="flex justify-between items-center mb-2">
                     <label className="block font-medium text-gray-700">Descripción</label>
@@ -313,7 +348,41 @@ const ProductFormPage = () => {
                 </div>
                 <textarea name="description" value={product.description} onChange={handleChange} className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0F3460]" rows="6" required></textarea>
             </div>
-            {/* --- FIN DE CAMBIOS --- */}
+
+            {/* --- NUEVA SECCIÓN DE SEO --- */}
+            <div className="space-y-4 border-t pt-6">
+                <div className="flex justify-between items-center">
+                    <h3 className="text-lg font-semibold text-gray-700">Optimización para Buscadores (SEO)</h3>
+                    <button
+                        type="button"
+                        onClick={handleGenerateSEO}
+                        disabled={isGeneratingSEO}
+                        className="flex items-center justify-center gap-1 px-3 py-1 bg-teal-500 text-white text-sm font-semibold rounded-lg hover:bg-teal-600 transition-colors disabled:bg-gray-400"
+                    >
+                        {isGeneratingSEO ? <Spinner className="w-4 h-4" /> : <Icon path="M12 2L9.5 7.5L4 10l5.5 2.5L12 18l2.5-5.5L20 10l-5.5-2.5z" className="w-4 h-4" />}
+                        <span>Generar SEO con IA</span>
+                    </button>
+                </div>
+                <InputField 
+                    label="Título SEO (máx. 60 caracteres)" 
+                    name="seo_title" 
+                    value={product.seo_title} 
+                    onChange={handleChange} 
+                    maxLength="60"
+                />
+                <div>
+                    <label className="block mb-2 font-medium text-gray-700">Meta Descripción (máx. 160 caracteres)</label>
+                    <textarea 
+                        name="seo_meta_description" 
+                        value={product.seo_meta_description} 
+                        onChange={handleChange} 
+                        className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0F3460]" 
+                        rows="3"
+                        maxLength="160"
+                    ></textarea>
+                </div>
+            </div>
+            {/* --- FIN DE LA SECCIÓN DE SEO --- */}
             
             {error && <p className="text-red-500 text-sm text-center col-span-2">{error}</p>}
             

@@ -9,7 +9,8 @@ import {
   bulkCreateProductsWithAI,
   bulkAssociateImagesWithAI,
   generateAIDescription,
-  bulkGenerateAIDescriptions // Importar el nuevo controlador
+  bulkGenerateAIDescriptions, // Importar el nuevo controlador
+  generateSEOMetaTags // <-- NUEVO
 } from '../controllers/upload.controller.js';
 import { authenticateToken, isAdmin } from '../middlewares/auth.middleware.js';
 
@@ -25,5 +26,8 @@ router.post('/generate-description', [authenticateToken, isAdmin], generateAIDes
 
 // --- NUEVA RUTA PARA GENERACIÓN MASIVA DE DESCRIPCIONES ---
 router.post('/bulk-generate-descriptions', [authenticateToken, isAdmin], bulkGenerateAIDescriptions);
+
+// --- NUEVA RUTA PARA GENERACIÓN DE META TAGS SEO ---
+router.post('/generate-seo-tags', [authenticateToken, isAdmin], generateSEOMetaTags);
 
 export default router;

@@ -39,113 +39,102 @@ const clearBrandsCache = async () => {
 
 export const getProducts = async (req, res, next) => {
   try {
-    // productService.getActiveProducts already handles parameterized queries
     const result = await productService.getActiveProducts(req.query);
     res.json(result);
   } catch (err) {
-    next(err); // Pasa cualquier error al errorHandler
+    next(err);
   }
 };
 
 export const getProductById = async (req, res, next) => {
   const { productId } = req.params;
   try {
-    // productService.getActiveProductById already handles parameterized queries
     const product = await productService.getActiveProductById(productId);
     if (product) {
       res.json(product);
     } else {
-      // Si el producto no se encuentra, lanzar un AppError 404
       throw new AppError('Producto no encontrado o no está activo.', 404);
     }
   } catch (err) {
-    next(err); // Pasa cualquier error al errorHandler
+    next(err);
   }
 };
 
-// --- MODIFICADO: Ahora usa el servicio con caché ---
 export const getProductBrands = async (req, res, next) => {
   try {
-    // productService.fetchProductBrands already handles parameterized queries
     const brands = await productService.fetchProductBrands();
     res.json(brands);
   } catch (err) {
-    next(err); // Pasa cualquier error al errorHandler
+    next(err);
   }
 };
 
 export const createProduct = async (req, res, next) => {
-  const { name, brand, category, price, old_price, image_url, description, stock } = req.body;
+  const { name, brand, category, price, old_price, image_url, description, stock, seo_title, seo_meta_description } = req.body;
   try {
-    // La sanitización de 'name', 'brand', 'category', 'description' se realiza en el middleware 'validators.js'
     const result = await db.query(
-      'INSERT INTO products (name, brand, category, price, old_price, image_url, description, stock) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *',
-      [name, brand, category, price, old_price, image_url, description, stock]
+      'INSERT INTO products (name, brand, category, price, old_price, image_url, description, stock, seo_title, seo_meta_description) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *',
+      [name, brand, category, price, old_price, image_url, description, stock, seo_title, seo_meta_description]
     );
     logger.info(`Producto creado con ID: ${result.rows[0].id}`);
-    await clearProductsCache(); // Invalidar caché de listas de productos
-    await clearBrandsCache(); // Invalidar caché de marcas (por si se añadió una nueva marca)
+    await clearProductsCache();
+    await clearBrandsCache();
     res.status(201).json(result.rows[0]);
   } catch (err) {
-    next(err); // Pasa cualquier error (incluyendo duplicados de DB) al errorHandler
+    next(err);
   }
 };
 
 export const updateProduct = async (req, res, next) => {
   const { id } = req.params;
-  const { name, brand, category, price, old_price, image_url, description, stock } = req.body;
+  const { name, brand, category, price, old_price, image_url, description, stock, seo_title, seo_meta_description } = req.body;
   try {
-    // La sanitización de 'name', 'brand', 'category', 'description' se realiza en el middleware 'validators.js'
     const result = await db.query(
-      'UPDATE products SET name = $1, brand = $2, category = $3, price = $4, old_price = $5, image_url = $6, description = $7, stock = $8 WHERE id = $9 RETURNING *',
-      [name, brand, category, price, old_price, image_url, description, stock, id]
+      'UPDATE products SET name = $1, brand = $2, category = $3, price = $4, old_price = $5, image_url = $6, description = $7, stock = $8, seo_title = $9, seo_meta_description = $10 WHERE id = $11 RETURNING *',
+      [name, brand, category, price, old_price, image_url, description, stock, seo_title, seo_meta_description, id]
     );
     if (result.rows.length === 0) {
-      // Si el producto no se encuentra, lanzar un AppError 404
       throw new AppError('Producto no encontrado.', 404);
     }
     logger.info(`Producto actualizado con ID: ${id}`);
-    await clearProductsCache(); // Invalidar caché de listas de productos
+    await clearProductsCache();
     if (redisClient.isReady) {
-      await redisClient.del(`product:${id}`); // Invalidar caché del producto específico
+      await redisClient.del(`product:${id}`);
     }
-    await clearBrandsCache(); // Invalidar caché de marcas (por si la marca cambió)
+    await clearBrandsCache();
     res.json(result.rows[0]);
   } catch (err) {
-    next(err); // Pasa cualquier error (incluyendo duplicados de DB) al errorHandler
+    next(err);
   }
 };
 
 export const deleteProduct = async (req, res, next) => {
   const { id } = req.params;
   try {
-    // Using parameterized query to prevent SQL Injection (soft delete)
     const result = await db.query(
       'UPDATE products SET is_active = false WHERE id = $1 RETURNING *',
       [id]
     );
     
     if (result.rowCount === 0) {
-      // Si el producto no se encuentra, lanzar un AppError 404
       throw new AppError('Producto no encontrado.', 404);
     }
     
     logger.info(`Producto DESACTIVADO con ID: ${id}`);
-    await clearProductsCache(); // Invalidar caché de listas de productos
+    await clearProductsCache();
     if (redisClient.isReady) {
-      await redisClient.del(`product:${id}`); // Invalidar caché del producto específico
+      await redisClient.del(`product:${id}`);
     }
-    await clearBrandsCache(); // Invalidar caché de marcas (por si la marca del producto desactivado era la única)
+    await clearBrandsCache();
     res.status(200).json({ message: 'Producto desactivado con éxito' });
   } catch (err) {
-    next(err); // Pasa cualquier error al errorHandler
+    next(err);
   }
 };
 
 export const getProductReviews = async (req, res, next) => {
   const { productId } = req.params;
   try {
-    // Using parameterized query to prevent SQL Injection
     const query = `
       SELECT r.*, u.first_name, u.last_name 
       FROM reviews r
@@ -156,7 +145,7 @@ export const getProductReviews = async (req, res, next) => {
     const result = await db.query(query, [productId]);
     res.json(result.rows);
   } catch (err) {
-    next(err); // Pasa cualquier error al errorHandler
+    next(err);
   }
 };
 
@@ -166,7 +155,6 @@ export const createProductReview = async (req, res, next) => {
   const userId = req.user.userId;
 
   try {
-    // La sanitización de 'comment' se realiza en el middleware 'validators.js'
     const query = `
       INSERT INTO reviews (rating, comment, product_id, user_id)
       VALUES ($1, $2, $3, $4)
@@ -174,18 +162,16 @@ export const createProductReview = async (req, res, next) => {
     `;
     const result = await db.query(query, [rating, comment, productId, userId]);
     logger.info(`Nueva reseña creada para el producto ID: ${productId} por el usuario ID: ${userId}`);
-    // Invalidate specific product cache as its reviews changed
     if (redisClient.isReady) {
       await redisClient.del(`product:${productId}`);
     }
-    await clearProductsCache(); // Could also affect average rating in listings
+    await clearProductsCache();
     res.status(201).json(result.rows[0]);
   } catch (err) {
     if (err.code === '23505') { 
-      // Si es un error de duplicado, lanzar un AppError 409
       throw new AppError('Ya has enviado una reseña para este producto.', 409);
     }
-    next(err); // Pasa otros errores al errorHandler
+    next(err);
   }
 };
 
@@ -194,73 +180,62 @@ export const deleteReview = async (req, res, next) => {
   const { userId, role } = req.user;
 
   try {
-    // Using parameterized query
     const reviewResult = await db.query('SELECT user_id, product_id FROM reviews WHERE id = $1', [reviewId]);
     
     if (reviewResult.rows.length === 0) {
-      // Si la reseña no se encuentra, lanzar un AppError 404
       throw new AppError('Reseña no encontrada.', 404);
     }
 
     const review = reviewResult.rows[0];
 
     if (review.user_id !== userId && role !== 'admin') {
-      // Si el usuario no tiene permiso, lanzar un AppError 403
       throw new AppError('No tienes permiso para eliminar esta reseña.', 403);
     }
 
-    // Using parameterized query
     await db.query('DELETE FROM reviews WHERE id = $1', [reviewId]);
     logger.info(`Reseña ID: ${reviewId} eliminada por el usuario ID: ${userId}`);
-    // Invalidate affected product cache
     if (redisClient.isReady) {
       await redisClient.del(`product:${review.product_id}`);
     }
-    await clearProductsCache(); // Could also affect average rating in listings
+    await clearProductsCache();
     res.status(204).send();
 
   } catch (err) {
-    next(err); // Pasa cualquier error al errorHandler
+    next(err);
   }
 };
 
-// --- NUEVO: Controlador para obtener sugerencias de búsqueda (ya existente, solo se mueve) ---
 export const getProductSuggestions = async (req, res, next) => {
   try {
-    // productService.fetchProductSuggestions already handles parameterized queries
     const { q } = req.query;
     const suggestions = await productService.fetchProductSuggestions(q);
     res.json(suggestions);
   } catch (err) {
-    next(err); // Pasa cualquier error al errorHandler
+    next(err);
   }
 };
 
-// --- NUEVO: Controlador para obtener recomendaciones de productos ---
 export const getComplementaryProducts = async (req, res, next) => {
     const { cartItems } = req.body;
     const apiKey = config.geminiApiKey;
 
     if (!cartItems || !Array.isArray(cartItems) || cartItems.length === 0) {
-        return res.json([]); // Devuelve un array vacío si el carrito está vacío
+        return res.json([]);
     }
     if (!apiKey) {
         return next(new AppError('La clave de API de Gemini no está configurada.', 500));
     }
 
     try {
-        // 1. Obtener todos los productos para dar contexto a la IA
         const allProductsResult = await db.query(
             `SELECT id, name, category, brand, description FROM products WHERE is_active = true`
         );
         const allProducts = allProductsResult.rows;
 
-        // 2. Formatear los productos del carrito y el catálogo para el prompt
         const cartProductNames = cartItems.map(item => `- ${item.name} (Categoría: ${item.category})`).join('\n');
         const allProductsContext = allProducts.map(p => `{"id": ${p.id}, "name": "${p.name}", "category": "${p.category}"}`).join(',\n');
         const cartProductIds = new Set(cartItems.map(item => item.id));
 
-        // 3. Crear el prompt para la IA
         const prompt = `
             Eres un asistente experto en una pinturería. Un cliente tiene los siguientes productos en su carrito de compras:
             --- Carrito del Cliente ---
@@ -279,7 +254,6 @@ export const getComplementaryProducts = async (req, res, next) => {
             ---
         `;
 
-        // 4. Llamar a la API de Gemini
         const payload = {
             contents: [{ role: "user", parts: [{ text: prompt }] }],
             generationConfig: { responseMimeType: "application/json" }
@@ -311,14 +285,12 @@ export const getComplementaryProducts = async (req, res, next) => {
             return res.json([]);
         }
 
-        // Filtrar IDs que ya están en el carrito
         const finalIds = recommendedIds.filter(id => !cartProductIds.has(id));
 
         if (finalIds.length === 0) {
             return res.json([]);
         }
-
-        // 5. Obtener los detalles completos de los productos recomendados
+        
         const recommendedProductsResult = await productService.getProductsByIds(finalIds);
         
         res.json(recommendedProductsResult);
