@@ -98,7 +98,7 @@ export const confirmTransferPayment = async (req, res, next) => {
 };
 
 export const processPayment = async (req, res, next) => {
-    logger.debug('Iniciando processPayment. Body recibido:', JSON.stringify(req.body, null, 2));
+    logger.debug('Iniciando processPayment (Mercado Pago). Body recibido:', JSON.stringify(req.body, null, 2));
 
     const { token, issuer_id, payment_method_id, transaction_amount, installments, payer, cart, shippingCost, postalCode } = req.body;
     const { userId, firstName, lastName, email } = req.user;
@@ -188,6 +188,7 @@ export const processPayment = async (req, res, next) => {
             for (const item of cart) {
                 await dbClient.query('UPDATE products SET stock = stock - $1 WHERE id = $2', [item.quantity, item.id]);
             }
+            // --- CAMBIO AQUÍ: Usamos la columna genérica ---
             await dbClient.query("UPDATE orders SET status = 'approved', gateway_transaction_id = $1 WHERE id = $2", [paymentResult.id, orderId]);
             
             const orderDetailsForEmail = await getOrderDetailsForEmail(orderId, dbClient);
@@ -266,12 +267,11 @@ export const processPaywayPayment = async (req, res, next) => {
             }
         };
 
-        // --- CAMBIO AQUÍ: Usamos process.env directamente ---
         const paywayResponse = await fetch(`${config.payway.apiUrl}/payments`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'apikey': process.env.PAYWAY_PRIVATE_KEY // Leemos directamente de las variables de entorno
+                'apikey': process.env.PAYWAY_PRIVATE_KEY
             },
             body: JSON.stringify(paywayPayload)
         });
@@ -408,8 +408,8 @@ export const createPixPayment = async (req, res, next) => {
     }
 
     const orderResult = await dbClient.query(
-      'INSERT INTO orders (user_id, total_amount, status, shipping_cost, postal_code) VALUES ($1, $2, $3, $4, $5) RETURNING id, created_at',
-      [userId, total, 'pending', shippingCost, postalCode]
+      'INSERT INTO orders (user_id, total_amount, status, shipping_cost, postal_code, payment_gateway) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, created_at',
+      [userId, total, 'pending', shippingCost, postalCode, 'mercadopago_pix']
     );
     const order = orderResult.rows[0];
     orderId = order.id;
@@ -481,8 +481,9 @@ export const createPixPayment = async (req, res, next) => {
 
     const mpPayment = await payment.create({ body: paymentData });
     
+    // --- CAMBIO AQUÍ: Usamos la columna genérica ---
     await dbClient.query(
-      'UPDATE orders SET mercadopago_transaction_id = $1 WHERE id = $2',
+      'UPDATE orders SET gateway_transaction_id = $1 WHERE id = $2',
       [mpPayment.id, orderId]
     );
 
@@ -653,13 +654,13 @@ export const cancelOrder = async (req, res, next) => {
             throw new AppError('La orden ya ha sido cancelada.', 400);
         }
 
-        if (order.mercadopago_transaction_id) {
-            logger.info(`Intentando reembolso para la orden #${orderId} con transaction_id: ${order.mercadopago_transaction_id}`);
+        if (order.gateway_transaction_id && order.payment_gateway === 'mercadopago') {
+            logger.info(`Intentando reembolso para la orden #${orderId} con transaction_id: ${order.gateway_transaction_id}`);
             try {
                 const refundClient = new PaymentRefund(mpClient);
-                logger.info(`Enviando a Mercado Pago para reembolso (payment_id): ${order.mercadopago_transaction_id}`);
+                logger.info(`Enviando a Mercado Pago para reembolso (payment_id): ${order.gateway_transaction_id}`);
                 const refundResponse = await refundClient.create({
-                    payment_id: order.mercadopago_transaction_id
+                    payment_id: order.gateway_transaction_id
                 });
                 logger.info(`Respuesta de reembolso de Mercado Pago para orden #${orderId}:`, refundResponse);
                 if (refundResponse.status !== 'approved') {
@@ -671,7 +672,7 @@ export const cancelOrder = async (req, res, next) => {
                 throw new AppError(`Fallo en el reembolso de Mercado Pago: ${mpError.message}`, 500); 
             }
         } else {
-            logger.info(`Orden #${orderId} no tiene transaction_id de Mercado Pago. No se requiere reembolso de MP.`);
+            logger.info(`Orden #${orderId} no tiene transaction_id de Mercado Pago o es de otra pasarela. No se requiere reembolso de MP.`);
         }
 
         const updatedOrderResult = await dbClient.query(
@@ -727,10 +728,10 @@ export const cancelOrderByUser = async (req, res, next) => {
         throw new AppError('Solo se pueden cancelar órdenes dentro de las primeras 24 horas.', 400);
       }
       
-      if (order.mercadopago_transaction_id) {
-          logger.info(`Usuario ${userId} iniciando reembolso para la orden #${orderId} con transaction_id: ${order.mercadopago_transaction_id}`);
+      if (order.gateway_transaction_id && order.payment_gateway === 'mercadopago') {
+          logger.info(`Usuario ${userId} iniciando reembolso para la orden #${orderId} con transaction_id: ${order.gateway_transaction_id}`);
           const refundClient = new PaymentRefund(mpClient);
-          await refundClient.create({ payment_id: order.mercadopago_transaction_id });
+          await refundClient.create({ payment_id: order.gateway_transaction_id });
           logger.info(`Reembolso de Mercado Pago procesado para la orden #${orderId}.`);
       }
       
