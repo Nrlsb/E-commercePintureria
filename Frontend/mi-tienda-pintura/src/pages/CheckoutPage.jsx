@@ -1,5 +1,5 @@
 // Frontend/mi-tienda-pintura/src/pages/CheckoutPage.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { CardPayment, initMercadoPago } from '@mercadopago/sdk-react';
 import { useCartStore } from '../stores/useCartStore';
@@ -15,9 +15,8 @@ import CheckoutStepper from '../components/CheckoutStepper';
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 const MIN_TRANSACTION_AMOUNT = 100;
 const MERCADOPAGO_PUBLIC_KEY = import.meta.env.VITE_MERCADOPAGO_PUBLIC_KEY;
-const PAYWAY_PUBLIC_KEY = import.meta.env.VITE_PAYWAY_PUBLIC_KEY; 
-// --- NUEVA VARIABLE DE ENTORNO ---
-const PAYWAY_API_URL = import.meta.env.VITE_PAYWAY_API_URL || 'https://developers-ventasonline.payway.com.ar/api/v2';
+const PAYWAY_PUBLIC_KEY = import.meta.env.VITE_PAYWAY_PUBLIC_KEY;
+const PAYWAY_API_URL = import.meta.env.VITE_PAYWAY_API_URL || 'https://developers-ventasonline.payway.com.ar';
 
 if (MERCADOPAGO_PUBLIC_KEY) {
   initMercadoPago(MERCADOPAGO_PUBLIC_KEY, { locale: 'es-AR' });
@@ -86,7 +85,6 @@ const AddressStep = ({ onAddressSelect, selectedAddressId, token }) => {
 
 // --- Componente para el Paso 2: Envío ---
 const ShippingStep = ({ onShippingSelect, selectedMethod }) => {
-    // En una aplicación real, estas opciones vendrían del backend
     const shippingOptions = [
         { id: 'standard', name: 'Envío Estándar', time: '3-5 días hábiles', cost: 1500 },
         { id: 'express', name: 'Envío Express', time: '1-2 días hábiles', cost: 2500 },
@@ -123,33 +121,36 @@ const PaymentStep = ({ total, user }) => {
     const { isProcessing, error, submitCardPayment, submitPixPayment, submitPaywayPayment, setError } = usePayment();
     const showNotification = useNotificationStore(state => state.showNotification);
     
-    const [paywayToken, setPaywayToken] = useState(null);
+    // --- CAMBIO: Referencia al formulario de Payway ---
+    const paywayFormRef = useRef(null);
 
-    useEffect(() => {
-        if (paymentMethod === 'payway' && window.Decidir) {
-            try {
-                // --- CAMBIO AQUÍ: Usamos la variable de entorno del frontend ---
-                const decidir = new window.Decidir(PAYWAY_API_URL, true);
-                decidir.setPublishableKey(PAYWAY_PUBLIC_KEY);
-                decidir.createToken('card_form', (status, response) => {
-                    if (status !== 200 && status !== 201) {
-                        setError(response.message || 'Error al tokenizar la tarjeta.');
-                    } else {
-                        setPaywayToken(response.id);
-                        submitPaywayPayment(response.id);
-                    }
-                });
-            } catch (e) {
-                console.error("Error inicializando Payway:", e);
-                setError("No se pudo cargar el formulario de pago de Payway.");
-            }
-        }
-    }, [paymentMethod, setError, submitPaywayPayment]);
-
-    const handlePaywaySubmit = (e) => {
+    const handlePaywaySubmit = async (e) => {
         e.preventDefault();
-        if (!isProcessing) {
-             // La lógica de tokenización se dispara en el useEffect
+        if (isProcessing || !window.Decidir || !PAYWAY_PUBLIC_KEY) {
+            return;
+        }
+
+        setError('');
+        
+        try {
+            const decidir = new window.Decidir(PAYWAY_API_URL, true);
+            decidir.setPublishableKey(PAYWAY_PUBLIC_KEY);
+
+            // --- CAMBIO: Usamos la referencia del formulario ---
+            decidir.createToken(paywayFormRef.current, (status, response) => {
+                if (status !== 200 && status !== 201) {
+                    const errorMessage = response.message || 'Error al validar los datos de la tarjeta.';
+                    setError(errorMessage);
+                    showNotification(errorMessage, 'error');
+                } else {
+                    // Si la tokenización es exitosa, llamamos al hook de pago
+                    submitPaywayPayment(response.id);
+                }
+            });
+        } catch (err) {
+            console.error("Error inicializando Payway:", err);
+            setError("No se pudo cargar el formulario de pago de Payway.");
+            showNotification("No se pudo cargar el formulario de pago de Payway.", 'error');
         }
     };
 
@@ -211,7 +212,8 @@ const PaymentStep = ({ total, user }) => {
             {paymentMethod === 'payway' && (
                 <div>
                     <h3 className="text-xl font-bold mb-4">Pagar con Tarjeta de Crédito/Débito</h3>
-                    <form id="card_form" onSubmit={handlePaywaySubmit}>
+                    {/* --- CAMBIO: Añadimos la referencia al formulario --- */}
+                    <form id="card_form" ref={paywayFormRef} onSubmit={handlePaywaySubmit}>
                         <div className="space-y-4">
                             <input type="text" data-decidir="card_holder_name" placeholder="Nombre como figura en la tarjeta" className="w-full p-2 border rounded"/>
                             <input type="text" data-decidir="card_number" placeholder="Número de la tarjeta" className="w-full p-2 border rounded"/>
