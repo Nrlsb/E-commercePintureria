@@ -5,10 +5,8 @@ import { sendOrderConfirmationEmail, sendBankTransferInstructionsEmail, sendOrde
 import logger from '../logger.js';
 import AppError from '../utils/AppError.js';
 import { generateInvoicePDF } from '../services/invoice.service.js';
-// --- NUEVAS IMPORTACIONES ---
 import fetch from 'node-fetch';
 import config from '../config/index.js';
-// --- FIN ---
 
 const { MercadoPagoConfig, Payment, PaymentRefund } = mercadopago;
 const mpClient = new MercadoPagoConfig({ accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN });
@@ -82,7 +80,6 @@ export const confirmTransferPayment = async (req, res, next) => {
 
     const orderForEmail = await getOrderDetailsForEmail(order.id, dbClient);
 
-    // Enviar correos en paralelo
     await Promise.all([
         sendOrderConfirmationEmail(orderForEmail.email, orderForEmail),
         sendNewOrderNotificationToAdmin(orderForEmail)
@@ -136,8 +133,8 @@ export const processPayment = async (req, res, next) => {
         }
 
         const orderResult = await dbClient.query(
-            'INSERT INTO orders (user_id, total_amount, status, shipping_cost, postal_code) VALUES ($1, $2, $3, $4, $5) RETURNING id',
-            [userId, transaction_amount, 'pending', shippingCost, postalCode]
+            'INSERT INTO orders (user_id, total_amount, status, shipping_cost, postal_code, payment_gateway) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id',
+            [userId, transaction_amount, 'pending', shippingCost, postalCode, 'mercadopago']
         );
         orderId = orderResult.rows[0].id;
 
@@ -191,12 +188,11 @@ export const processPayment = async (req, res, next) => {
             for (const item of cart) {
                 await dbClient.query('UPDATE products SET stock = stock - $1 WHERE id = $2', [item.quantity, item.id]);
             }
-            await dbClient.query("UPDATE orders SET status = 'approved', mercadopago_transaction_id = $1 WHERE id = $2", [paymentResult.id, orderId]);
+            await dbClient.query("UPDATE orders SET status = 'approved', gateway_transaction_id = $1 WHERE id = $2", [paymentResult.id, orderId]);
             
             const orderDetailsForEmail = await getOrderDetailsForEmail(orderId, dbClient);
             if (orderDetailsForEmail) {
                 try {
-                    // Enviar correos en paralelo
                     await Promise.all([
                         sendOrderConfirmationEmail(orderDetailsForEmail.email, orderDetailsForEmail),
                         sendNewOrderNotificationToAdmin(orderDetailsForEmail)
@@ -227,7 +223,6 @@ export const processPayment = async (req, res, next) => {
     }
 };
 
-// --- NUEVA FUNCIÓN PARA PROCESAR PAGOS CON PAYWAY ---
 export const processPaywayPayment = async (req, res, next) => {
     logger.debug('Iniciando processPaywayPayment. Body recibido:', JSON.stringify(req.body, null, 2));
     const { token, cart, totalAmount } = req.body;
@@ -243,7 +238,6 @@ export const processPaywayPayment = async (req, res, next) => {
     try {
         await dbClient.query('BEGIN');
 
-        // 1. Crear la orden en estado 'pending' en tu base de datos
         const orderResult = await dbClient.query(
             'INSERT INTO orders (user_id, total_amount, status, payment_gateway) VALUES ($1, $2, $3, $4) RETURNING id',
             [userId, totalAmount, 'pending', 'payway']
@@ -257,14 +251,13 @@ export const processPaywayPayment = async (req, res, next) => {
             );
         }
 
-        // 2. Preparar la llamada a la API de Payway
         const paywayPayload = {
-            site_transaction_id: `ORDER-${orderId}-${Date.now()}`, // ID de transacción único
+            site_transaction_id: `ORDER-${orderId}-${Date.now()}`,
             token: token,
-            payment_method_id: 1, // 1 para todas las tarjetas de crédito
-            amount: Math.round(totalAmount * 100), // El monto debe ir en centavos
+            payment_method_id: 1,
+            amount: Math.round(totalAmount * 100),
             currency: "ARS",
-            installments: 1, // Por ahora, un solo pago
+            installments: 1,
             email: email,
             customer: {
                 email: email,
@@ -273,12 +266,12 @@ export const processPaywayPayment = async (req, res, next) => {
             }
         };
 
-        // 3. Ejecutar el pago llamando a la API de Payway
+        // --- CAMBIO AQUÍ: Usamos process.env directamente ---
         const paywayResponse = await fetch(`${config.payway.apiUrl}/payments`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'apikey': config.payway.privateKey
+                'apikey': process.env.PAYWAY_PRIVATE_KEY // Leemos directamente de las variables de entorno
             },
             body: JSON.stringify(paywayPayload)
         });
@@ -291,19 +284,16 @@ export const processPaywayPayment = async (req, res, next) => {
             throw new AppError(errorMessage, 400);
         }
 
-        // 4. Procesar la respuesta de Payway
         if (paywayData.status === 'approved') {
             await dbClient.query(
                 "UPDATE orders SET status = 'approved', gateway_transaction_id = $1 WHERE id = $2",
                 [paywayData.id, orderId]
             );
 
-            // Descontar stock
             for (const item of cart) {
                 await dbClient.query('UPDATE products SET stock = stock - $1 WHERE id = $2', [item.quantity, item.id]);
             }
 
-            // Enviar emails
             const orderDetailsForEmail = await getOrderDetailsForEmail(orderId, dbClient);
             if (orderDetailsForEmail) {
                 await Promise.all([
@@ -316,7 +306,6 @@ export const processPaywayPayment = async (req, res, next) => {
             logger.info(`Pago con Payway aprobado para la orden #${orderId}`);
             res.status(201).json({ status: 'approved', orderId: orderId, paymentId: paywayData.id });
         } else {
-            // Si el pago no fue aprobado, revertir la orden
             await dbClient.query('ROLLBACK');
             logger.warn(`Pago con Payway rechazado. Orden #${orderId} revertida. Motivo: ${paywayData.status_details?.description}`);
             throw new AppError(paywayData.status_details?.description || 'El pago no pudo ser procesado.', 400);
@@ -352,7 +341,7 @@ export const updateOrderStatus = async (req, res, next) => {
 
     if (status === 'shipped') {
       updateQuery = 'UPDATE orders SET status = $1, tracking_number = $2 WHERE id = $3 RETURNING *';
-      queryParams.splice(1, 0, trackingNumber); // Insert trackingNumber into params
+      queryParams.splice(1, 0, trackingNumber);
     }
     
     const result = await dbClient.query(updateQuery, queryParams);
