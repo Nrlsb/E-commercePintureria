@@ -8,6 +8,44 @@ import { fetchWithCsrf } from '../api/api';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
+// --- NUEVA FUNCIÓN HELPER ---
+// Esta función se encargará de llamar al endpoint de análisis de IA.
+// La aislamos para poder reutilizarla fácilmente.
+const triggerAIAnalysis = async (errorObject, token) => {
+  try {
+    // Simulamos un error de stack si no existe para darle más contexto a la IA
+    const errorStack = errorObject.stack || (new Error(errorObject.message)).stack;
+
+    const response = await fetch(`${API_URL}/api/debug/analyze-error`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        errorMessage: errorObject.toString(),
+        errorStack: errorStack,
+        componentStack: 'Error originado en el flujo de pago (usePayment hook).',
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error('No se pudo obtener el análisis del error desde el servidor.');
+    }
+
+    const data = await response.json();
+    
+    // Devolvemos el análisis para mostrarlo en un futuro modal si se quisiera.
+    // Por ahora, lo mostraremos como una notificación avanzada.
+    return data.analysis;
+
+  } catch (err) {
+    console.error("Error al obtener análisis de IA:", err);
+    return 'No se pudo obtener el análisis de la IA. Revisa la consola para más detalles.';
+  }
+};
+
+
 export const usePayment = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState('');
@@ -21,6 +59,27 @@ export const usePayment = () => {
   }));
   const { user, token } = useAuthStore();
   const showNotification = useNotificationStore(state => state.showNotification);
+
+  const handleError = async (err) => {
+    const errorMessage = err.message || 'Ocurrió un error desconocido.';
+    setError(errorMessage);
+    
+    // --- LÓGICA DE ANÁLISIS DE IA ---
+    if (user && user.role === 'admin') {
+      showNotification('Error detectado. Analizando con IA...', 'info');
+      const analysis = await triggerAIAnalysis(err, token);
+      
+      // Por ahora, mostraremos el análisis en una notificación más grande o en la consola.
+      // En un futuro, esto podría abrir el AIErrorAnalysisModal.
+      console.group("Análisis de Error por IA (Admin)");
+      console.log(analysis);
+      console.groupEnd();
+      showNotification(`Análisis de IA: ${analysis.substring(0, 100)}... (ver consola para detalles)`, 'error');
+
+    } else {
+      showNotification(errorMessage, 'error');
+    }
+  };
 
   const submitCardPayment = async (formData) => {
     setIsProcessing(true);
@@ -47,8 +106,7 @@ export const usePayment = () => {
       navigate(`/success?order_id=${data.orderId}`);
       
     } catch (err) {
-      setError(err.message);
-      showNotification(err.message, 'error');
+      handleError(err); // Usamos nuestro nuevo manejador de errores
     } finally {
       setIsProcessing(false);
     }
@@ -71,14 +129,12 @@ export const usePayment = () => {
         
         navigate(`/order-pending/${data.orderId}`, { state: { paymentData: data.paymentData } });
     } catch (err) {
-        setError(err.message);
-        showNotification(err.message, 'error');
+        handleError(err); // Usamos nuestro nuevo manejador de errores
     } finally {
         setIsProcessing(false);
     }
   };
 
-  // --- NUEVA FUNCIÓN PARA PAYWAY ---
   const submitPaywayPayment = async (cardToken) => {
     setIsProcessing(true);
     setError('');
@@ -102,13 +158,11 @@ export const usePayment = () => {
       navigate(`/success?order_id=${data.orderId}`);
       
     } catch (err) {
-      setError(err.message);
-      showNotification(err.message, 'error');
+      handleError(err); // Usamos nuestro nuevo manejador de errores
     } finally {
       setIsProcessing(false);
     }
   };
-  // --- FIN ---
 
   return { isProcessing, error, submitCardPayment, submitPixPayment, submitPaywayPayment, setError };
 };
