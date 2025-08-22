@@ -5,6 +5,10 @@ import { sendOrderConfirmationEmail, sendBankTransferInstructionsEmail, sendOrde
 import logger from '../logger.js';
 import AppError from '../utils/AppError.js';
 import { generateInvoicePDF } from '../services/invoice.service.js';
+// --- NUEVAS IMPORTACIONES ---
+import fetch from 'node-fetch';
+import config from '../config/index.js';
+// --- FIN ---
 
 const { MercadoPagoConfig, Payment, PaymentRefund } = mercadopago;
 const mpClient = new MercadoPagoConfig({ accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN });
@@ -217,6 +221,110 @@ export const processPayment = async (req, res, next) => {
     } catch (error) {
         if (dbClient) await dbClient.query('ROLLBACK');
         logger.error(`Error completo procesando el pago para la orden #${orderId}:`, error);
+        next(error);
+    } finally {
+        if (dbClient) dbClient.release();
+    }
+};
+
+// --- NUEVA FUNCIÓN PARA PROCESAR PAGOS CON PAYWAY ---
+export const processPaywayPayment = async (req, res, next) => {
+    logger.debug('Iniciando processPaywayPayment. Body recibido:', JSON.stringify(req.body, null, 2));
+    const { token, cart, totalAmount } = req.body;
+    const { userId, email, firstName, lastName } = req.user;
+
+    if (!token) {
+        return next(new AppError('El token de la tarjeta es requerido.', 400));
+    }
+
+    const dbClient = await db.connect();
+    let orderId;
+
+    try {
+        await dbClient.query('BEGIN');
+
+        // 1. Crear la orden en estado 'pending' en tu base de datos
+        const orderResult = await dbClient.query(
+            'INSERT INTO orders (user_id, total_amount, status, payment_gateway) VALUES ($1, $2, $3, $4) RETURNING id',
+            [userId, totalAmount, 'pending', 'payway']
+        );
+        orderId = orderResult.rows[0].id;
+
+        for (const item of cart) {
+            await dbClient.query(
+                'INSERT INTO order_items (order_id, product_id, quantity, price) VALUES ($1, $2, $3, $4)',
+                [orderId, item.id, item.quantity, item.price]
+            );
+        }
+
+        // 2. Preparar la llamada a la API de Payway
+        const paywayPayload = {
+            site_transaction_id: `ORDER-${orderId}-${Date.now()}`, // ID de transacción único
+            token: token,
+            payment_method_id: 1, // 1 para todas las tarjetas de crédito
+            amount: Math.round(totalAmount * 100), // El monto debe ir en centavos
+            currency: "ARS",
+            installments: 1, // Por ahora, un solo pago
+            email: email,
+            customer: {
+                email: email,
+                first_name: firstName,
+                last_name: lastName
+            }
+        };
+
+        // 3. Ejecutar el pago llamando a la API de Payway
+        const paywayResponse = await fetch(`${config.payway.apiUrl}/payments`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'apikey': config.payway.privateKey
+            },
+            body: JSON.stringify(paywayPayload)
+        });
+
+        const paywayData = await paywayResponse.json();
+
+        if (!paywayResponse.ok) {
+            logger.error('Error en la respuesta de Payway:', paywayData);
+            const errorMessage = paywayData.error?.description || 'El pago fue rechazado por Payway.';
+            throw new AppError(errorMessage, 400);
+        }
+
+        // 4. Procesar la respuesta de Payway
+        if (paywayData.status === 'approved') {
+            await dbClient.query(
+                "UPDATE orders SET status = 'approved', gateway_transaction_id = $1 WHERE id = $2",
+                [paywayData.id, orderId]
+            );
+
+            // Descontar stock
+            for (const item of cart) {
+                await dbClient.query('UPDATE products SET stock = stock - $1 WHERE id = $2', [item.quantity, item.id]);
+            }
+
+            // Enviar emails
+            const orderDetailsForEmail = await getOrderDetailsForEmail(orderId, dbClient);
+            if (orderDetailsForEmail) {
+                await Promise.all([
+                    sendOrderConfirmationEmail(orderDetailsForEmail.email, orderDetailsForEmail),
+                    sendNewOrderNotificationToAdmin(orderDetailsForEmail)
+                ]);
+            }
+
+            await dbClient.query('COMMIT');
+            logger.info(`Pago con Payway aprobado para la orden #${orderId}`);
+            res.status(201).json({ status: 'approved', orderId: orderId, paymentId: paywayData.id });
+        } else {
+            // Si el pago no fue aprobado, revertir la orden
+            await dbClient.query('ROLLBACK');
+            logger.warn(`Pago con Payway rechazado. Orden #${orderId} revertida. Motivo: ${paywayData.status_details?.description}`);
+            throw new AppError(paywayData.status_details?.description || 'El pago no pudo ser procesado.', 400);
+        }
+
+    } catch (error) {
+        if (dbClient) await dbClient.query('ROLLBACK');
+        logger.error(`Error procesando pago con Payway para la orden #${orderId}:`, error);
         next(error);
     } finally {
         if (dbClient) dbClient.release();

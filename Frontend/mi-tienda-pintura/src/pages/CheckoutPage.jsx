@@ -1,5 +1,6 @@
 // Frontend/mi-tienda-pintura/src/pages/CheckoutPage.jsx
 import React, { useState, useEffect } from 'react';
+import { Helmet } from 'react-helmet';
 import { CardPayment, initMercadoPago } from '@mercadopago/sdk-react';
 import { useCartStore } from '../stores/useCartStore';
 import { useAuthStore } from '../stores/useAuthStore';
@@ -14,6 +15,7 @@ import CheckoutStepper from '../components/CheckoutStepper';
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 const MIN_TRANSACTION_AMOUNT = 100;
 const MERCADOPAGO_PUBLIC_KEY = import.meta.env.VITE_MERCADOPAGO_PUBLIC_KEY;
+const PAYWAY_PUBLIC_KEY = import.meta.env.VITE_PAYWAY_PUBLIC_KEY;
 
 if (MERCADOPAGO_PUBLIC_KEY) {
   initMercadoPago(MERCADOPAGO_PUBLIC_KEY, { locale: 'es-AR' });
@@ -113,11 +115,40 @@ const ShippingStep = ({ onShippingSelect, selectedMethod }) => {
     );
 };
 
-// --- Componente para el Paso 3: Pago ---
+// --- Componente para el Paso 3: Pago (ACTUALIZADO) ---
 const PaymentStep = ({ total, user }) => {
-    const [paymentMethod, setPaymentMethod] = useState('card_payment');
-    const { isProcessing, error, submitCardPayment, submitPixPayment, setError } = usePayment();
+    const [paymentMethod, setPaymentMethod] = useState('mercado_pago');
+    const { isProcessing, error, submitCardPayment, submitPixPayment, submitPaywayPayment, setError } = usePayment();
     const showNotification = useNotificationStore(state => state.showNotification);
+    
+    const [paywayToken, setPaywayToken] = useState(null);
+
+    useEffect(() => {
+        if (paymentMethod === 'payway' && window.Decidir) {
+            try {
+                const decidir = new window.Decidir(config.payway.apiUrl, true);
+                decidir.setPublishableKey(PAYWAY_PUBLIC_KEY);
+                decidir.createToken('card_form', (status, response) => {
+                    if (status !== 200 && status !== 201) {
+                        setError(response.message || 'Error al tokenizar la tarjeta.');
+                    } else {
+                        setPaywayToken(response.id);
+                        submitPaywayPayment(response.id);
+                    }
+                });
+            } catch (e) {
+                console.error("Error inicializando Payway:", e);
+                setError("No se pudo cargar el formulario de pago de Payway.");
+            }
+        }
+    }, [paymentMethod, setError, submitPaywayPayment]);
+
+    const handlePaywaySubmit = (e) => {
+        e.preventDefault();
+        if (!isProcessing) {
+            // La lógica de tokenización se dispara en el useEffect
+        }
+    };
 
     const initialization = { amount: total, payer: { email: user?.email } };
     const customization = {
@@ -139,33 +170,68 @@ const PaymentStep = ({ total, user }) => {
 
     return (
         <div>
+            <Helmet>
+                <script src="https://live.decidir.com/static/v2.5/decidir.js" type="text/javascript"></script>
+            </Helmet>
+
             <h2 className="text-xl font-bold mb-4">3. Método de Pago</h2>
             <div className="flex space-x-4 mb-8 border-b pb-6">
-                <button onClick={() => setPaymentMethod('card_payment')} className={`px-6 py-3 rounded-lg font-semibold transition-all ${paymentMethod === 'card_payment' ? 'bg-[#0F3460] text-white shadow-lg' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}>
-                    Tarjeta o Saldo en cuenta
+                <button onClick={() => setPaymentMethod('mercado_pago')} className={`px-6 py-3 rounded-lg font-semibold transition-all ${paymentMethod === 'mercado_pago' ? 'bg-[#0F3460] text-white shadow-lg' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}>
+                    Mercado Pago
+                </button>
+                <button onClick={() => setPaymentMethod('payway')} className={`px-6 py-3 rounded-lg font-semibold transition-all ${paymentMethod === 'payway' ? 'bg-[#0F3460] text-white shadow-lg' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}>
+                    Tarjeta (Payway)
                 </button>
                 <button onClick={() => setPaymentMethod('pix_transfer')} className={`px-6 py-3 rounded-lg font-semibold transition-all ${paymentMethod === 'pix_transfer' ? 'bg-[#0F3460] text-white shadow-lg' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}>
                     Transferencia / PIX
                 </button>
             </div>
 
-            <div style={{ display: paymentMethod === 'card_payment' ? 'block' : 'none' }}>
-                {total < MIN_TRANSACTION_AMOUNT ? (
-                    <div className="text-center p-6 bg-yellow-50 border border-yellow-200 rounded-lg">
-                        <h3 className="text-xl font-semibold text-yellow-800">Monto mínimo no alcanzado</h3>
-                        <p className="text-yellow-700 mt-2">El total de tu compra debe ser de al menos ${MIN_TRANSACTION_AMOUNT} para pagar con este método.</p>
-                    </div>
-                ) : (
-                    <div>
+            {paymentMethod === 'mercado_pago' && (
+                <div>
+                    {total < MIN_TRANSACTION_AMOUNT ? (
+                        <div className="text-center p-6 bg-yellow-50 border border-yellow-200 rounded-lg">
+                            <h3 className="text-xl font-semibold text-yellow-800">Monto mínimo no alcanzado</h3>
+                            <p className="text-yellow-700 mt-2">El total de tu compra debe ser de al menos ${MIN_TRANSACTION_AMOUNT} para pagar con este método.</p>
+                        </div>
+                    ) : (
                         <CardPayment
                             initialization={initialization}
                             customization={customization}
                             onSubmit={submitCardPayment}
                             onError={handleOnError}
                         />
-                    </div>
-                )}
-            </div>
+                    )}
+                </div>
+            )}
+
+            {paymentMethod === 'payway' && (
+                <div>
+                    <h3 className="text-xl font-bold mb-4">Pagar con Tarjeta de Crédito/Débito</h3>
+                    <form id="card_form" onSubmit={handlePaywaySubmit}>
+                        <div className="space-y-4">
+                            <input type="text" data-decidir="card_holder_name" placeholder="Nombre como figura en la tarjeta" className="w-full p-2 border rounded"/>
+                            <input type="text" data-decidir="card_number" placeholder="Número de la tarjeta" className="w-full p-2 border rounded"/>
+                            <div className="flex space-x-4">
+                                <input type="text" data-decidir="card_expiration_month" placeholder="Mes (MM)" className="w-1/2 p-2 border rounded"/>
+                                <input type="text" data-decidir="card_expiration_year" placeholder="Año (YY)" className="w-1/2 p-2 border rounded"/>
+                            </div>
+                            <input type="text" data-decidir="security_code" placeholder="Código de seguridad" className="w-full p-2 border rounded"/>
+                            <select data-decidir="card_holder_doc_type" className="w-full p-2 border rounded">
+                                <option value="dni">DNI</option>
+                            </select>
+                            <input type="text" data-decidir="card_holder_doc_number" placeholder="Número de documento" className="w-full p-2 border rounded"/>
+                        </div>
+                        <button
+                            type="submit"
+                            disabled={isProcessing}
+                            className="w-full mt-6 bg-[#0F3460] text-white font-bold py-3 rounded-lg hover:bg-[#1a4a8a] transition-colors disabled:bg-gray-400 flex items-center justify-center"
+                        >
+                            {isProcessing ? <Spinner /> : `Pagar $${new Intl.NumberFormat('es-AR').format(total)}`}
+                        </button>
+                    </form>
+                </div>
+            )}
 
             {paymentMethod === 'pix_transfer' && (
                 <div>
@@ -211,24 +277,20 @@ const CheckoutPage = () => {
     }));
     const { user, token } = useAuthStore();
     const navigate = useNavigate();
-    const { isProcessing } = usePayment(); // Obtenemos el estado de procesamiento
+    const { isProcessing } = usePayment();
 
     const subtotal = cart.reduce((total, item) => total + item.price * item.quantity, 0);
     const total = (subtotal - discountAmount) + (selectedShippingMethod?.cost || 0);
 
-    // --- INICIO DE LA CORRECCIÓN ---
-    // Modificamos el useEffect para que solo redirija si el carrito está vacío
-    // Y si el pago NO se está procesando.
     useEffect(() => {
         if (cart.length === 0 && !isProcessing) {
             navigate('/cart');
         }
     }, [cart, navigate, isProcessing]);
-    // --- FIN DE LA CORRECCIÓN ---
     
     const handleShippingSelect = (method) => {
         setSelectedShippingMethod(method);
-        setShippingCost(method.cost); // Actualizar el costo en el store
+        setShippingCost(method.cost);
     };
 
     const handleNextStep = () => {

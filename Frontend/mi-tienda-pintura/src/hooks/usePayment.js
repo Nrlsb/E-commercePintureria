@@ -13,12 +13,11 @@ export const usePayment = () => {
   const [error, setError] = useState('');
   const navigate = useNavigate();
 
-  // Se elimina `clearCart` de la desestructuración porque ya no se usará aquí.
-  const { cart, shippingCost, postalCode, total } = useCartStore(state => ({
+  const { cart, shippingCost, postalCode, discountAmount } = useCartStore(state => ({
     cart: state.cart,
     shippingCost: state.shippingCost,
     postalCode: state.postalCode,
-    total: (state.cart.reduce((acc, item) => acc + item.price * item.quantity, 0) - state.discountAmount) + state.shippingCost,
+    discountAmount: state.discountAmount,
   }));
   const { user, token } = useAuthStore();
   const showNotification = useNotificationStore(state => state.showNotification);
@@ -27,11 +26,15 @@ export const usePayment = () => {
     setIsProcessing(true);
     setError('');
     try {
+      const subtotal = cart.reduce((total, item) => total + item.price * item.quantity, 0);
+      const total = (subtotal - discountAmount) + shippingCost;
+      
       const response = await fetchWithCsrf(`${API_URL}/api/orders/process-payment`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ 
           ...formData, 
+          transaction_amount: total,
           cart, 
           shippingCost,
           postalCode,
@@ -40,10 +43,6 @@ export const usePayment = () => {
 
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || 'El pago fue rechazado.');
-      
-      // --- CORRECCIÓN ---
-      // La llamada a clearCart() se ha eliminado de aquí para evitar la redirección no deseada.
-      // Ahora se llamará desde la página de éxito.
       
       navigate(`/success?order_id=${data.orderId}`);
       
@@ -59,6 +58,9 @@ export const usePayment = () => {
     setIsProcessing(true);
     setError('');
     try {
+        const subtotal = cart.reduce((total, item) => total + item.price * item.quantity, 0);
+        const total = (subtotal - discountAmount) + shippingCost;
+
         const response = await fetchWithCsrf(`${API_URL}/api/orders/pix-payment`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
@@ -76,5 +78,37 @@ export const usePayment = () => {
     }
   };
 
-  return { isProcessing, error, submitCardPayment, submitPixPayment, setError };
+  // --- NUEVA FUNCIÓN PARA PAYWAY ---
+  const submitPaywayPayment = async (cardToken) => {
+    setIsProcessing(true);
+    setError('');
+    try {
+      const subtotal = cart.reduce((total, item) => total + item.price * item.quantity, 0);
+      const totalAmount = (subtotal - discountAmount) + shippingCost;
+
+      const response = await fetchWithCsrf(`${API_URL}/api/orders/process-payway-payment`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ 
+          token: cardToken,
+          cart,
+          totalAmount
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'El pago fue rechazado.');
+      
+      navigate(`/success?order_id=${data.orderId}`);
+      
+    } catch (err) {
+      setError(err.message);
+      showNotification(err.message, 'error');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+  // --- FIN ---
+
+  return { isProcessing, error, submitCardPayment, submitPixPayment, submitPaywayPayment, setError };
 };

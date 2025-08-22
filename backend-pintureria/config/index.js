@@ -22,6 +22,16 @@ const config = {
   mercadopago: {
     accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN,
   },
+
+  // --- NUEVA SECCIÓN PARA PAYWAY ---
+  payway: {
+    publicKey: process.env.PAYWAY_PUBLIC_KEY,
+    privateKey: process.env.PAYWAY_PRIVATE_KEY,
+    // El endpoint de desarrollo de Payway
+    apiUrl: 'https://developers-ventasonline.payway.com.ar/api/v2', 
+  },
+  // --- FIN DE LA NUEVA SECCIÓN ---
+
   geminiApiKey: process.env.GEMINI_API_KEY,
 
   gcs: {
