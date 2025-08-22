@@ -1,6 +1,6 @@
 // Frontend/mi-tienda-pintura/src/pages/CheckoutPage.jsx
 import React, { useState, useEffect } from 'react';
-import { Helmet } from 'react-helmet';
+import { Helmet } from 'react-helmet-async'; // <--- CAMBIO AQUÍ
 import { CardPayment, initMercadoPago } from '@mercadopago/sdk-react';
 import { useCartStore } from '../stores/useCartStore';
 import { useAuthStore } from '../stores/useAuthStore';
@@ -15,7 +15,7 @@ import CheckoutStepper from '../components/CheckoutStepper';
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 const MIN_TRANSACTION_AMOUNT = 100;
 const MERCADOPAGO_PUBLIC_KEY = import.meta.env.VITE_MERCADOPAGO_PUBLIC_KEY;
-const PAYWAY_PUBLIC_KEY = import.meta.env.VITE_PAYWAY_PUBLIC_KEY;
+const PAYWAY_PUBLIC_KEY = import.meta.env.VITE_PAYWAY_PUBLIC_KEY; 
 
 if (MERCADOPAGO_PUBLIC_KEY) {
   initMercadoPago(MERCADOPAGO_PUBLIC_KEY, { locale: 'es-AR' });
@@ -115,7 +115,7 @@ const ShippingStep = ({ onShippingSelect, selectedMethod }) => {
     );
 };
 
-// --- Componente para el Paso 3: Pago (ACTUALIZADO) ---
+// --- Componente para el Paso 3: Pago ---
 const PaymentStep = ({ total, user }) => {
     const [paymentMethod, setPaymentMethod] = useState('mercado_pago');
     const { isProcessing, error, submitCardPayment, submitPixPayment, submitPaywayPayment, setError } = usePayment();
@@ -146,7 +146,7 @@ const PaymentStep = ({ total, user }) => {
     const handlePaywaySubmit = (e) => {
         e.preventDefault();
         if (!isProcessing) {
-            // La lógica de tokenización se dispara en el useEffect
+             // La lógica de tokenización se dispara en el useEffect
         }
     };
 
