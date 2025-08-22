@@ -1,6 +1,6 @@
 // Frontend/mi-tienda-pintura/src/pages/CheckoutPage.jsx
 import React, { useState, useEffect } from 'react';
-import { Helmet } from 'react-helmet-async'; // <--- CAMBIO AQUÍ
+import { Helmet } from 'react-helmet-async';
 import { CardPayment, initMercadoPago } from '@mercadopago/sdk-react';
 import { useCartStore } from '../stores/useCartStore';
 import { useAuthStore } from '../stores/useAuthStore';
@@ -16,6 +16,8 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 const MIN_TRANSACTION_AMOUNT = 100;
 const MERCADOPAGO_PUBLIC_KEY = import.meta.env.VITE_MERCADOPAGO_PUBLIC_KEY;
 const PAYWAY_PUBLIC_KEY = import.meta.env.VITE_PAYWAY_PUBLIC_KEY; 
+// --- NUEVA VARIABLE DE ENTORNO ---
+const PAYWAY_API_URL = import.meta.env.VITE_PAYWAY_API_URL || 'https://developers-ventasonline.payway.com.ar/api/v2';
 
 if (MERCADOPAGO_PUBLIC_KEY) {
   initMercadoPago(MERCADOPAGO_PUBLIC_KEY, { locale: 'es-AR' });
@@ -126,7 +128,8 @@ const PaymentStep = ({ total, user }) => {
     useEffect(() => {
         if (paymentMethod === 'payway' && window.Decidir) {
             try {
-                const decidir = new window.Decidir(config.payway.apiUrl, true);
+                // --- CAMBIO AQUÍ: Usamos la variable de entorno del frontend ---
+                const decidir = new window.Decidir(PAYWAY_API_URL, true);
                 decidir.setPublishableKey(PAYWAY_PUBLIC_KEY);
                 decidir.createToken('card_form', (status, response) => {
                     if (status !== 200 && status !== 201) {
