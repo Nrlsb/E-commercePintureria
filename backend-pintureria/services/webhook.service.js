@@ -79,15 +79,15 @@ export const processPaymentNotification = async (topic, eventId) => {
         );
       }
        
+      // --- CAMBIO AQUÍ: Usamos la columna genérica ---
       await dbClient.query(
-          "UPDATE orders SET status = 'approved', mercadopago_transaction_id = $1 WHERE id = $2", 
+          "UPDATE orders SET status = 'approved', gateway_transaction_id = $1 WHERE id = $2", 
           [eventId, orderId]
       );
 
       const fullOrderDetails = await getFullOrderDetails(orderId, dbClient);
       
       if (fullOrderDetails) {
-        // Enviar correos en paralelo
         await Promise.all([
             sendOrderConfirmationEmail(fullOrderDetails.email, fullOrderDetails),
             sendNewOrderNotificationToAdmin(fullOrderDetails)
