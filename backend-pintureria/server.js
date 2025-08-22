@@ -28,7 +28,8 @@ import wishlistRoutes from './routes/wishlist.routes.js';
 import userRoutes from './routes/user.routes.js';
 import chatbotRoutes from './routes/chatbot.routes.js';
 import webhookRoutes from './routes/webhook.routes.js';
-import reportsRoutes from './routes/reports.routes.js'; // <-- AÑADIDO
+import reportsRoutes from './routes/reports.routes.js';
+import debugRoutes from './routes/debug.routes.js'; // <-- AÑADIDO
 import errorHandler from './middlewares/errorHandler.js';
 import { handlePaymentNotification } from './controllers/payment.controller.js';
 
@@ -130,7 +131,8 @@ app.use('/api/wishlist', wishlistRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/chatbot', chatbotRoutes);
 app.use('/api/webhooks', webhookRoutes);
-app.use('/api/reports', reportsRoutes); // <-- AÑADIDO
+app.use('/api/reports', reportsRoutes);
+app.use('/api/debug', debugRoutes); // <-- AÑADIDO
 
 startCancelPendingOrdersJob();
 

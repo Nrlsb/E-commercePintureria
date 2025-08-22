@@ -9,6 +9,9 @@ import { useNotificationStore } from './stores/useNotificationStore';
 import { useAuthStore } from './stores/useAuthStore';
 import { initializeCsrf } from './api/api';
 
+// --- NUEVA IMPORTACIÓN ---
+import ErrorBoundary from './components/ErrorBoundary.jsx';
+
 // Componentes principales
 import Header from './components/Header.jsx';
 import Navbar from './components/Navbar.jsx';
@@ -56,7 +59,7 @@ const WishlistPage = lazy(() => import('./pages/WishlistPage.jsx'));
 const ProfilePage = lazy(() => import('./pages/ProfilePage.jsx'));
 const AdminCouponsPage = lazy(() => import('./pages/AdminCouponsPage.jsx'));
 const AdminWebhookEventsPage = lazy(() => import('./pages/AdminWebhookEventsPage.jsx'));
-const AdminReportsPage = lazy(() => import('./pages/AdminReportsPage.jsx')); // <-- AÑADIDO
+const AdminReportsPage = lazy(() => import('./pages/AdminReportsPage.jsx'));
 const TrackingPage = lazy(() => import('./pages/TrackingPage.jsx'));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage.jsx'));
 const ServerErrorPage = lazy(() => import('./pages/ServerErrorPage.jsx'));
@@ -98,54 +101,57 @@ export default function App() {
         transition={{ duration: 0.3 }}
         className="flex-grow container mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col"
       >
-        <Suspense fallback={
-            <div className="flex-grow flex items-center justify-center">
-              <Spinner className="w-12 h-12 text-[#0F3460]" />
-            </div>
-          }>
-          <Routes>
-            <Route path="/" element={<HomePage />} />
-            <Route path="/product/:productId" element={<ProductDetailPage />} />
-            <Route path="/cart" element={<CartPage />} />
-            <Route path="/success" element={<OrderSuccessPage />} />
-            <Route path="/search" element={<SearchResultsPage />} />
-            <Route path="/category/:categoryName" element={<CategoryPage />} />
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/register" element={<RegisterPage />} />
-            
-            <Route path="/auth/callback" element={<AuthCallbackPage />} />
+        {/* --- ENVOLVEMOS LAS RUTAS CON EL ERRORBOUNDARY --- */}
+        <ErrorBoundary>
+          <Suspense fallback={
+              <div className="flex-grow flex items-center justify-center">
+                <Spinner className="w-12 h-12 text-[#0F3460]" />
+              </div>
+            }>
+            <Routes>
+              <Route path="/" element={<HomePage />} />
+              <Route path="/product/:productId" element={<ProductDetailPage />} />
+              <Route path="/cart" element={<CartPage />} />
+              <Route path="/success" element={<OrderSuccessPage />} />
+              <Route path="/search" element={<SearchResultsPage />} />
+              <Route path="/category/:categoryName" element={<CategoryPage />} />
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/register" element={<RegisterPage />} />
+              
+              <Route path="/auth/callback" element={<AuthCallbackPage />} />
 
-            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-            <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
+              <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+              <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
 
-            <Route element={<ProtectedRoute />}>
-              <Route path="/checkout" element={<CheckoutPage />} />
-              <Route path="/my-orders" element={<OrderHistoryPage />} />
-              <Route path="/order-pending/:orderId" element={<OrderPendingPage />} />
-              <Route path="/wishlist" element={<WishlistPage />} />
-              <Route path="/profile" element={<ProfilePage />} />
-              <Route path="/track/:trackingNumber" element={<TrackingPage />} />
-            </Route>
+              <Route element={<ProtectedRoute />}>
+                <Route path="/checkout" element={<CheckoutPage />} />
+                <Route path="/my-orders" element={<OrderHistoryPage />} />
+                <Route path="/order-pending/:orderId" element={<OrderPendingPage />} />
+                <Route path="/wishlist" element={<WishlistPage />} />
+                <Route path="/profile" element={<ProfilePage />} />
+                <Route path="/track/:trackingNumber" element={<TrackingPage />} />
+              </Route>
 
-            <Route element={<AdminRoute />}>
-              <Route path="/admin" element={<AdminDashboardPage />} />
-              <Route path="/admin/products" element={<AdminProductsPage />} />
-              <Route path="/admin/orders" element={<AdminOrdersPage />} />
-              <Route path="/admin/coupons" element={<AdminCouponsPage />} />
-              <Route path="/admin/product/new" element={<ProductFormPage />} />
-              <Route path="/admin/product/edit/:productId" element={<ProductFormPage />} />
-              <Route path="/admin/product/bulk-upload" element={<BulkUploadPage />} />
-              <Route path="/admin/product/bulk-create-ai" element={<BulkCreateAIPage />} />
-              <Route path="/admin/product/bulk-associate-ai" element={<BulkAssociateAIPage />} />
-              <Route path="/admin/product/bulk-generate-descriptions" element={<BulkGenerateAIDescriptionsPage />} />
-              <Route path="/admin/webhooks" element={<AdminWebhookEventsPage />} />
-              <Route path="/admin/reports" element={<AdminReportsPage />} /> {/* <-- AÑADIDO */}
-            </Route>
+              <Route element={<AdminRoute />}>
+                <Route path="/admin" element={<AdminDashboardPage />} />
+                <Route path="/admin/products" element={<AdminProductsPage />} />
+                <Route path="/admin/orders" element={<AdminOrdersPage />} />
+                <Route path="/admin/coupons" element={<AdminCouponsPage />} />
+                <Route path="/admin/product/new" element={<ProductFormPage />} />
+                <Route path="/admin/product/edit/:productId" element={<ProductFormPage />} />
+                <Route path="/admin/product/bulk-upload" element={<BulkUploadPage />} />
+                <Route path="/admin/product/bulk-create-ai" element={<BulkCreateAIPage />} />
+                <Route path="/admin/product/bulk-associate-ai" element={<BulkAssociateAIPage />} />
+                <Route path="/admin/product/bulk-generate-descriptions" element={<BulkGenerateAIDescriptionsPage />} />
+                <Route path="/admin/webhooks" element={<AdminWebhookEventsPage />} />
+                <Route path="/admin/reports" element={<AdminReportsPage />} />
+              </Route>
 
-            <Route path="/error/500" element={<ServerErrorPage />} />
-            <Route path="*" element={<NotFoundPage />} />
-          </Routes>
-        </Suspense>
+              <Route path="/error/500" element={<ServerErrorPage />} />
+              <Route path="*" element={<NotFoundPage />} />
+            </Routes>
+          </Suspense>
+        </ErrorBoundary>
       </motion.main>
       <Footer />
       
