@@ -360,7 +360,7 @@ export const createPixPayment = async (req, res, next) => {
 
     const orderResult = await dbClient.query(
       'INSERT INTO orders (user_id, total_amount, status, shipping_cost, postal_code, payment_gateway) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, created_at',
-      [userId, total, 'pending', shippingCost, postalCode, 'mercadopago_pix']
+      [userId, total, 'pending_transfer', shippingCost, postalCode, 'mercadopago_pix']
     );
     const order = orderResult.rows[0];
     orderId = order.id;
@@ -398,14 +398,10 @@ export const createPixPayment = async (req, res, next) => {
             id: item.id.toString(),
             title: item.name,
             description: item.description,
-            // --- INICIO DE LA CORRECCIÓN ---
-            // Reemplazamos 'category_id' por 'category_descriptor' para enviar un objeto
-            // con información más genérica y evitar las reglas de exclusión de Mercado Pago.
             category_descriptor: {
                 passenger: {},
                 route: {}
             },
-            // --- FIN DE LA CORRECCIÓN ---
             quantity: item.quantity,
             unit_price: item.price
         })),
@@ -720,3 +716,4 @@ export const cancelOrderByUser = async (req, res, next) => {
       if (dbClient) dbClient.release();
     }
   };
+
